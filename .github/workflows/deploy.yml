@@ -1,0 +1,45 @@
+name: Deploy to Bunny CDN
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+env:
+  STORAGE_ZONE_ID: "1692144"
+  STORAGE_ZONE_NAME: "vanbeirsventures"
+  PULLZONE_ID: "6222553"
+  PREFIX: "clavoris"
+
+jobs:
+  deploy:
+    if: "!contains(github.event.head_commit.message, '[skip deploy]')"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Upload site files to Bunny Storage
+        env:
+          BUNNY_API_KEY: ${{ secrets.BUNNY_API_KEY }}
+        run: |
+          set -euo pipefail
+          SK=$(curl -fsS -H "AccessKey: $BUNNY_API_KEY" "https://api.bunny.net/storagezone/$STORAGE_ZONE_ID" | python3 -c 'import sys,json;print(json.load(sys.stdin)["Password"])')
+          COUNT=0
+          while IFS= read -r -d '' f; do
+            p="${f#./}"
+            case "$p" in
+              .git/*|.github/*|README.md) continue ;;
+            esac
+            echo "PUT $PREFIX/$p"
+            curl -fsS -X PUT -H "AccessKey: $SK" --data-binary "@$f" \
+              "https://storage.bunnycdn.com/$STORAGE_ZONE_NAME/$PREFIX/$p" > /dev/null
+            COUNT=$((COUNT+1))
+          done < <(find . -type f -print0)
+          echo "Uploaded $COUNT files under $PREFIX/"
+
+      - name: Purge CDN cache
+        env:
+          BUNNY_API_KEY: ${{ secrets.BUNNY_API_KEY }}
+        run: |
+          curl -fsS -X POST -H "AccessKey: $BUNNY_API_KEY" "https://api.bunny.net/pullzone/$PULLZONE_ID/purgeCache"
+          echo 'Cache purged.'
