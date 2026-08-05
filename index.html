@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clavoris — Keys to institutional capital</title>
+<link rel="icon" href="assets/clavoris-mark.png">
+<link rel="stylesheet" href="clavoris.css">
+</head>
+<body data-page="home">
+
+  <main data-screen-label="Home">
+    <!-- HERO -->
+    <section class="hero" data-screen-label="Hero">
+      <div class="hero-bg">
+        <div class="hero-fallback"></div>
+        <img class="hero-img" src="assets/hero-woodgrain.jpg" alt="">
+        <div class="hero-tint"></div>
+      </div>
+      <div class="hero-scrim"></div>
+      <div class="hero-inner">
+        <h1 class="hero-title" data-i18n="home_title" data-reveal></h1>
+        <p class="hero-sub" data-i18n="home_sub" data-reveal></p>
+      </div>
+      <div class="scroll-cue">
+        <span data-i18n="home_scroll"></span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M6 13l6 6 6-6"/></svg>
+      </div>
+    </section>
+
+    <!-- LAUNCH COUNTDOWN -->
+    <section class="cd-band" data-screen-label="Launch">
+      <div class="wrap">
+        <div class="countdown countdown--light" id="clCountdown" data-reveal>
+          <div class="cd-label">
+            <span class="cd-rule"></span>
+            <span class="eyebrow" data-i18n="home_cd_label"></span>
+            <span class="cd-rule"></span>
+          </div>
+          <div class="cd-units">
+            <div class="cd-unit"><span class="cd-num mono" data-cd="d">000</span><span class="cd-tag" data-i18n="d_days"></span></div>
+            <div class="cd-unit"><span class="cd-num mono" data-cd="h">00</span><span class="cd-tag" data-i18n="d_hours"></span></div>
+            <div class="cd-unit"><span class="cd-num mono" data-cd="m">00</span><span class="cd-tag" data-i18n="d_mins"></span></div>
+            <div class="cd-unit"><span class="cd-num mono" data-cd="s">00</span><span class="cd-tag" data-i18n="d_secs"></span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PLATFORM -->
+    <section class="section" data-screen-label="Platform">
+      <div class="wrap">
+        <div class="section-head" data-reveal>
+          <div class="lead-rule"><hr class="gold-rule"><span class="eyebrow" data-i18n="home_s1_eyebrow"></span></div>
+          <h2 class="section-title" data-i18n="home_s1_title"></h2>
+          <p class="section-lede" data-i18n="home_s1_lede"></p>
+        </div>
+        <div class="grid cols-3">
+          <div class="card" data-reveal>
+            <span class="card-num">01</span>
+            <h3 class="card-title" data-i18n="home_c1_t"></h3>
+            <p class="card-body" data-i18n="home_c1_b"></p>
+          </div>
+          <div class="card" data-reveal>
+            <span class="card-num">02</span>
+            <h3 class="card-title" data-i18n="home_c2_t"></h3>
+            <p class="card-body" data-i18n="home_c2_b"></p>
+          </div>
+          <div class="card" data-reveal>
+            <span class="card-num">03</span>
+            <h3 class="card-title" data-i18n="home_c3_t"></h3>
+            <p class="card-body" data-i18n="home_c3_b"></p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- METRICS -->
+    <section class="metric-band" data-screen-label="Metrics">
+      <div class="wrap" style="padding-top:clamp(56px,8vw,96px);padding-bottom:clamp(56px,8vw,96px)">
+        <div class="metric-grid">
+          <div class="metric" data-reveal><div class="m-num">T+0</div><div class="m-tag" data-i18n="home_m1_t"></div></div>
+          <div class="metric" data-reveal><div class="m-num">€100K</div><div class="m-tag" data-i18n="home_m2_t"></div></div>
+          <div class="metric" data-reveal><div class="m-num">€350<span class="gold">–</span>500M</div><div class="m-tag" data-i18n="home_m3_t"></div></div>
+          <div class="metric" data-reveal><div class="m-num">AMLD6</div><div class="m-tag" data-i18n="home_m4_t"></div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="cta-band" data-screen-label="CTA">
+      <div class="wrap">
+        <div class="cta-inner" data-reveal>
+          <h2 class="ct-title" data-i18n="home_cta_t"></h2>
+          <a class="btn btn-navy" href="login.html"><span data-i18n="cta_access"></span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          </a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <template id="__bundler_thumbnail">
+    <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+      <rect width="100" height="100" fill="#1A3A5C"/>
+      <circle cx="50" cy="42" r="20" fill="none" stroke="#F7F3EC" stroke-width="3"/>
+      <circle cx="50" cy="38" r="7" fill="none" stroke="#F7F3EC" stroke-width="3"/>
+      <circle cx="50" cy="38" r="2.6" fill="#B8860B"/>
+      <path d="M50 45v14M50 55h6" stroke="#F7F3EC" stroke-width="3" stroke-linecap="round"/>
+      <text x="50" y="78" text-anchor="middle" font-family="Georgia,serif" font-size="13" fill="#F7F3EC">Clavori<tspan fill="#B8860B" font-style="italic">s</tspan></text>
+    </svg>
+  </template>
+
+  <script src="i18n.js"></script>
+  <script src="i18n2.js"></script>
+  <script src="i18n-legal.js"></script>
+  <script src="site.js"></script>
+</body>
+</html>
