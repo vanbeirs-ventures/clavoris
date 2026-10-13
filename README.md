@@ -28,3 +28,10 @@ and need manual cleanup.
   the site lives in a subfolder; update them when the site moves to its own
   domain (`clavoris.eu`).
 - The login page is front-end only.
+
+## Design source
+
+`design/` holds the shared design tokens (`tokens.css`, `tokens.json`), an
+agent skill (`SKILL.md`) and the reference investor-portal UI (`design/portal/`).
+The website at the repo root and the portal app both read their colours, type
+and spacing from there. `design/` is excluded from the CDN deploy.

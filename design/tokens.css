@@ -1,0 +1,234 @@
+/* ============================================================
+   CLAVORIS — Colours & Type Foundation
+   Institutional Capital Platform · Brand Guidelines v1.0
+   Import this file to inherit the full token system.
+   ============================================================ */
+
+/* ---------- FONT FACES ---------- */
+@font-face {
+  font-family: "EB Garamond";
+  src: url("../fonts/EBGaramond-Variable.woff2") format("woff2");
+  font-weight: 400 800;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "EB Garamond";
+  src: url("../fonts/EBGaramond-Italic-Variable.woff2") format("woff2");
+  font-weight: 400 800;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face { font-family: "Poppins"; src: url("../fonts/Poppins-300.woff2") format("woff2"); font-weight: 300; font-style: normal; font-display: swap; }
+@font-face { font-family: "Poppins"; src: url("../fonts/Poppins-400.woff2") format("woff2"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "Poppins"; src: url("../fonts/Poppins-500.woff2") format("woff2"); font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: "Poppins"; src: url("../fonts/Poppins-600.woff2") format("woff2"); font-weight: 600; font-style: normal; font-display: swap; }
+@font-face { font-family: "Poppins"; src: url("../fonts/Poppins-700.woff2") format("woff2"); font-weight: 700; font-style: normal; font-display: swap; }
+
+:root {
+  /* ============================================================
+     COLOUR — PRIMARY PALETTE
+     Navy is always dominant. Gold never exceeds ~15%.
+     ============================================================ */
+  --clavis-navy:   #1A3A5C;   /* Dominant. Authority, privacy, depth. Pantone 295 C */
+  --seal-gold:     #B8860B;   /* Prestige accent. Precision use only. Pantone 7556 C */
+  --parchment:     #F7F3EC;   /* Background warmth. Replaces pure white in print */
+
+  /* COLOUR — SECONDARY PALETTE */
+  --slate:         #4A5568;   /* Supporting UI text and meta labels */
+  --gold-light:    #D4A82A;   /* Digital accent, hover states on dark */
+  --ink:           #1A1A2E;   /* Max-contrast body text on light bg */
+  --rule:          #D8D0C4;   /* Table rules, dividers, borders */
+  --parch-dark:    #EDE7DA;   /* Header bands, alternate rows */
+
+  /* Derived / functional steps */
+  --navy-900:      #122A44;   /* Deepest navy — overlays, deep panels */
+  --navy-700:      #1A3A5C;   /* = clavis navy */
+  --navy-500:      #2E5279;   /* Lifted navy — hover on navy surfaces */
+  --navy-300:      #6E83A0;   /* Muted navy — disabled, captions on light */
+  --parch-100:     #FBF9F4;   /* Lightest surface — cards on parchment */
+  --white-paper:   #FFFFFF;   /* Pure white — screens only, never print */
+
+  /* Semantic status (institutional, restrained) */
+  --status-verified: #2F6E4F; /* KYC verified, settled, success */
+  --status-pending:  #B8860B; /* Awaiting action — uses seal gold */
+  --status-alert:    #9B2C2C; /* Failed settlement, risk flag */
+  --status-info:     #2E5279; /* Neutral informational */
+  --verified-bg:     #E8F0EA;
+  --pending-bg:      #F6EFD9;
+  --alert-bg:        #F6E9E8;
+
+  /* ============================================================
+     SEMANTIC FOREGROUND / BACKGROUND
+     ============================================================ */
+  --fg-1: var(--ink);        /* Primary body text on light */
+  --fg-2: var(--slate);      /* Secondary text, meta labels */
+  --fg-3: var(--navy-300);   /* Tertiary, captions, placeholders */
+  --fg-on-navy:   #F7F3EC;   /* Text on navy surfaces */
+  --fg-on-navy-2: #B9C6D6;   /* Secondary text on navy */
+  --accent:       var(--seal-gold);
+  --accent-hover: var(--gold-light);
+
+  --bg-page:    var(--parchment);
+  --bg-surface: var(--parch-100);
+  --bg-raised:  var(--white-paper);
+  --bg-navy:    var(--clavis-navy);
+  --bg-navy-deep: var(--navy-900);
+  --bg-band:    var(--parch-dark);
+  --border:     var(--rule);
+  --border-strong: #C4B9A6;
+
+  /* ============================================================
+     TYPE — FAMILIES
+     ============================================================ */
+  --font-display: "EB Garamond", "Garamond", Georgia, serif;   /* Headlines, wordmark, instrument names */
+  --font-ui:      "Poppins", "Helvetica Neue", Arial, sans-serif; /* Body, labels, UI, disclosures */
+  --font-data:    "Courier New", "Courier", ui-monospace, monospace; /* ISINs, figures, hashes, dates */
+
+  /* TYPE — WEIGHTS */
+  --w-light: 300;
+  --w-regular: 400;
+  --w-medium: 500;
+  --w-semibold: 600;
+  --w-bold: 700;
+
+  /* ============================================================
+     TYPE SCALE  (digital — px)
+     Mirrors the print scale (Display 20pt … Caption 7.5pt)
+     scaled to comfortable screen sizes.
+     ============================================================ */
+  --t-display: 44px;  /* Hero / cover headline */
+  --t-h1:      32px;  /* Page headline, instrument name */
+  --t-h2:      23px;  /* Section header, module title */
+  --t-h3:      16px;  /* Card title, field group label */
+  --t-body:    15px;  /* Running body text */
+  --t-sm:      13px;  /* Dense UI, table cells */
+  --t-label:   11.5px;/* Eyebrow labels (uppercase, tracked) */
+  --t-caption: 11px;  /* Footnotes, legal attributions */
+
+  --lh-tight: 1.12;
+  --lh-snug:  1.3;
+  --lh-body:  1.55;
+  --lh-loose: 1.7;
+
+  --track-label: 0.14em;  /* Uppercase eyebrow tracking */
+  --track-wide:  0.06em;
+  --track-tight: -0.01em;
+
+  /* ============================================================
+     SPACING — 4px base unit
+     ============================================================ */
+  --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px; --sp-4: 16px;
+  --sp-5: 20px; --sp-6: 24px; --sp-8: 32px; --sp-10: 40px;
+  --sp-12: 48px; --sp-16: 64px; --sp-20: 80px; --sp-24: 96px;
+
+  /* RADII — restrained, institutional. 4mm card corner is the brand max. */
+  --r-xs: 2px;   --r-sm: 4px;   --r-md: 6px;   --r-lg: 10px;
+  --r-pill: 999px;
+
+  /* BORDERS */
+  --bw-hair: 1px;
+  --bw-rule: 1.5px;     /* Gold accent rule weight */
+  --bw-key:  3px;       /* Left gold rule on letterhead/slides */
+
+  /* ELEVATION — soft, low, navy-tinted. Never heavy. */
+  --shadow-xs: 0 1px 2px rgba(18,42,68,0.06);
+  --shadow-sm: 0 1px 3px rgba(18,42,68,0.08), 0 1px 2px rgba(18,42,68,0.04);
+  --shadow-md: 0 4px 12px rgba(18,42,68,0.08), 0 1px 3px rgba(18,42,68,0.05);
+  --shadow-lg: 0 12px 32px rgba(18,42,68,0.12), 0 4px 8px rgba(18,42,68,0.06);
+  --shadow-navy: 0 16px 40px rgba(18,42,68,0.28);
+
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur: 180ms;
+  --dur-slow: 320ms;
+}
+
+/* ============================================================
+   SEMANTIC ELEMENT STYLES
+   Apply these classes (or copy the rules) for consistent type.
+   ============================================================ */
+.cl-display {
+  font-family: var(--font-display);
+  font-weight: var(--w-regular);
+  font-size: var(--t-display);
+  line-height: var(--lh-tight);
+  letter-spacing: var(--track-tight);
+  color: var(--clavis-navy);
+}
+.cl-h1 {
+  font-family: var(--font-display);
+  font-weight: var(--w-regular);
+  font-size: var(--t-h1);
+  line-height: var(--lh-snug);
+  color: var(--clavis-navy);
+}
+.cl-h2 {
+  font-family: var(--font-display);
+  font-weight: var(--w-medium);
+  font-size: var(--t-h2);
+  line-height: var(--lh-snug);
+  color: var(--clavis-navy);
+}
+.cl-h3 {
+  font-family: var(--font-ui);
+  font-weight: var(--w-semibold);
+  font-size: var(--t-h3);
+  line-height: var(--lh-snug);
+  color: var(--clavis-navy);
+}
+.cl-eyebrow {
+  font-family: var(--font-ui);
+  font-weight: var(--w-semibold);
+  font-size: var(--t-label);
+  text-transform: uppercase;
+  letter-spacing: var(--track-label);
+  color: var(--seal-gold);
+}
+.cl-body {
+  font-family: var(--font-ui);
+  font-weight: var(--w-regular);
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  color: var(--fg-1);
+}
+.cl-label {
+  font-family: var(--font-ui);
+  font-weight: var(--w-medium);
+  font-size: var(--t-sm);
+  color: var(--fg-2);
+}
+.cl-caption {
+  font-family: var(--font-ui);
+  font-weight: var(--w-regular);
+  font-size: var(--t-caption);
+  line-height: var(--lh-snug);
+  color: var(--fg-3);
+}
+/* DATA — every financial figure renders monospace. Signals integrity. */
+.cl-data {
+  font-family: var(--font-data);
+  font-weight: var(--w-regular);
+  font-size: var(--t-sm);
+  letter-spacing: 0.01em;
+  color: var(--fg-1);
+  font-variant-numeric: tabular-nums;
+}
+.cl-data-lg {
+  font-family: var(--font-data);
+  font-size: var(--t-h1);
+  letter-spacing: -0.01em;
+  color: var(--clavis-navy);
+  font-variant-numeric: tabular-nums;
+}
+/* The wordmark device: gold italic final letter */
+.cl-wordmark {
+  font-family: var(--font-display);
+  font-weight: var(--w-regular);
+  color: var(--clavis-navy);
+  letter-spacing: 0.01em;
+}
+.cl-wordmark .gold-s {
+  color: var(--seal-gold);
+  font-style: italic;
+}
