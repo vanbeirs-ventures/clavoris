@@ -6,7 +6,7 @@
 <meta name="robots" content="noindex">
 <title>Admin — Clavoris</title>
 <link rel="icon" href="../assets/clavoris-mark.png">
-<link rel="stylesheet" href="app.css?v=20261013h">
+<link rel="stylesheet" href="app.css?v=20261013j">
 <script>document.documentElement.classList.add('clv-checking');</script>
 </head>
 <body data-clv-restrict="admin">
@@ -27,10 +27,22 @@
     </div>
 
     <div class="card tbl-wrap" style="margin-top:28px">
-      <table class="tbl"><thead><tr><th>User</th><th>Company</th><th>Role</th><th>Status</th><th>Last login</th><th>Created</th><th></th></tr></thead>
-      <tbody id="rows"><tr><td colspan="7" style="color:var(--fg-3)">Loading…</td></tr></tbody></table>
+      <table class="tbl"><thead><tr><th>User</th><th>Company</th><th>Role</th><th>Status</th><th>Features</th><th>Last login</th><th>Created</th><th></th></tr></thead>
+      <tbody id="rows"><tr><td colspan="8" style="color:var(--fg-3)">Loading…</td></tr></tbody></table>
     </div>
     <p class="msg err" id="listErr"></p>
+
+    <h2 style="font-family:var(--font-display);font-size:24px;color:var(--clavis-navy);margin-top:44px" id="market">Marketplace</h2>
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px">
+      <p class="page-sub" style="margin-top:4px">Financial products offered at emission or traded between owners. The investor counters serve the private placement file: <b>assessed</b> = distinct investors who opened the full documentation or downloaded a document; <b>viewed</b> = opened the product page; <b>holders</b> = current owners. Set the ceiling per product (e.g. 150 non-qualified investors per member state under art. 1(4)(b) Prospectus Regulation) to be warned when it is approached.</p>
+      <button class="btn btn-primary" id="newProduct" type="button">+ New product</button>
+    </div>
+    <div class="card tbl-wrap" style="margin-top:14px">
+      <table class="tbl"><thead><tr><th>Product</th><th>Issuer</th><th>Status</th><th>Terms</th><th>Subscribed</th><th>Investors (viewed · assessed · holders)</th><th>To do</th><th></th></tr></thead>
+      <tbody id="prodRows"><tr><td colspan="8" style="color:var(--fg-3)">Loading…</td></tr></tbody></table>
+    </div>
+    <p class="msg err" id="prodErr"></p>
+    <div id="prodDetail" style="margin-top:14px"></div>
 
     <h2 style="font-family:var(--font-display);font-size:24px;color:var(--clavis-navy);margin-top:44px">Data rooms</h2>
     <p class="page-sub" style="margin-top:4px">Invite by email address: the user is enrolled if new, receives an invitation to set a passphrase, completes KYC, signs the room NDA and gets access. Documents are read from the room's Nextcloud folder.</p>
@@ -42,7 +54,7 @@
     <div id="rooms" style="margin-top:14px"></div>
     <p class="msg err" id="roomsErr"></p>
   </main>
-  <footer class="app-foot"><span>Clavoris · Institutional Capital Platform</span><span class="loc">Antwerp · Luxembourg · Nordic · CSSF · FSMA · MiCA</span></footer>
+  <footer class="app-foot"><span data-i18n="footer.tag">Clavoris · Private Investment Enablement Platform</span><span class="loc" data-i18n="footer.loc">Antwerp · Luxembourg · Nordic · CSSF · FSMA · MiCA</span></footer>
 </div>
 
 <!-- New user -->
@@ -55,8 +67,13 @@
       <div class="field"><label for="nCompany">Company / entity</label><input id="nCompany" type="text"></div>
       <div class="field"><label for="nRole">Role</label>
         <select id="nRole"><option value="user">Investor (user)</option><option value="admin">Admin (super-admin only)</option></select></div>
-      <div class="field"><label for="nLang">Language</label>
-        <select id="nLang"><option value="en">English</option><option value="nl">Nederlands</option><option value="fr">Français</option><option value="de">Deutsch</option><option value="es">Español</option><option value="it">Italiano</option></select></div>
+      <div class="field"><label for="nLang">Language (login page, e-mails and application)</label>
+        <select id="nLang"><option value="en">English</option><option value="nl">Nederlands</option><option value="fr">Français</option></select></div>
+      <div class="field" id="nFeat"><label>Features</label>
+        <label class="check" style="margin-top:6px"><input type="checkbox" id="nfMarket"><span>Marketplace — may consult investment products and subscribe at emission</span></label>
+        <label class="check" style="margin-top:6px"><input type="checkbox" id="nfTrading"><span>Secondary trading — may list holdings for sale and buy from other owners</span></label>
+        <div id="nfProducts" style="margin-top:10px"></div>
+      </div>
       <p class="msg" id="nMsg" role="status"></p>
       <button class="btn btn-primary btn-block" type="submit" id="nBtn">Create and send invitation</button>
     </form>
@@ -68,9 +85,9 @@
   <div class="modal" role="dialog" aria-labelledby="imTitle">
     <div class="modal-head"><div><div class="e">Data room</div><div class="t" id="imTitle">Invite</div></div><button type="button" id="imClose" aria-label="Close">×</button></div>
     <form class="modal-body" id="invForm" autocomplete="off" onsubmit="return false;">
-      <div class="field" style="margin-top:0"><label for="iEmail">Email address</label><input id="iEmail" type="email"></div>
-      <div class="field"><label for="iName">Full name (new users)</label><input id="iName" type="text"></div>
-      <div class="field"><label for="iCompany">Organisation (new users)</label><input id="iCompany" type="text"></div>
+      <div class="field" style="margin-top:0"><label for="iEmail">Email address</label><input id="iEmail" type="email" autocomplete="off"><span class="hint">New users receive an activation link and complete their own profile; existing users of our platforms sign in with their usual passphrase.</span></div>
+      <div class="field"><label for="iLang">Language (login page, e-mails and application)</label>
+        <select id="iLang"><option value="en">English</option><option value="nl">Nederlands</option><option value="fr">Français</option></select></div>
       <p class="msg" id="iMsg" role="status"></p>
       <button class="btn btn-primary btn-block" type="submit" id="iBtn">Send invitation</button>
     </form>
@@ -86,6 +103,11 @@
         <select id="eRole"><option value="user">Investor (user)</option><option value="admin">Admin</option><option value="super">Super-admin</option></select></div>
       <div class="field"><label for="eStatus">Status</label>
         <select id="eStatus"><option value="registered">registered</option><option value="kyc_pending">kyc_pending</option><option value="kyc_retry">kyc_retry</option><option value="verified">verified</option><option value="rejected">rejected</option><option value="suspended">suspended</option></select></div>
+      <div class="field" id="eFeat"><label>Features</label>
+        <label class="check" style="margin-top:6px"><input type="checkbox" id="efMarket"><span>Marketplace</span></label>
+        <label class="check" style="margin-top:6px"><input type="checkbox" id="efTrading"><span>Secondary trading</span></label>
+        <div id="efProducts" style="margin-top:10px"></div>
+      </div>
       <p class="msg" id="eMsg" role="status"></p>
       <div style="display:flex;gap:10px;margin-top:8px">
         <button class="btn btn-ghost" type="button" id="eReset" style="flex:1">Send passphrase reset</button>
@@ -95,17 +117,71 @@
   </div>
 </div>
 
-<script src="config.js?v=20261013h"></script>
+<!-- Product -->
+<div class="scrim" id="prodModal" hidden>
+  <div class="modal modal-wide" role="dialog" aria-labelledby="pmTitle">
+    <div class="modal-head"><div><div class="e">Marketplace</div><div class="t" id="pmTitle">New product</div></div><button type="button" id="pmClose" aria-label="Close">×</button></div>
+    <form class="modal-body" id="prodForm" autocomplete="off" onsubmit="return false;">
+      <input type="hidden" id="pId">
+      <div class="g3">
+        <div class="field" style="margin-top:0"><label for="pCode">Code</label><input id="pCode" type="text" class="mono" placeholder="VBF-2026-A"></div>
+        <div class="field" style="margin-top:0"><label for="pType">Type</label><select id="pType"><option value="private_bond">Private bond</option><option value="sicav_share">SICAV-RAIF share class</option><option value="note">Note</option><option value="other">Other</option></select></div>
+        <div class="field" style="margin-top:0"><label for="pStatus">Status</label><select id="pStatus"><option value="upcoming">Upcoming</option><option value="open">Open for subscription</option><option value="closed">Subscription closed</option><option value="matured">Matured</option><option value="cancelled">Cancelled</option></select></div>
+      </div>
+      <div class="field"><label for="pName">Name</label><input id="pName" type="text"></div>
+      <div class="g3">
+        <div class="field"><label for="pIssuer">Issuer</label><input id="pIssuer" type="text"></div>
+        <div class="field"><label for="pIssuerId">Issuer registration / LEI</label><input id="pIssuerId" type="text" class="mono"></div>
+        <div class="field"><label for="pIssuerCountry">Issuer country (ISO-2)</label><input id="pIssuerCountry" type="text" maxlength="2" class="mono"></div>
+      </div>
+      <div class="field"><label for="pIssuerDesc">Issuer description</label><textarea id="pIssuerDesc" rows="2"></textarea></div>
+      <div class="g3">
+        <div class="field"><label for="pIsin">ISIN</label><input id="pIsin" type="text" class="mono"></div>
+        <div class="field"><label for="pCcy">Currency</label><input id="pCcy" type="text" value="EUR" maxlength="3" class="mono"></div>
+        <div class="field"><label for="pNominal">Nominal per unit</label><input id="pNominal" type="number" step="0.01" value="1000" class="mono"></div>
+        <div class="field"><label for="pMin">Minimum units</label><input id="pMin" type="number" step="1" value="1" class="mono"></div>
+        <div class="field"><label for="pTotal">Issue size (units, blank = uncapped)</label><input id="pTotal" type="number" step="1" class="mono"></div>
+        <div class="field"><label for="pMaxInv">Investor ceiling (prospectus exemption)</label><input id="pMaxInv" type="number" step="1" placeholder="150" class="mono"></div>
+        <div class="field"><label for="pRate">Coupon rate (% p.a.)</label><input id="pRate" type="number" step="0.0001" class="mono"></div>
+        <div class="field"><label for="pFreq">Coupon frequency</label><select id="pFreq"><option value="annual">Annual</option><option value="semi">Semi-annual</option><option value="quarterly">Quarterly</option><option value="monthly">Monthly</option><option value="none">No coupon</option></select></div>
+        <div class="field"><label for="pIssue">Issue date</label><input id="pIssue" type="date" class="mono"></div>
+        <div class="field"><label for="pFirst">First coupon date</label><input id="pFirst" type="date" class="mono"></div>
+        <div class="field"><label for="pMaturity">Maturity date</label><input id="pMaturity" type="date" class="mono"></div>
+        <div class="field"><label for="pOpens">Subscription opens</label><input id="pOpens" type="date" class="mono"></div>
+        <div class="field"><label for="pCloses">Subscription closes</label><input id="pCloses" type="date" class="mono"></div>
+      </div>
+      <div class="field"><label for="pHighlights">Highlights (one per line)</label><textarea id="pHighlights" rows="3"></textarea></div>
+      <div class="field"><label for="pDesc">Description</label><textarea id="pDesc" rows="4"></textarea></div>
+      <div class="field"><label for="pFolder">Documentation folder on Nextcloud (relative to the connected account root)</label><input id="pFolder" type="text" class="mono" placeholder="Documents/Clavoris/Products/VBF-2026-A"></div>
+      <label class="check"><input type="checkbox" id="pSecondary"><span>Secondary trading enabled — owners with the trading feature may list units; other entitled investors may buy.</span></label>
+      <p class="msg" id="pMsg" role="status"></p>
+      <button class="btn btn-primary btn-block" type="submit" id="pBtn">Save product</button>
+    </form>
+  </div>
+</div>
+
+<script src="config.js?v=20261013j"></script>
+<script src="i18n.js?v=20261013j"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="clavoris-access.js?v=20261013h"></script>
-<script src="shell.js?v=20261013h"></script>
+<script src="clavoris-access.js?v=20261013j"></script>
+<script src="shell.js?v=20261013j"></script>
 <script>
 (function () {
   'use strict';
   var A = window.ClavorisAccess, S = window.ClavorisShell, esc = S.esc;
   function q(id) { return document.getElementById(id); }
   function fmt(ts) { if (!ts) return '—'; try { return new Date(ts).toLocaleDateString('en-GB', { year: 'numeric', month: 'short', day: 'numeric' }); } catch (e) { return String(ts).slice(0, 10); } }
-  var users = [], current = null;
+  var users = [], current = null, products = [];
+  function featChips(f) { f = f || {}; if (!f.market && !f.trading) return '<span style="color:var(--fg-3)">—</span>'; return (f.market ? '<span class="chip info">market' + (Array.isArray(f.products) ? ' · ' + f.products.length : '') + '</span> ' : '') + (f.trading ? '<span class="chip info">trading</span>' : ''); }
+  function productPicker(el, selected) {
+    var all = !Array.isArray(selected);
+    el.innerHTML = '<label class="check" style="margin-top:0"><input type="radio" name="' + el.id + 'r" value="all"' + (all ? ' checked' : '') + '><span>All products</span></label>'
+      + '<label class="check" style="margin-top:6px"><input type="radio" name="' + el.id + 'r" value="some"' + (all ? '' : ' checked') + '><span>Only the selected products</span></label>'
+      + '<div class="picklist" data-pick' + (all ? ' hidden' : '') + '>' + (products.length ? products.map(function (p) { return '<label class="check" style="margin-top:4px"><input type="checkbox" value="' + esc(p.id) + '"' + (!all && selected.indexOf(p.id) >= 0 ? ' checked' : '') + '><span>' + esc(p.code) + ' · ' + esc(p.name) + '</span></label>'; }).join('') : '<span class="hint">No products yet.</span>') + '</div>';
+    [].forEach.call(el.querySelectorAll('input[type=radio]'), function (r) { r.addEventListener('change', function () { el.querySelector('[data-pick]').hidden = el.querySelector('input[type=radio]:checked').value === 'all'; }); });
+  }
+  function pickedProducts(el) { if (el.querySelector('input[type=radio]:checked').value === 'all') return null; return [].map.call(el.querySelectorAll('[data-pick] input:checked'), function (c) { return c.value; }); }
+  function readFeatures(prefix) { var m = q(prefix + 'fMarket').checked, t = q(prefix + 'fTrading').checked; return { market: m, trading: m && t, products: m ? pickedProducts(q(prefix + 'fProducts')) : null }; }
 
   function load() {
     A.callFn('clv-admin-list', {}).then(function (r) {
@@ -120,10 +196,11 @@
           + '<td>' + esc(u.company || '—') + '</td>'
           + '<td><span class="chip ' + esc(u.role) + '">' + esc(u.role) + '</span></td>'
           + '<td><span class="chip ' + esc(u.status) + '">' + esc(u.status.replace('_', ' ')) + '</span></td>'
+          + '<td>' + (u.role === 'user' ? featChips(u.features) : '<span style="color:var(--fg-3)">staff</span>') + '</td>'
           + '<td class="mono" style="color:var(--fg-2)">' + esc(fmt(u.last_login_at)) + '</td>'
           + '<td class="mono" style="color:var(--fg-2)">' + esc(fmt(u.created_at)) + '</td>'
           + '<td><button class="btn-text" data-edit="' + esc(u.id) + '" type="button">Edit</button></td></tr>';
-      }).join('') : '<tr><td colspan="7" style="color:var(--fg-3)">No users yet.</td></tr>';
+      }).join('') : '<tr><td colspan="8" style="color:var(--fg-3)">No users yet.</td></tr>';
       [].forEach.call(document.querySelectorAll('[data-edit]'), function (b) { b.addEventListener('click', function () { openEdit(b.getAttribute('data-edit')); }); });
     });
   }
@@ -133,6 +210,7 @@
     q('emTitle').textContent = current.full_name || current.email;
     q('eRole').value = current.role; q('eStatus').value = current.status;
     q('eRole').disabled = !A.isSuper() && (current.role !== 'user'); // only super may touch staff roles
+    var f = current.features || {}; q('eFeat').hidden = current.role !== 'user'; q('efMarket').checked = !!f.market; q('efTrading').checked = !!f.trading; productPicker(q('efProducts'), f.products);
     q('eMsg').className = 'msg'; q('eMsg').textContent = '';
     if (current.id === A.user().id) { q('eMsg').className = 'msg'; q('eMsg').textContent = 'This is your own account: role and status cannot be changed from here.'; }
     q('newModal').hidden = true; q('editModal').hidden = false;
@@ -140,7 +218,7 @@
   q('emClose').addEventListener('click', function () { q('editModal').hidden = true; });
   q('editForm').addEventListener('submit', function () {
     var m = q('eMsg'); m.className = 'msg'; m.textContent = ''; q('eBtn').disabled = true;
-    A.callFn('clv-admin-set-role', { id: current.id, role: q('eRole').value, status: q('eStatus').value }).then(function (r) {
+    A.callFn('clv-admin-set-role', { id: current.id, role: current.id === A.user().id ? undefined : q('eRole').value, status: current.id === A.user().id ? undefined : q('eStatus').value, features: current.role === 'user' ? readFeatures('e') : undefined }).then(function (r) {
       q('eBtn').disabled = false;
       if (r.error) {
         m.className = 'msg err';
@@ -158,7 +236,7 @@
     A.requestPasswordReset(current.email).then(function (r) { m.className = r.ok ? 'msg ok' : 'msg err'; m.textContent = r.ok ? 'Recovery link sent to ' + current.email + '.' : 'Could not send the link.'; });
   });
 
-  q('newUser').addEventListener('click', function () { q('newForm').reset(); q('nMsg').className = 'msg'; q('nMsg').textContent = ''; q('editModal').hidden = true; q('newModal').hidden = false; });
+  q('newUser').addEventListener('click', function () { q('newForm').reset(); productPicker(q('nfProducts'), null); q('nMsg').className = 'msg'; q('nMsg').textContent = ''; q('editModal').hidden = true; q('newModal').hidden = false; });
   q('nmClose').addEventListener('click', function () { q('newModal').hidden = true; });
   q('newForm').addEventListener('submit', function () {
     var m = q('nMsg'); m.className = 'msg'; m.textContent = '';
@@ -166,10 +244,10 @@
     if (!name) { m.className = 'msg err'; m.textContent = 'Enter a name.'; return; }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { m.className = 'msg err'; m.textContent = 'Enter a valid email.'; return; }
     q('nBtn').disabled = true;
-    A.callFn('clv-admin-create-user', { name: name, email: email, company: q('nCompany').value.trim(), role: q('nRole').value, lang: q('nLang').value }).then(function (r) {
+    A.callFn('clv-admin-create-user', { name: name, email: email, company: q('nCompany').value.trim(), role: q('nRole').value, lang: q('nLang').value, features: readFeatures('n') }).then(function (r) {
       q('nBtn').disabled = false;
       if (r.error) { m.className = 'msg err'; m.textContent = r.error === 'email-taken' ? 'This email is already enrolled.' : r.error === 'super-only' ? 'Only the super-admin can create admins.' : r.error; return; }
-      m.className = 'msg ok'; m.textContent = 'Created. ' + (r.invited ? 'An invitation with a one-time passphrase has been emailed.' : 'One-time passphrase: ' + r.password + ' (email not configured).');
+      m.className = 'msg ok'; m.textContent = (r.linked ? 'Existing platform user enrolled on Clavoris. ' : 'Created. ') + (r.invited ? 'An activation link has been emailed.' : 'The invitation email could not be sent — use "Send passphrase reset" on the user.');
       load();
     });
   });
@@ -222,10 +300,10 @@
     var email = q('iEmail').value.trim();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { m.className = 'msg err'; m.textContent = 'Enter a valid email.'; return; }
     q('iBtn').disabled = true;
-    A.callFn('clv-admin-rooms', { action: 'invite', room_id: invRoom.id, email: email, name: q('iName').value.trim(), company: q('iCompany').value.trim() }).then(function (r) {
+    A.callFn('clv-admin-rooms', { action: 'invite', room_id: invRoom.id, email: email, lang: q('iLang').value }).then(function (r) {
       q('iBtn').disabled = false;
       if (r.error) { m.className = 'msg err'; m.textContent = r.error === 'user-blocked' ? 'This user is suspended or rejected.' : r.error; return; }
-      m.className = 'msg ok'; m.textContent = (r.created ? 'Enrolled and invited. ' : 'Access granted. ') + (r.mailed ? 'Invitation emailed.' : 'The email could not be sent — check the mail configuration.');
+      m.className = 'msg ok'; m.textContent = (r.created ? 'Enrolled and invited. ' : r.linked ? 'Existing platform user enrolled on Clavoris and invited. ' : 'Access granted. ') + (r.mailed ? 'Invitation emailed.' : 'The email could not be sent — check the mail configuration.');
       loadRooms(); load();
     });
   });
@@ -262,7 +340,100 @@
   });
   q('ncDisconnect').addEventListener('click', function () { A.callFn('clv-nc-connect', { action: 'disconnect' }).then(function () { q('ncConnect').textContent = 'Connect Nextcloud'; ncStatus(); }); });
 
-  A.ready(function () { if (!A.clears('admin')) return; S.render('admin'); load(); loadRooms(); ncStatus(); });
+  /* ---- marketplace ---- */
+  var PSTAT = { upcoming: 'neutral', open: 'verified', closed: 'pending', matured: 'neutral', cancelled: 'rejected' };
+  function money(n, c) { return S.fmtMoney(n, c); }
+  function loadProducts() {
+    A.callFn('clv-market', { action: 'admin_list' }).then(function (r) {
+      if (r.error) { q('prodErr').textContent = 'Could not load products (' + r.error + ').'; return; }
+      products = r.products || [];
+      q('prodRows').innerHTML = products.length ? products.map(function (p) {
+        var warn = p.max_investors && p.assessed >= Math.floor(Number(p.max_investors) * 0.8);
+        var todo = [];
+        if (p.subs_requested) todo.push(p.subs_requested + ' subscription(s) to review');
+        if (p.trades_to_settle) todo.push(p.trades_to_settle + ' trade(s) to settle');
+        return '<tr><td><div style="font-weight:500;color:var(--clavis-navy)">' + esc(p.name) + '</div><div class="mono" style="font-size:11px;color:var(--fg-3);margin-top:3px">' + esc(p.code) + (p.isin ? ' · ' + esc(p.isin) : '') + '</div></td>'
+          + '<td>' + esc(p.issuer_name) + '</td><td><span class="chip ' + (PSTAT[p.status] || 'neutral') + '">' + esc(p.status) + '</span>' + (p.secondary_enabled ? ' <span class="chip info">secondary</span>' : '') + '</td>'
+          + '<td style="font-size:12.5px">' + (p.coupon_rate != null ? esc(Number(p.coupon_rate).toFixed(2)) + ' % ' + esc(p.coupon_frequency) : '—') + '<br><span class="mono" style="color:var(--fg-3);font-size:11px">' + esc(money(p.nominal, p.currency)) + ' · ' + esc(p.maturity_date || '—') + '</span></td>'
+          + '<td class="mono">' + p.units_subscribed + (p.total_units ? ' / ' + p.total_units : '') + '</td>'
+          + '<td class="mono">' + p.viewed + ' · <b' + (warn ? ' style="color:#B83A3A"' : '') + '>' + p.assessed + '</b> · ' + p.holders + (p.max_investors ? ' <span style="color:var(--fg-3)">/ ' + p.max_investors + '</span>' : '') + '</td>'
+          + '<td style="font-size:12px;color:' + (todo.length ? 'var(--seal-gold)' : 'var(--fg-3)') + '">' + (todo.join('<br>') || '—') + '</td>'
+          + '<td style="white-space:nowrap"><button class="btn-text" type="button" data-pedit="' + esc(p.id) + '">Edit</button> <button class="btn-text" type="button" data-pdetail="' + esc(p.id) + '">Detail</button> <a class="btn-text" href="product.html?id=' + esc(p.id) + '">Open</a></td></tr>';
+      }).join('') : '<tr><td colspan="8" style="color:var(--fg-3)">No products yet.</td></tr>';
+      [].forEach.call(document.querySelectorAll('[data-pedit]'), function (b) { b.addEventListener('click', function () { openProduct(b.getAttribute('data-pedit')); }); });
+      [].forEach.call(document.querySelectorAll('[data-pdetail]'), function (b) { b.addEventListener('click', function () { loadDetail(b.getAttribute('data-pdetail')); }); });
+    });
+  }
+  var PF = { pCode: 'code', pType: 'type', pStatus: 'status', pName: 'name', pIssuer: 'issuer_name', pIssuerId: 'issuer_id', pIssuerCountry: 'issuer_country', pIssuerDesc: 'issuer_description', pIsin: 'isin', pCcy: 'currency', pNominal: 'nominal', pMin: 'min_units', pTotal: 'total_units', pMaxInv: 'max_investors', pRate: 'coupon_rate', pFreq: 'coupon_frequency', pIssue: 'issue_date', pFirst: 'first_coupon_date', pMaturity: 'maturity_date', pOpens: 'subscription_opens', pCloses: 'subscription_closes', pHighlights: 'highlights', pDesc: 'description', pFolder: 'nextcloud_folder' };
+  function openProduct(id) {
+    var p = id ? products.filter(function (x) { return x.id === id; })[0] : null;
+    q('prodForm').reset(); q('pId').value = p ? p.id : ''; q('pmTitle').textContent = p ? p.code + ' · ' + p.name : 'New product';
+    if (p) Object.keys(PF).forEach(function (k) { q(k).value = p[PF[k]] == null ? '' : p[PF[k]]; });
+    q('pSecondary').checked = !!(p && p.secondary_enabled);
+    q('pMsg').className = 'msg'; q('pMsg').textContent = '';
+    q('newModal').hidden = true; q('editModal').hidden = true; q('invModal').hidden = true; q('prodModal').hidden = false;
+  }
+  q('newProduct').addEventListener('click', function () { openProduct(null); });
+  q('pmClose').addEventListener('click', function () { q('prodModal').hidden = true; });
+  q('prodForm').addEventListener('submit', function () {
+    var m = q('pMsg'); m.className = 'msg'; m.textContent = ''; q('pBtn').disabled = true;
+    var row = { id: q('pId').value || undefined, secondary_enabled: q('pSecondary').checked };
+    Object.keys(PF).forEach(function (k) { row[PF[k]] = q(k).value; });
+    A.callFn('clv-market', { action: 'admin_save', product: row }).then(function (r) {
+      q('pBtn').disabled = false;
+      if (r.error) { m.className = 'msg err'; m.textContent = r.error; return; }
+      m.className = 'msg ok'; m.textContent = 'Saved.'; q('pId').value = r.id; loadProducts();
+    });
+  });
+
+  function loadDetail(id) {
+    var box = q('prodDetail'); box.innerHTML = '<p style="color:var(--fg-3);font-size:13px">Loading…</p>';
+    A.callFn('clv-market', { action: 'admin_product', id: id }).then(function (r) {
+      if (r.error) { box.innerHTML = '<p class="msg err">' + esc(r.error) + '</p>'; return; }
+      var p = r.product, c = p.currency, cnt = r.counts;
+      function who(x) { return esc((x && x.full_name) || (x && x.email) || '—') + (x && x.email ? ' <span class="mono" style="font-size:11px;color:var(--fg-3)">' + esc(x.email) + '</span>' : ''); }
+      var subs = r.subscriptions.map(function (s) {
+        var act = s.status === 'requested' ? '<button class="btn-text" data-sub="' + s.id + '" data-to="accepted">Accept</button> <button class="btn-text" data-sub="' + s.id + '" data-to="rejected">Reject</button>'
+          : s.status === 'accepted' ? '<button class="btn-text" data-sub="' + s.id + '" data-to="settled">Settle → holding</button> <button class="btn-text" data-sub="' + s.id + '" data-to="cancelled">Cancel</button>' : '';
+        return '<tr><td>' + who(s.profile) + '</td><td class="mono">' + s.units + '</td><td class="mono">' + esc(money(s.amount, c)) + '</td><td><span class="chip ' + (s.status === 'settled' ? 'verified' : s.status === 'requested' ? 'pending' : 'neutral') + '">' + esc(s.status) + '</span></td><td class="mono" style="font-size:11px">' + esc(fmt(s.created_at)) + '</td><td>' + (s.contract_id ? '<a class="btn-text" href="contract.html?id=' + esc(s.contract_id) + '">contract</a>' : '<button class="btn-text" data-subcontract="' + s.id + '">link contract</button>') + '</td><td style="white-space:nowrap">' + act + '</td></tr>';
+      }).join('') || '<tr><td colspan="7" style="color:var(--fg-3)">No subscriptions.</td></tr>';
+      var lst = r.listings.map(function (l) {
+        var act = l.status === 'matched' ? '<button class="btn-text" data-lst="' + l.id + '" data-to="settled">Settle transfer</button> ' : '';
+        if (l.status === 'open' || l.status === 'matched') act += '<button class="btn-text" data-lst="' + l.id + '" data-to="cancelled">Cancel</button>';
+        return '<tr><td>' + who(l.seller) + '</td><td>' + who(l.buyer) + '</td><td class="mono">' + l.units + ' × ' + esc(money(l.price_per_unit, c)) + '</td><td><span class="chip ' + (l.status === 'settled' ? 'verified' : l.status === 'matched' ? 'pending' : l.status === 'open' ? 'info' : 'neutral') + '">' + esc(l.status) + '</span></td><td>' + (l.contract_id ? '<a class="btn-text" href="contract.html?id=' + esc(l.contract_id) + '">contract</a>' : (l.status === 'matched' ? '<button class="btn-text" data-lstcontract="' + l.id + '">link contract</button>' : '—')) + '</td><td style="white-space:nowrap">' + act + '</td></tr>';
+      }).join('') || '<tr><td colspan="6" style="color:var(--fg-3)">No listings.</td></tr>';
+      var holders = r.holders.map(function (h) { return '<tr><td>' + who(h) + '</td><td>' + esc(h.company || '—') + '</td><td class="mono">' + h.units + '</td><td class="mono">' + esc(money(h.units * Number(p.nominal), c)) + '</td></tr>'; }).join('') || '<tr><td colspan="4" style="color:var(--fg-3)">No holders.</td></tr>';
+      var today = new Date().toISOString().slice(0, 10);
+      var sched = r.coupon_schedule.map(function (k) {
+        var paid = r.payments.filter(function (x) { return x.due_date === k.due && x.paid_at; }).length, due = k.due <= today;
+        return '<tr><td class="mono">' + esc(k.due) + '</td><td class="mono">' + esc(Number(k.rate_period).toFixed(4)) + ' %</td><td class="mono">' + paid + ' / ' + r.holders.length + '</td><td>' + (due && paid < r.holders.length ? '<button class="btn-text" data-coupon="' + k.due + '">Record payment to all holders</button>' : (paid ? '<span class="chip verified">recorded</span>' : '<span class="chip neutral">scheduled</span>')) + '</td></tr>';
+      }).join('') || '<tr><td colspan="4" style="color:var(--fg-3)">No coupon schedule (set rate, frequency and maturity).</td></tr>';
+      var inv = r.investors.sort(function (a, b) { return a.last < b.last ? 1 : -1; }).map(function (u) { return '<tr><td>' + esc(u.name || '—') + ' <span class="mono" style="font-size:11px;color:var(--fg-3)">' + esc(u.email) + '</span></td><td>' + esc(u.company || '—') + '</td><td>' + (u.assessed ? '<span class="chip verified">assessed</span>' : '<span class="chip neutral">viewed only</span>') + '</td><td class="mono" style="font-size:11px">' + esc(fmt(u.first)) + '</td><td class="mono" style="font-size:11px">' + esc(fmt(u.last)) + '</td><td class="mono">' + u.views + ' · ' + u.docs + ' · ' + u.downloads + '</td><td style="font-size:11px;color:var(--fg-3)">' + esc(u.files.join(', ')) + '</td></tr>'; }).join('') || '<tr><td colspan="7" style="color:var(--fg-3)">No investor has opened this product yet.</td></tr>';
+      var acc = r.access.slice(0, 100).map(function (a) { return '<tr><td class="mono" style="font-size:11px;white-space:nowrap">' + esc(String(a.ts).replace('T', ' ').slice(0, 16)) + '</td><td>' + esc((a.profile && (a.profile.full_name || a.profile.email)) || a.user_id) + '</td><td><span class="chip ' + (a.kind === 'docs' || a.kind === 'download' ? 'verified' : 'neutral') + '">' + esc(a.kind) + '</span></td><td style="font-size:12px">' + esc(a.path || '') + (a.sha256 ? ' <span class="mono" style="font-size:10.5px;color:var(--fg-3)" title="' + esc(a.sha256) + '">' + esc(a.sha256.slice(0, 12)) + '…</span>' : '') + '</td><td class="mono" style="font-size:11px;color:var(--fg-3)">' + esc(a.ip || '') + '</td></tr>'; }).join('');
+      var ceiling = p.max_investors ? ' <span style="color:' + (cnt.assessed >= p.max_investors ? '#B83A3A' : cnt.assessed >= p.max_investors * 0.8 ? 'var(--seal-gold)' : 'var(--fg-3)') + '">of ' + p.max_investors + ' ceiling</span>' : '';
+      box.innerHTML = '<section class="card" style="padding:18px 20px">'
+        + '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px"><div><div style="font-family:var(--font-display);font-size:19px;color:var(--clavis-navy)">' + esc(p.code) + ' · ' + esc(p.name) + '</div><div style="font-size:12.5px;color:var(--fg-2);margin-top:3px">Investors: ' + cnt.viewed + ' viewed · <b>' + cnt.assessed + ' assessed the documentation</b>' + ceiling + ' · ' + cnt.holders + ' holder(s)</div></div><button class="btn-text" type="button" id="pdClose">close</button></div>'
+        + '<div class="tiles" style="margin-top:14px"><div class="card tile"><div class="k">Viewed</div><div class="v">' + cnt.viewed + '</div><div class="s">opened the product page</div></div><div class="card tile"><div class="k">Assessed</div><div class="v gold">' + cnt.assessed + '</div><div class="s">opened the full documentation</div></div><div class="card tile"><div class="k">Holders</div><div class="v">' + cnt.holders + '</div><div class="s">current owners</div></div><div class="card tile"><div class="k">Ceiling</div><div class="v">' + (p.max_investors || '—') + '</div><div class="s">prospectus exemption</div></div></div>'
+        + '<p class="eyebrow" style="margin-top:18px">Subscriptions (primary market)</p><div class="tbl-wrap" style="margin-top:8px"><table class="tbl"><thead><tr><th>Investor</th><th>Units</th><th>Amount</th><th>Status</th><th>Requested</th><th>Documentation</th><th></th></tr></thead><tbody>' + subs + '</tbody></table></div>'
+        + '<p class="eyebrow" style="margin-top:18px">Secondary market</p><div class="tbl-wrap" style="margin-top:8px"><table class="tbl"><thead><tr><th>Seller</th><th>Buyer</th><th>Units × price</th><th>Status</th><th>Documentation</th><th></th></tr></thead><tbody>' + lst + '</tbody></table></div>'
+        + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:18px;margin-top:18px">'
+        + '<div><p class="eyebrow">Holders</p><div class="tbl-wrap" style="margin-top:8px"><table class="tbl"><thead><tr><th>Investor</th><th>Company</th><th>Units</th><th>Nominal</th></tr></thead><tbody>' + holders + '</tbody></table></div></div>'
+        + '<div><p class="eyebrow">Coupon schedule &amp; payments</p><div class="tbl-wrap" style="margin-top:8px"><table class="tbl"><thead><tr><th>Due</th><th>Rate / period</th><th>Paid</th><th></th></tr></thead><tbody>' + sched + '</tbody></table></div></div></div>'
+        + '<p class="eyebrow" style="margin-top:18px">Investor assessment register (prospectus compliance)</p><p style="font-size:12.5px;color:var(--fg-2);margin-top:4px">Every investor who has accessed this instrument, with first and last access and the number of page views · documentation openings · document downloads. "Assessed" means the full documentation was opened or a document downloaded.</p>'
+        + '<div class="tbl-wrap" style="margin-top:8px"><table class="tbl"><thead><tr><th>Investor</th><th>Company</th><th>Assessment</th><th>First access</th><th>Last access</th><th>Views · docs · downloads</th><th>Files</th></tr></thead><tbody>' + inv + '</tbody></table></div>'
+        + '<p class="eyebrow" style="margin-top:18px">Access log (latest 100)</p><div class="tbl-wrap" style="margin-top:8px"><table class="tbl"><thead><tr><th>Time (UTC)</th><th>Investor</th><th>Event</th><th>Document</th><th>IP</th></tr></thead><tbody>' + (acc || '<tr><td colspan="5" style="color:var(--fg-3)">—</td></tr>') + '</tbody></table></div>'
+        + '<p class="msg" id="pdMsg" role="status"></p></section>';
+      q('pdClose').addEventListener('click', function () { box.innerHTML = ''; });
+      function after(x) { var m = q('pdMsg'); if (x.error) { m.className = 'msg err'; m.textContent = x.error; return; } loadDetail(id); loadProducts(); }
+      [].forEach.call(box.querySelectorAll('[data-sub]'), function (b) { b.addEventListener('click', function () { var to = b.getAttribute('data-to'); if ((to === 'rejected' || to === 'cancelled') && !confirm('Mark this subscription as ' + to + '?')) return; b.disabled = true; A.callFn('clv-market', { action: 'admin_subscription', id: b.getAttribute('data-sub'), status: to }).then(after); }); });
+      [].forEach.call(box.querySelectorAll('[data-subcontract]'), function (b) { b.addEventListener('click', function () { var cid = prompt('Contract id (from the Contracts module) to link as executed subscription documentation:'); if (!cid) return; A.callFn('clv-market', { action: 'admin_subscription', id: b.getAttribute('data-subcontract'), status: 'accepted', contract_id: cid.trim() }).then(after); }); });
+      [].forEach.call(box.querySelectorAll('[data-lst]'), function (b) { b.addEventListener('click', function () { var to = b.getAttribute('data-to'); if (!confirm(to === 'settled' ? 'Settle this transfer? Units move from the seller to the buyer.' : 'Cancel this listing?')) return; b.disabled = true; A.callFn('clv-market', { action: 'admin_listing', id: b.getAttribute('data-lst'), status: to }).then(after); }); });
+      [].forEach.call(box.querySelectorAll('[data-lstcontract]'), function (b) { b.addEventListener('click', function () { var cid = prompt('Contract id to link as transfer documentation:'); if (!cid) return; A.callFn('clv-market', { action: 'admin_listing', id: b.getAttribute('data-lstcontract'), status: 'settled', contract_id: cid.trim() }).then(after); }); });
+      [].forEach.call(box.querySelectorAll('[data-coupon]'), function (b) { b.addEventListener('click', function () { var ref = prompt('Payment reference (optional):') ; if (ref === null) return; b.disabled = true; A.callFn('clv-market', { action: 'admin_coupon', product_id: id, due_date: b.getAttribute('data-coupon'), reference: ref }).then(after); }); });
+    });
+  }
+
+  A.ready(function () { if (!A.clears('admin')) return; S.render('admin'); load(); loadProducts(); loadRooms(); ncStatus(); if (location.hash === '#market') setTimeout(function () { var el = q('market'); if (el) el.scrollIntoView(); }, 300); });
 })();
 </script>
 </body>
