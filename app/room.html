@@ -6,7 +6,7 @@
 <meta name="robots" content="noindex">
 <title>Data room — Clavoris</title>
 <link rel="icon" href="../assets/clavoris-mark.png">
-<link rel="stylesheet" href="app.css?v=20261013h">
+<link rel="stylesheet" href="app.css?v=20261013j">
 <script>document.documentElement.classList.add('clv-checking');</script>
 <style>
   .room-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 24px; margin-top: 28px; align-items: start; }
@@ -37,8 +37,8 @@
 <body data-clv-restrict="full">
 <div class="app">
   <nav class="nav" id="nav"></nav>
-  <main class="screen-wrap" data-screen-label="Data room">
-    <p class="eyebrow">Data room</p>
+  <main class="screen-wrap" data-screen-label="Data room" data-i18n-doctitle="room.eyebrow">
+    <p class="eyebrow" data-i18n="room.eyebrow">Data room</p>
     <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:16px">
       <div><h1 class="page-title" id="title">…</h1><p class="page-sub" id="sub"></p></div>
       <div id="headChips"></div>
@@ -47,23 +47,23 @@
 
     <!-- Step: KYC needed -->
     <section id="needKyc" class="card" style="padding:26px;margin-top:28px" hidden>
-      <p class="eyebrow">Identity verification</p>
-      <h2 style="font-family:var(--font-display);font-size:24px;color:var(--clavis-navy);margin-top:6px">Verify your identity first</h2>
-      <p style="font-size:14px;color:var(--fg-2);line-height:1.6;margin-top:10px;max-width:640px">Access to this data room requires a signed non-disclosure agreement. Clavoris only accepts signatures from identity-verified users (AMLD6 KYC via Sumsub). Complete the verification, then return here to sign.</p>
-      <a class="btn btn-primary" style="margin-top:18px" href="kyc.html">Start identity verification</a>
+      <p class="eyebrow" data-i18n="room.kyc.eyebrow">Identity verification</p>
+      <h2 style="font-family:var(--font-display);font-size:24px;color:var(--clavis-navy);margin-top:6px" data-i18n="room.kyc.title">Verify your identity first</h2>
+      <p style="font-size:14px;color:var(--fg-2);line-height:1.6;margin-top:10px;max-width:640px" data-i18n="room.kyc.body">Access to this data room requires a signed non-disclosure agreement. Clavoris only accepts signatures from identity-verified users (AMLD6 KYC via Sumsub). Complete the verification, then return here to sign.</p>
+      <a class="btn btn-primary" style="margin-top:18px" href="kyc.html" data-i18n="room.kyc.btn">Start identity verification</a>
     </section>
 
     <!-- Step: NDA -->
     <section id="nda" style="margin-top:28px" hidden>
-      <p class="eyebrow">Non-disclosure agreement</p>
-      <h2 style="font-family:var(--font-display);font-size:24px;color:var(--clavis-navy);margin-top:6px">Sign before you see the documents</h2>
-      <p style="font-size:14px;color:var(--fg-2);line-height:1.6;margin-top:8px;max-width:640px">Read the agreement below. Your signature is recorded with your verified identity, the time, your IP address and a hash of the text; a signed copy is stored in the room for you.</p>
-      <div class="nda-text" id="ndaText" style="margin-top:18px">Loading…</div>
+      <p class="eyebrow" data-i18n="room.nda.eyebrow">Non-disclosure agreement</p>
+      <h2 style="font-family:var(--font-display);font-size:24px;color:var(--clavis-navy);margin-top:6px" data-i18n="room.nda.title">Sign before you see the documents</h2>
+      <p style="font-size:14px;color:var(--fg-2);line-height:1.6;margin-top:8px;max-width:640px" data-i18n="room.nda.body">Read the agreement below. Your signature is recorded with your verified identity, the time, your IP address and a hash of the text; a signed copy is stored in the room for you.</p>
+      <div class="nda-text" id="ndaText" style="margin-top:18px" data-i18n="common.loading">Loading…</div>
       <form id="ndaForm" autocomplete="off" onsubmit="return false;" style="max-width:640px">
-        <label class="check"><input type="checkbox" id="accept"><span>I have read the non-disclosure agreement above and accept it on behalf of myself and the organisation I represent.</span></label>
-        <div class="field"><label for="typed">Type your full name to sign</label><input id="typed" type="text" autocomplete="off"><span class="hint" id="typedHint"></span></div>
+        <label class="check"><input type="checkbox" id="accept"><span data-i18n="room.nda.accept">I have read the non-disclosure agreement above and accept it on behalf of myself and the organisation I represent.</span></label>
+        <div class="field"><label for="typed" data-i18n="room.nda.typed">Type your full name to sign</label><input id="typed" type="text" autocomplete="off"><span class="hint" id="typedHint"></span></div>
         <p class="msg" id="ndaMsg" role="status"></p>
-        <button class="btn btn-primary" type="submit" id="signBtn" disabled>Sign the agreement</button>
+        <button class="btn btn-primary" type="submit" id="signBtn" disabled data-i18n="room.nda.btn">Sign the agreement</button>
       </form>
     </section>
 
@@ -71,34 +71,35 @@
     <div class="room-grid" id="roomGrid" hidden>
       <section>
         <div class="card tbl-wrap">
-          <ul class="tree" id="tree"><li><div class="row"><span class="nm" style="color:var(--fg-3)">Loading…</span></div></li></ul>
+          <ul class="tree" id="tree"><li><div class="row"><span class="nm" style="color:var(--fg-3)" data-i18n="common.loading">Loading…</span></div></li></ul>
         </div>
-        <p class="note">Documents are confidential under the signed NDA. Every view and download is logged with your identity and IP address. Downloads carry a SHA-256 fingerprint recorded by Clavoris.</p>
+        <p class="note" data-i18n="room.note">Documents are confidential under the signed NDA. Every view and download is logged with your identity and IP address. Downloads carry a SHA-256 fingerprint recorded by Clavoris.</p>
       </section>
       <aside>
         <section class="card" style="padding:18px 20px">
-          <p class="eyebrow">Your NDA</p>
+          <p class="eyebrow" data-i18n="room.ndabox.title">Your NDA</p>
           <div id="ndaBox" style="margin-top:8px;font-size:13px;color:var(--fg-2);line-height:1.6"></div>
         </section>
         <section class="card" style="padding:18px 20px;margin-top:16px">
-          <p class="eyebrow">Members</p>
+          <p class="eyebrow" data-i18n="room.members">Members</p>
           <ul class="members" id="members" style="margin-top:10px"></ul>
-          <div class="legend"><span class="pres online"></span>in the room now &nbsp; <span class="pres returning"></span>has visited &nbsp; <span class="pres never"></span>not yet visited</div>
+          <div class="legend"><span class="pres online"></span><span data-i18n="room.legend.online">in the room now</span> &nbsp; <span class="pres returning"></span><span data-i18n="room.legend.returning">has visited</span> &nbsp; <span class="pres never"></span><span data-i18n="room.legend.never">not yet visited</span></div>
         </section>
       </aside>
     </div>
   </main>
-  <footer class="app-foot"><span>Clavoris · Institutional Capital Platform</span><span class="loc">Antwerp · Luxembourg · Nordic · CSSF · FSMA · MiCA</span></footer>
+  <footer class="app-foot"><span data-i18n="footer.tag">Clavoris · Private Investment Enablement Platform</span><span class="loc" data-i18n="footer.loc">Antwerp · Luxembourg · Nordic · CSSF · FSMA · MiCA</span></footer>
 </div>
 
-<script src="config.js?v=20261013h"></script>
+<script src="config.js?v=20261013j"></script>
+<script src="i18n.js?v=20261013j"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="clavoris-access.js?v=20261013h"></script>
-<script src="shell.js?v=20261013h"></script>
+<script src="clavoris-access.js?v=20261013j"></script>
+<script src="shell.js?v=20261013j"></script>
 <script>
 (function () {
   'use strict';
-  var A = window.ClavorisAccess, S = window.ClavorisShell, esc = S.esc;
+  var A = window.ClavorisAccess, S = window.ClavorisShell, I = window.ClavorisI18n, esc = S.esc;
   function q(id) { return document.getElementById(id); }
   var roomId = new URLSearchParams(location.search).get('id');
   var state = null;
@@ -109,7 +110,7 @@
 
   function load() {
     return A.callFn('clv-room', { room_id: roomId }).then(function (r) {
-      if (r.error) { q('err').textContent = r.error === 'forbidden' ? 'You do not have access to this data room.' : r.error === 'expired' ? 'Your access to this data room has expired. Contact access@clavoris.com.' : 'Could not open the data room (' + r.error + ').'; q('title').textContent = 'Data room'; return; }
+      if (r.error) { q('err').textContent = r.error === 'forbidden' ? I.t('room.err.forbidden') : r.error === 'expired' ? I.t('room.err.expired') : I.t('room.err.generic', { err: r.error }); q('title').textContent = I.t('room.eyebrow'); return; }
       state = r; render();
     });
   }
@@ -117,9 +118,9 @@
   function render() {
     var r = state, room = r.room;
     q('title').textContent = room.name;
-    q('sub').textContent = [room.seller, room.project_type === 'ma' ? 'M&A' : room.project_type, room.description].filter(Boolean).join(' · ');
-    q('headChips').innerHTML = '<span class="chip ' + (room.status === 'open' ? 'verified' : 'neutral') + '">' + esc(room.status) + '</span> '
-      + (r.nda.required ? '<span class="chip ' + (r.nda.signed ? 'verified' : 'pending') + '">NDA ' + (r.nda.signed ? 'signed' : 'required') + '</span>' : '');
+    q('sub').textContent = [room.seller, room.project_type === 'ma' ? I.t('portal.type.ma') : room.project_type, room.description].filter(Boolean).join(' · ');
+    q('headChips').innerHTML = '<span class="chip ' + (room.status === 'open' ? 'verified' : 'neutral') + '">' + esc(room.status === 'open' ? I.t('room.status.open') : room.status === 'closed' ? I.t('room.status.closed') : room.status) + '</span> '
+      + (r.nda.required ? '<span class="chip ' + (r.nda.signed ? 'verified' : 'pending') + '">' + I.t(r.nda.signed ? 'room.chip.nda_signed' : 'room.chip.nda_required') + '</span>' : '');
     var gate = r.nda.required && !r.nda.signed && !r.me.staff;
     q('needKyc').hidden = !(gate && !r.me.verified);
     q('nda').hidden = !(gate && r.me.verified);
@@ -130,8 +131,8 @@
 
   function renderTree() {
     var t = state.tree || [], ul = q('tree');
-    if (state.storage_error) { ul.innerHTML = '<li><div class="row"><span class="nm" style="color:var(--fg-3)">Document storage is not available yet (' + esc(state.storage_error) + ').</span></div></li>'; return; }
-    if (!t.length) { ul.innerHTML = '<li><div class="row"><span class="nm" style="color:var(--fg-3)">No documents have been placed in this room yet.</span></div></li>'; return; }
+    if (state.storage_error) { ul.innerHTML = '<li><div class="row"><span class="nm" style="color:var(--fg-3)">' + esc(I.t('room.tree.unavailable', { err: state.storage_error })) + '</span></div></li>'; return; }
+    if (!t.length) { ul.innerHTML = '<li><div class="row"><span class="nm" style="color:var(--fg-3)">' + I.t('room.tree.empty') + '</span></div></li>'; return; }
     ul.innerHTML = t.map(function (e) {
       var depth = e.path.split('/').length - 1;
       var pad = 'style="padding-left:' + (16 + depth * 22) + 'px"';
@@ -139,14 +140,14 @@
       var can = state.me.can_download && state.room.downloads_allowed;
       return '<li><div class="row" ' + pad + '><span class="ic">' + ICON.file + '</span><span class="nm" title="' + esc(e.path) + '">' + esc(e.name) + '</span>'
         + '<span class="meta">' + esc(S.fmtSize(e.size)) + ' · ' + esc(S.fmtDate(e.modified)) + '</span>'
-        + (can ? '<button class="btn-text dl" type="button" data-dl="' + esc(e.path) + '">Download</button>' : '<span class="meta">view only</span>') + '</div></li>';
+        + (can ? '<button class="btn-text dl" type="button" data-dl="' + esc(e.path) + '">' + I.t('common.download') + '</button>' : '<span class="meta">' + I.t('common.view_only') + '</span>') + '</div></li>';
     }).join('');
     [].forEach.call(ul.querySelectorAll('[data-dl]'), function (b) {
       b.addEventListener('click', function () {
-        b.disabled = true; b.textContent = 'Preparing…';
+        b.disabled = true; b.textContent = I.t('common.preparing');
         S.downloadFn('clv-room-file', { room_id: roomId, path: b.getAttribute('data-dl') }, b.getAttribute('data-dl').split('/').pop()).then(function (r) {
-          b.disabled = false; b.textContent = r.ok ? 'Download' : 'Failed';
-          if (!r.ok) q('err').textContent = r.error === 'nda-required' ? 'Sign the NDA first.' : r.error === 'download-not-allowed' ? 'Downloads are not enabled for your access.' : 'Download failed (' + r.error + ').';
+          b.disabled = false; b.textContent = I.t(r.ok ? 'common.download' : 'common.failed');
+          if (!r.ok) q('err').textContent = r.error === 'nda-required' ? I.t('room.dl.nda_required') : r.error === 'download-not-allowed' ? I.t('room.dl.not_allowed') : I.t('room.dl.failed', { err: r.error });
         });
       });
     });
@@ -154,10 +155,10 @@
 
   function renderSide() {
     var r = state;
-    q('ndaBox').innerHTML = !r.nda.required ? 'No NDA is required for this room.'
-      : r.me.staff && !r.nda.signed ? 'Staff access — no NDA on file for you.'
-      : 'Signed ' + esc(S.fmtDate(r.nda.signed_at)) + ' · version ' + esc(r.nda.version || '') + '<br>'
-        + (r.nda.has_file ? '<button class="btn-text" type="button" id="dlNda">Download your signed NDA</button>' : '<span style="color:var(--fg-3)">Signed copy pending storage.</span>');
+    q('ndaBox').innerHTML = !r.nda.required ? I.t('room.ndabox.none')
+      : r.me.staff && !r.nda.signed ? I.t('room.ndabox.staff')
+      : esc(I.t('room.ndabox.signed', { date: S.fmtDate(r.nda.signed_at), v: r.nda.version || '' })) + '<br>'
+        + (r.nda.has_file ? '<button class="btn-text" type="button" id="dlNda">' + I.t('room.ndabox.dl') + '</button>' : '<span style="color:var(--fg-3)">' + I.t('room.ndabox.pending') + '</span>');
     var d = q('dlNda'); if (d) d.addEventListener('click', function () { d.disabled = true; S.downloadFn('clv-room-file', { room_id: roomId, nda: true }, 'NDA.pdf').then(function () { d.disabled = false; }); });
     // Signed while storage was unavailable: store the copy now and refresh the panel.
     if (r.nda.signed && !r.nda.has_file && !state._ndaStoreTried) {
@@ -166,24 +167,24 @@
     }
     var m = r.members || [];
     q('members').innerHTML = m.length ? m.map(function (x) {
-      return '<li><div class="nm"><span class="pres ' + esc(x.presence || 'never') + '" title="' + (x.last_seen ? 'Last seen ' + esc(S.fmtDate(x.last_seen)) : 'Never visited') + '"></span>' + esc(x.name || '—') + '</div><div class="org">' + esc(x.company || '—') + (x.job_title ? ' · ' + esc(x.job_title) : '') + '</div>'
+      return '<li><div class="nm"><span class="pres ' + esc(x.presence || 'never') + '" title="' + esc(x.last_seen ? I.t('room.last_seen', { date: S.fmtDate(x.last_seen) }) : I.t('room.never_visited')) + '"></span>' + esc(x.name || '—') + '</div><div class="org">' + esc(x.company || '—') + (x.job_title ? ' · ' + esc(x.job_title) : '') + '</div>'
         + '<div style="margin-top:4px">' + (x.verified ? '<span class="chip verified">KYC</span> ' : '') + (x.nda_signed ? '<span class="chip info">NDA</span>' : '') + '</div></li>';
-    }).join('') : '<li style="color:var(--fg-3)">No members yet.</li>';
+    }).join('') : '<li style="color:var(--fg-3)">' + I.t('room.members.none') + '</li>';
   }
 
   function loadNda() {
     A.callFn('clv-room-nda', { action: 'text', room_id: roomId }).then(function (r) {
-      q('ndaText').textContent = r.text || 'The agreement text is not available.';
-      q('typedHint').textContent = 'Sign as: ' + A.displayName();
+      q('ndaText').textContent = r.text || I.t('room.nda.unavailable');
+      q('typedHint').textContent = I.t('room.nda.sign_as', { name: A.displayName() });
     });
   }
   function refreshSign() { q('signBtn').disabled = !(q('accept').checked && q('typed').value.trim().toLowerCase() === String(A.displayName()).trim().toLowerCase()); }
   q('accept').addEventListener('change', refreshSign); q('typed').addEventListener('input', refreshSign);
   q('ndaForm').addEventListener('submit', function () {
-    var m = q('ndaMsg'); m.className = 'msg'; m.textContent = 'Recording your signature…'; q('signBtn').disabled = true;
+    var m = q('ndaMsg'); m.className = 'msg'; m.textContent = I.t('room.nda.recording'); q('signBtn').disabled = true;
     A.callFn('clv-room-nda', { action: 'sign', room_id: roomId, accept: true, typed_name: q('typed').value.trim() }).then(function (r) {
-      if (r.error) { q('signBtn').disabled = false; m.className = 'msg err'; m.textContent = r.error === 'kyc-required' ? 'Identity verification is required before signing.' : r.error === 'name-mismatch' ? 'Type your name exactly as on your account (' + A.displayName() + ').' : r.error; return; }
-      m.className = 'msg ok'; m.textContent = 'Signed. Opening the data room…';
+      if (r.error) { q('signBtn').disabled = false; m.className = 'msg err'; m.textContent = r.error === 'kyc-required' ? I.t('room.nda.kyc_required') : r.error === 'name-mismatch' ? I.t('room.nda.name_mismatch', { name: A.displayName() }) : r.error; return; }
+      m.className = 'msg ok'; m.textContent = I.t('room.nda.signed');
       setTimeout(load, 600);
     });
   });
@@ -198,7 +199,7 @@
   A.ready(function () {
     if (!A.clears('full')) return;
     S.render('rooms');
-    if (!roomId) { q('err').textContent = 'No data room selected.'; return; }
+    if (!roomId) { q('err').textContent = I.t('room.err.none'); return; }
     load();
   });
 })();

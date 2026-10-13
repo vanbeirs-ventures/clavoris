@@ -6,7 +6,7 @@
 <meta name="robots" content="noindex">
 <title>Contracts — Clavoris</title>
 <link rel="icon" href="../assets/clavoris-mark.png">
-<link rel="stylesheet" href="app.css?v=20261013h">
+<link rel="stylesheet" href="app.css?v=20261013j">
 <script>document.documentElement.classList.add('clv-checking');</script>
 <style>
   .clist { list-style: none; margin-top: 20px; }
@@ -24,60 +24,61 @@
 <body data-clv-restrict="full">
 <div class="app">
   <nav class="nav" id="nav"></nav>
-  <main class="screen-wrap" data-screen-label="Contracts">
-    <p class="eyebrow">Contracts</p>
+  <main class="screen-wrap" data-screen-label="Contracts" data-i18n-doctitle="contracts.title">
+    <p class="eyebrow" data-i18n="contracts.title">Contracts</p>
     <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:16px">
-      <div><h1 class="page-title">Contracts</h1><p class="page-sub">Agreements executed with eIDAS qualified electronic signatures. Signatories sign in order with their verified identity; auditors follow the execution.</p></div>
+      <div><h1 class="page-title" data-i18n="contracts.title">Contracts</h1><p class="page-sub" data-i18n="contracts.sub">Agreements executed with eIDAS qualified electronic signatures. Signatories sign in order with their verified identity; auditors follow the execution.</p></div>
       <div id="staffBtn"></div>
     </div>
     <p class="msg err" id="err"></p>
 
     <section class="card" id="newCard" style="padding:22px;margin-top:24px" hidden>
-      <p class="eyebrow">New contract</p>
+      <p class="eyebrow" data-i18n="contracts.new.eyebrow">New contract</p>
       <form id="newForm" autocomplete="off" onsubmit="return false;">
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:0 20px">
-          <div class="field"><label for="title">Title</label><input id="title" type="text" maxlength="200"></div>
-          <div class="field"><label for="file">Contract document (PDF only)</label><input id="file" type="file" accept="application/pdf,.pdf"></div>
+          <div class="field"><label for="title" data-i18n="contracts.new.title">Title</label><input id="title" type="text" maxlength="200"></div>
+          <div class="field"><label for="file" data-i18n="contracts.new.file">Contract document (PDF only)</label><input id="file" type="file" accept="application/pdf,.pdf"></div>
         </div>
-        <div class="field"><label for="desc">Description (optional)</label><input id="desc" type="text" maxlength="2000"></div>
+        <div class="field"><label for="desc" data-i18n="contracts.new.desc">Description (optional)</label><input id="desc" type="text" maxlength="2000"></div>
         <p class="msg" id="newMsg" role="status"></p>
-        <button class="btn btn-primary" type="submit" id="newBtn">Create draft</button>
-        <span class="hint" style="margin-left:12px">Parties are added on the contract page; the signature round starts when you launch it.</span>
+        <button class="btn btn-primary" type="submit" id="newBtn" data-i18n="contracts.new.btn">Create draft</button>
+        <span class="hint" style="margin-left:12px" data-i18n="contracts.new.hint">Parties are added on the contract page; the signature round starts when you launch it.</span>
       </form>
     </section>
 
     <div class="card" style="margin-top:24px">
-      <ul class="clist" id="list" style="margin-top:0"><li><div style="padding:16px 20px;color:var(--fg-3);font-size:13px">Loading…</div></li></ul>
+      <ul class="clist" id="list" style="margin-top:0"><li><div style="padding:16px 20px;color:var(--fg-3);font-size:13px" data-i18n="common.loading">Loading…</div></li></ul>
     </div>
-    <p class="note">A qualified electronic signature (QES) has the legal effect of a handwritten signature in every EU member state (eIDAS, art. 25). Clavoris creates it through Sumsub after identity proofing; the signatures are embedded in the executed PDF and can be validated with any PAdES-capable reader.</p>
+    <p class="note" data-i18n="contracts.note">A qualified electronic signature (QES) has the legal effect of a handwritten signature in every EU member state (eIDAS, art. 25). Clavoris creates it through Sumsub after identity proofing; the signatures are embedded in the executed PDF and can be validated with any PAdES-capable reader.</p>
   </main>
-  <footer class="app-foot"><span>Clavoris · Institutional Capital Platform</span><span class="loc">Antwerp · Luxembourg · Nordic · CSSF · FSMA · MiCA</span></footer>
+  <footer class="app-foot"><span data-i18n="footer.tag">Clavoris · Private Investment Enablement Platform</span><span class="loc" data-i18n="footer.loc">Antwerp · Luxembourg · Nordic · CSSF · FSMA · MiCA</span></footer>
 </div>
 
-<script src="config.js?v=20261013h"></script>
+<script src="config.js?v=20261013j"></script>
+<script src="i18n.js?v=20261013j"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="clavoris-access.js?v=20261013h"></script>
-<script src="shell.js?v=20261013h"></script>
+<script src="clavoris-access.js?v=20261013j"></script>
+<script src="shell.js?v=20261013j"></script>
 <script>
 (function () {
   'use strict';
-  var A = window.ClavorisAccess, S = window.ClavorisShell, esc = S.esc;
+  var A = window.ClavorisAccess, S = window.ClavorisShell, I = window.ClavorisI18n, esc = S.esc;
   function q(id) { return document.getElementById(id); }
-  var STATUS = { draft: ['neutral', 'Draft'], in_progress: ['pending', 'Signing in progress'], executed: ['verified', 'Executed'], declined: ['rejected', 'Declined'], cancelled: ['neutral', 'Cancelled'] };
+  var STATUS = { draft: 'neutral', in_progress: 'pending', executed: 'verified', declined: 'rejected', cancelled: 'neutral' };
 
   function load() {
     A.callFn('clv-contracts', { action: 'list' }).then(function (r) {
-      if (r.error) { q('err').textContent = 'Could not load contracts (' + r.error + ').'; return; }
+      if (r.error) { q('err').textContent = I.t('contracts.err', { err: r.error }); return; }
       var ul = q('list'), cs = r.contracts || [];
       ul.innerHTML = cs.length ? cs.map(function (c) {
-        var st = STATUS[c.status] || ['neutral', c.status];
+        var st = [STATUS[c.status] || 'neutral', STATUS[c.status] ? I.t('cstatus.' + c.status) : c.status];
         var pct = c.signatories ? Math.round(100 * c.signed / c.signatories) : 0;
         return '<li><a class="row" href="contract.html?id=' + esc(c.id) + '">'
-          + '<div><div class="t">' + esc(c.title) + (c.my_turn ? ' <span class="chip pending">Your signature is requested</span>' : '') + '</div>'
+          + '<div><div class="t">' + esc(c.title) + (c.my_turn ? ' <span class="chip pending">' + I.t('contracts.your_turn') + '</span>' : '') + '</div>'
           + '<div class="d">' + esc(c.original_name) + (c.description ? ' · ' + esc(c.description) : '') + '</div>'
-          + '<div class="d" style="margin-top:6px"><span class="chip ' + st[0] + '">' + st[1] + '</span> &nbsp; ' + c.signed + ' of ' + c.signatories + ' signed<span class="prog"><i style="width:' + pct + '%"></i></span>' + (c.auditors ? ' &nbsp;· ' + c.auditors + ' auditor' + (c.auditors > 1 ? 's' : '') : '') + '</div></div>'
-          + '<div class="m">' + (c.my_role ? '<span class="chip info">' + esc(c.my_role) + '</span><br>' : '') + esc(S.fmtDate(c.executed_at || c.launched_at || c.created_at)) + '</div></a></li>';
-      }).join('') : '<li><div style="padding:16px 20px;color:var(--fg-3);font-size:13px">No contracts yet.</div></li>';
+          + '<div class="d" style="margin-top:6px"><span class="chip ' + st[0] + '">' + st[1] + '</span> &nbsp; ' + esc(I.t('contracts.signed_of', { signed: c.signed, total: c.signatories })) + '<span class="prog"><i style="width:' + pct + '%"></i></span>' + (c.auditors ? ' &nbsp;· ' + esc(I.t('contracts.auditors', { n: c.auditors })) : '') + '</div></div>'
+          + '<div class="m">' + (c.my_role ? '<span class="chip info">' + esc(I.t('role.' + c.my_role)) + '</span><br>' : '') + esc(S.fmtDate(c.executed_at || c.launched_at || c.created_at)) + '</div></a></li>';
+      }).join('') : '<li><div style="padding:16px 20px;color:var(--fg-3);font-size:13px">' + I.t('contracts.none') + '</div></li>';
     });
   }
 
@@ -87,20 +88,20 @@
     if (!A.clears('full')) return;
     S.render('contracts');
     if (A.isAdmin()) {
-      q('staffBtn').innerHTML = '<button class="btn btn-primary" type="button" id="toggleNew">New contract</button>';
+      q('staffBtn').innerHTML = '<button class="btn btn-primary" type="button" id="toggleNew">' + I.t('contracts.new') + '</button>';
       q('toggleNew').addEventListener('click', function () { q('newCard').hidden = !q('newCard').hidden; if (!q('newCard').hidden) q('title').focus(); });
       q('newForm').addEventListener('submit', function () {
         var m = q('newMsg'); m.className = 'msg'; m.textContent = '';
         var f = q('file').files[0], title = q('title').value.trim();
-        if (!title) { m.className = 'msg err'; m.textContent = 'Give the contract a title.'; return; }
-        if (!f || !/\.pdf$/i.test(f.name)) { m.className = 'msg err'; m.textContent = 'Only PDF documents are accepted for signature.'; return; }
-        if (f.size > 12 * 1024 * 1024) { m.className = 'msg err'; m.textContent = 'The PDF must be 12 MB or smaller.'; return; }
-        q('newBtn').disabled = true; m.textContent = 'Uploading and registering the document…';
+        if (!title) { m.className = 'msg err'; m.textContent = I.t('contracts.err_title'); return; }
+        if (!f || !/\.pdf$/i.test(f.name)) { m.className = 'msg err'; m.textContent = I.t('contracts.err_pdf'); return; }
+        if (f.size > 12 * 1024 * 1024) { m.className = 'msg err'; m.textContent = I.t('contracts.err_size'); return; }
+        q('newBtn').disabled = true; m.textContent = I.t('contracts.uploading');
         readFile(f).then(function (b64) {
           return A.callFn('clv-contracts', { action: 'create', title: title, description: q('desc').value.trim(), file_name: f.name, pdf_base64: b64 });
         }).then(function (r) {
           q('newBtn').disabled = false;
-          if (r.error) { m.className = 'msg err'; m.textContent = r.error === 'storage-not-configured' ? 'Document storage is not connected (Admin › Document storage).' : 'Could not create the contract (' + r.error + (r.detail ? ': ' + r.detail : '') + ').'; return; }
+          if (r.error) { m.className = 'msg err'; m.textContent = r.error === 'storage-not-configured' ? I.t('contracts.err_storage') : I.t('contracts.err_create', { err: r.error + (r.detail ? ': ' + r.detail : '') }); return; }
           location.href = 'contract.html?id=' + r.id;
         });
       });
