@@ -26,7 +26,7 @@ export async function ncList(folder: string): Promise<NcEntry[]> {
   const body = `<?xml version="1.0"?><d:propfind xmlns:d="DAV:"><d:prop><d:resourcetype/><d:getcontentlength/><d:getlastmodified/><d:getetag/><d:getcontenttype/></d:prop></d:propfind>`;
   const res = await fetch(davUrl(folder) + "/", { method: "PROPFIND", headers: { authorization: auth(), depth: "1", "content-type": "application/xml" }, body });
   if (res.status === 404) return [];
-  if (!res.ok) throw new Error(`nc list ${res.status}`);
+  if (!res.ok) { const t = (await res.text().catch(() => "")).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 160); console.error("nc list", res.status, t); throw new Error(`nc list ${res.status}`); }
   const xml = await res.text();
   const out: NcEntry[] = [];
   const base = `/remote.php/dav/files/${encodeURIComponent(NC_USER)}/`;
