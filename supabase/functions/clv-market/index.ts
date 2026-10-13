@@ -11,6 +11,7 @@
 // Deploy: supabase functions deploy clv-market --no-verify-jwt
 import { PDFDocument, StandardFonts, rgb } from "https://esm.sh/pdf-lib@1.17.1";
 import { adminClient, APP_URL, audit, clientIp, cors, isStaff, json, type Profile, requireUser, sendMail } from "../_shared/clv.ts";
+import { notifyHolders, notifyNewProducts, type PfEvent } from "../_shared/notify.ts";
 import { mail, pickLang } from "../_shared/mail-i18n.ts";
 import { ncConfigured, ncGet, ncTree, sha256Hex } from "../_shared/nc.ts";
 
@@ -165,7 +166,7 @@ Deno.serve(async (req) => {
       }
       const sha = await sha256Hex(delivered);
       await logAccess(admin, me, p.id, "download", req, { path: rel, sha256: sha });
-      return new Response(delivered, { headers: { ...cors, "content-type": res.headers.get("content-type") || "application/octet-stream", "content-disposition": `attachment; filename="${name.replace(/"/g, "")}"`, "access-control-expose-headers": "content-disposition, x-clavoris-sha256", "x-clavoris-sha256": sha } });
+      return new Response(delivered, { headers: { ...cors, "content-type": res.headers.get("content-type") || "application/octet-stream", "content-disposition": `attachment; filename="${name.replace(/"/g, "")}"`, "x-clavoris-sha256": sha, "access-control-expose-headers": "content-disposition, x-clavoris-sha256" } });
     }
 
     if (action === "subscribe") {
@@ -241,6 +242,7 @@ Deno.serve(async (req) => {
     const { data: pays } = await admin.from("clv_coupon_payments").select("product_id, due_date, amount, paid_at, reference").eq("user_id", me.id);
     const cids = [...new Set([...holdings, ...(subs || []), ...(lst || [])].map((x: any) => x.contract_id).filter(Boolean))];
     const { data: contracts } = cids.length ? await admin.from("clv_contracts").select("id, title, status, executed_at, original_name").in("id", cids) : { data: [] };
+    const { data: events } = ids.length ? await admin.from("clv_product_events").select("id, product_id, kind, title, body, event_date, created_at").in("product_id", ids).order("created_at", { ascending: false }).limit(200) : { data: [] };
     const today = new Date().toISOString().slice(0, 10);
     const positions = (products || []).map((p: Product) => {
       const hs = holdings.filter((h: any) => h.product_id === p.id);
@@ -256,7 +258,8 @@ Deno.serve(async (req) => {
       const next = coupons.find((c) => !c.paid_at && c.due >= today) || null;
       return { product: p, units, cost, nominal_value: nominalValue, annual_coupon: annual, coupons_received: received, next_coupon: next, coupons, holdings: hs,
         pending_subscriptions: (subs || []).filter((s: any) => s.product_id === p.id), listings: (lst || []).filter((l: any) => l.product_id === p.id).map((l: any) => ({ ...l, side: l.seller_id === me.id ? "sell" : "buy", seller_id: undefined, buyer_id: undefined })),
-        documents: (contracts || []).filter((c: any) => [...hs, ...(subs || []), ...(lst || [])].some((x: any) => x.contract_id === c.id)) };
+        documents: (contracts || []).filter((c: any) => [...hs, ...(subs || []), ...(lst || [])].some((x: any) => x.contract_id === c.id)),
+        events: (events || []).filter((e: any) => e.product_id === p.id).slice(0, 10) };
     });
     const totals: Record<string, { nominal: number; cost: number; annual_coupon: number; received: number; positions: number }> = {};
     for (const x of positions) { const t = totals[x.product.currency] ||= { nominal: 0, cost: 0, annual_coupon: 0, received: 0, positions: 0 }; if (x.units > 0) { t.nominal += x.nominal_value; t.cost += x.cost; t.annual_coupon += x.annual_coupon; t.received += x.coupons_received; t.positions++; } }
@@ -300,7 +303,9 @@ Deno.serve(async (req) => {
     else res = await admin.from("clv_products").insert({ ...row, created_by: me.id }).select("id").single();
     if (res.error) return json({ error: res.error.message }, 400);
     await audit(admin, caller, b.id ? "product-updated" : "product-created", String(row.code), { id: res.data.id, status: row.status });
-    return json({ ok: true, id: res.data.id });
+    // "New investment available" goes out once, the first time the product is open.
+    const notified = row.status === "open" ? await notifyNewProducts(admin).catch(() => 0) : 0;
+    return json({ ok: true, id: res.data.id, notified });
   }
 
   if (action === "admin_product") {
@@ -397,7 +402,32 @@ Deno.serve(async (req) => {
     const { error } = await admin.from("clv_coupon_payments").upsert(rows, { onConflict: "product_id,user_id,due_date" });
     if (error) return json({ error: error.message }, 400);
     await audit(admin, caller, "coupon-recorded", p.code, { due, holders: rows.length, total: rows.reduce((s, r) => s + r.amount, 0) });
-    return json({ ok: true, recorded: rows.length });
+    // Holders are told about a *paid* coupon (switchable under Account › E-mail notifications).
+    let mailed = 0;
+    if (body.paid !== false && body.notify !== false) {
+      const amounts: Record<string, string> = {}; for (const r of rows) amounts[r.user_id] = `${p.currency} ${Number(r.amount).toFixed(2)}`;
+      const ref = rows[0]?.reference ? ` (ref. ${rows[0].reference})` : "";
+      const ev: PfEvent = { kind: "coupon", title: "", body: "", date: due, amounts, keys: { title: "coupon_paid_title", body: "coupon_paid_body", vars: { date: due, ref } } };
+      mailed = await notifyHolders(admin, p, ev, targets).catch(() => 0);
+    }
+    return json({ ok: true, recorded: rows.length, mailed });
+  }
+
+  if (action === "admin_event") {
+    // Announce a portfolio event to every holder: custom notice, end of contract, repayment of principal, conversion into shares (or a coupon notice).
+    const productId = String(body.product_id || "");
+    const kind = ["coupon", "custom", "maturity", "principal", "conversion"].includes(body.kind) ? body.kind as PfEvent["kind"] : "custom";
+    const title = String(body.title || "").trim().slice(0, 200), text = String(body.body || "").trim().slice(0, 4000);
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(String(body.event_date || "")) ? String(body.event_date) : null;
+    if (!title) return json({ error: "title-required" }, 400);
+    const { data: p } = await admin.from("clv_products").select("id, code, name").eq("id", productId).maybeSingle();
+    if (!p) return json({ error: "not-found" }, 404);
+    const { data: ev, error } = await admin.from("clv_product_events").insert({ product_id: productId, kind, title, body: text || null, event_date: date, created_by: me.id }).select("id").single();
+    if (error) return json({ error: error.message }, 400);
+    const mailed = await notifyHolders(admin, p, { kind, title, body: text, date }).catch(() => 0);
+    await admin.from("clv_product_events").update({ notified: mailed }).eq("id", ev.id);
+    await audit(admin, caller, "product-event", p.code, { kind, title, mailed });
+    return json({ ok: true, mailed });
   }
 
   if (action === "admin_delete") {
