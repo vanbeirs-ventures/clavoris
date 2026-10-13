@@ -116,6 +116,55 @@ const T: Record<string, Record<Lang, { s: string; t: string }>> = {
     nl: { s: "Clavoris: overdracht afgewikkeld — {product}", t: "Beste {name},\n\nDe overdracht van {units} eenhe(i)d(en) van {product} ({amount}) is afgewikkeld. Uw bijgewerkte positie en de ondertekende documentatie vindt u in uw portefeuille:\n{link}" },
     fr: { s: "Clavoris : cession réglée — {product}", t: "Cher/Chère {name},\n\nLa cession de {units} unité(s) de {product} ({amount}) a été réglée. Votre position mise à jour et la documentation signée sont disponibles dans votre portefeuille :\n{link}" },
   },
+  // ---- notifications (each category can be switched off by the user under Account) ----
+  room_files: {
+    en: { s: "Clavoris data room {room}: {what}", t: "Dear {name},\n\nThe data room \"{room}\" has been updated.\n{list}\nOpen the data room:\n{link}\n\nYou receive this message because file notifications are enabled on your account. You can change this under Account › E-mail notifications." },
+    nl: { s: "Clavoris dataroom {room}: {what}", t: "Beste {name},\n\nDe dataroom \"{room}\" is bijgewerkt.\n{list}\nOpen de dataroom:\n{link}\n\nU ontvangt dit bericht omdat bestandsmeldingen op uw account ingeschakeld zijn. U kunt dit wijzigen onder Account › E-mailmeldingen." },
+    fr: { s: "Data room Clavoris {room} : {what}", t: "Cher/Chère {name},\n\nLa data room « {room} » a été mise à jour.\n{list}\nOuvrir la data room :\n{link}\n\nVous recevez ce message parce que les notifications de fichiers sont activées sur votre compte. Vous pouvez modifier cela sous Compte › Notifications par e-mail." },
+  },
+  files_new: { en: { s: "", t: "new files" }, nl: { s: "", t: "nieuwe bestanden" }, fr: { s: "", t: "nouveaux fichiers" } },
+  files_updated: { en: { s: "", t: "updated files" }, nl: { s: "", t: "bijgewerkte bestanden" }, fr: { s: "", t: "fichiers mis à jour" } },
+  files_new_h: { en: { s: "", t: "New files:" }, nl: { s: "", t: "Nieuwe bestanden:" }, fr: { s: "", t: "Nouveaux fichiers :" } },
+  files_updated_h: { en: { s: "", t: "Updated files:" }, nl: { s: "", t: "Bijgewerkte bestanden:" }, fr: { s: "", t: "Fichiers mis à jour :" } },
+  contract_assigned: {
+    en: { s: "Clavoris: contract for signature — {title}", t: "Dear {name},\n\nThe contract \"{title}\" has been assigned to you as {role} on Clavoris. You will be notified when it is your turn to sign; you can already consult it here:\n{link}" },
+    nl: { s: "Clavoris: contract ter ondertekening — {title}", t: "Beste {name},\n\nHet contract \"{title}\" is op Clavoris aan u toegewezen als {role}. U wordt verwittigd zodra het uw beurt is om te ondertekenen; u kunt het hier al raadplegen:\n{link}" },
+    fr: { s: "Clavoris : contrat à signer — {title}", t: "Cher/Chère {name},\n\nLe contrat « {title} » vous a été attribué sur Clavoris en tant que {role}. Vous serez prévenu(e) lorsque ce sera votre tour de signer ; vous pouvez déjà le consulter ici :\n{link}" },
+  },
+  market_new: {
+    en: { s: "Clavoris: new investment available — {product}", t: "Dear {name},\n\nA new investment is open for subscription on the Clavoris marketplace:\n\n{product}\nIssuer: {issuer}\n{terms}\n\nFull documentation must be assessed before any subscription. Open the instrument:\n{link}\n\nThis message is addressed to professional investors only and does not constitute an offer to the public." },
+    nl: { s: "Clavoris: nieuwe investering beschikbaar — {product}", t: "Beste {name},\n\nEen nieuwe investering staat open voor inschrijving op de Clavoris-marktplaats:\n\n{product}\nEmittent: {issuer}\n{terms}\n\nDe volledige documentatie moet beoordeeld zijn vóór elke inschrijving. Open het instrument:\n{link}\n\nDit bericht is uitsluitend gericht aan professionele beleggers en vormt geen openbaar aanbod." },
+    fr: { s: "Clavoris : nouvel investissement disponible — {product}", t: "Cher/Chère {name},\n\nUn nouvel investissement est ouvert à la souscription sur la place de marché Clavoris :\n\n{product}\nÉmetteur : {issuer}\n{terms}\n\nLa documentation complète doit être évaluée avant toute souscription. Ouvrir l'instrument :\n{link}\n\nCe message s'adresse exclusivement aux investisseurs professionnels et ne constitue pas une offre au public." },
+  },
+  pf_event: {
+    en: { s: "Clavoris portfolio: {kind} — {product}", t: "Dear {name},\n\n{title}\n\nInstrument: {product}\nEvent: {kind}{date}\nYour position: {units} unit(s){amount}\n\n{body}\n\nDetails in your portfolio:\n{link}" },
+    nl: { s: "Clavoris portefeuille: {kind} — {product}", t: "Beste {name},\n\n{title}\n\nInstrument: {product}\nGebeurtenis: {kind}{date}\nUw positie: {units} eenhe(i)d(en){amount}\n\n{body}\n\nDetails in uw portefeuille:\n{link}" },
+    fr: { s: "Clavoris portefeuille : {kind} — {product}", t: "Cher/Chère {name},\n\n{title}\n\nInstrument : {product}\nÉvénement : {kind}{date}\nVotre position : {units} unité(s){amount}\n\n{body}\n\nDétails dans votre portefeuille :\n{link}" },
+  },
+  ev_coupon: { en: { s: "", t: "coupon payment" }, nl: { s: "", t: "couponbetaling" }, fr: { s: "", t: "paiement de coupon" } },
+  ev_custom: { en: { s: "", t: "notice" }, nl: { s: "", t: "mededeling" }, fr: { s: "", t: "avis" } },
+  ev_maturity: { en: { s: "", t: "end of contract" }, nl: { s: "", t: "einde van het contract" }, fr: { s: "", t: "fin de contrat" } },
+  ev_principal: { en: { s: "", t: "repayment of principal" }, nl: { s: "", t: "terugbetaling van de hoofdsom" }, fr: { s: "", t: "remboursement du principal" } },
+  ev_conversion: { en: { s: "", t: "conversion into shares" }, nl: { s: "", t: "omzetting in aandelen" }, fr: { s: "", t: "conversion en actions" } },
+  on_date: { en: { s: "", t: " on {date}" }, nl: { s: "", t: " op {date}" }, fr: { s: "", t: " le {date}" } },
+  coupon_paid_title: { en: { s: "", t: "A coupon has been paid on your position." }, nl: { s: "", t: "Er is een coupon uitbetaald op uw positie." }, fr: { s: "", t: "Un coupon a été payé sur votre position." } },
+  coupon_paid_body: { en: { s: "", t: "Coupon due {date}: {amount}{ref}. Your bank statement is the proof of receipt; Clavoris records the payment in your portfolio." }, nl: { s: "", t: "Coupon vervallen op {date}: {amount}{ref}. Uw bankuittreksel geldt als ontvangstbewijs; Clavoris registreert de betaling in uw portefeuille." }, fr: { s: "", t: "Coupon échu le {date} : {amount}{ref}. Votre relevé bancaire fait foi de réception ; Clavoris enregistre le paiement dans votre portefeuille." } },
+  // ---- reminders sent by staff from the data-room member list ----
+  remind_signup: {
+    en: { s: "Reminder — your Clavoris access to {room}", t: "Dear {name},\n\nYour access to the Clavoris data room \"{room}\" is waiting for activation. Set your passphrase and complete your profile here (the link is valid once):\n{link}\n\nAfter that, the identity verification (KYC) and the room's non-disclosure agreement complete the process. Access is personal and every document access is logged." },
+    nl: { s: "Herinnering — uw Clavoris-toegang tot {room}", t: "Beste {name},\n\nUw toegang tot de Clavoris-dataroom \"{room}\" wacht op activering. Kies hier uw wachtwoordzin en vul uw profiel aan (de link is eenmalig geldig):\n{link}\n\nDaarna voltooien de identiteitsverificatie (KYC) en de geheimhoudingsovereenkomst van de dataroom het proces. De toegang is persoonlijk en elke documentraadpleging wordt geregistreerd." },
+    fr: { s: "Rappel — votre accès Clavoris à {room}", t: "Cher/Chère {name},\n\nVotre accès à la data room Clavoris « {room} » attend d'être activé. Choisissez votre phrase de passe et complétez votre profil ici (le lien est valable une seule fois) :\n{link}\n\nEnsuite, la vérification d'identité (KYC) et l'accord de confidentialité de la data room achèvent le processus. L'accès est personnel et chaque consultation de document est enregistrée." },
+  },
+  remind_kyc: {
+    en: { s: "Reminder — identity verification for {room}", t: "Dear {name},\n\nYour identity verification (KYC) is still outstanding, so the Clavoris data room \"{room}\" cannot open yet. It takes a few minutes with an identity document and a phone or webcam:\n{link}\n\nOnce verified, the room's non-disclosure agreement is the last step before the documents become available." },
+    nl: { s: "Herinnering — identiteitsverificatie voor {room}", t: "Beste {name},\n\nUw identiteitsverificatie (KYC) is nog niet voltooid, waardoor de Clavoris-dataroom \"{room}\" nog niet kan openen. Het duurt enkele minuten met een identiteitsdocument en een telefoon of webcam:\n{link}\n\nNa de verificatie is de geheimhoudingsovereenkomst van de dataroom de laatste stap voordat de documenten beschikbaar worden." },
+    fr: { s: "Rappel — vérification d'identité pour {room}", t: "Cher/Chère {name},\n\nVotre vérification d'identité (KYC) est toujours en attente ; la data room Clavoris « {room} » ne peut donc pas encore s'ouvrir. Elle prend quelques minutes avec une pièce d'identité et un téléphone ou une webcam :\n{link}\n\nUne fois vérifié(e), l'accord de confidentialité de la data room est la dernière étape avant que les documents soient disponibles." },
+  },
+  remind_nda: {
+    en: { s: "Reminder — non-disclosure agreement for {room}", t: "Dear {name},\n\nYour identity is verified; the non-disclosure agreement of the Clavoris data room \"{room}\" still awaits your signature. Sign it inside the room to open the documents:\n{link}" },
+    nl: { s: "Herinnering — geheimhoudingsovereenkomst voor {room}", t: "Beste {name},\n\nUw identiteit is geverifieerd; de geheimhoudingsovereenkomst van de Clavoris-dataroom \"{room}\" wacht nog op uw ondertekening. Onderteken ze in de dataroom om de documenten te openen:\n{link}" },
+    fr: { s: "Rappel — accord de confidentialité pour {room}", t: "Cher/Chère {name},\n\nVotre identité est vérifiée ; l'accord de confidentialité de la data room Clavoris « {room} » attend encore votre signature. Signez-le dans la data room pour ouvrir les documents :\n{link}" },
+  },
 };
 
 const FALLBACK_NAME: Record<Lang, string> = { en: "investor", nl: "belegger", fr: "investisseur" };
@@ -127,4 +176,4 @@ export function mail(lang: Lang, key: string, vars: V = {}): { subject: string; 
   const v = { ...vars, name: vars.name || FALLBACK_NAME[lang] };
   return { subject: fill(e.s, v), text: fill(e.t, v) };
 }
-export function word(lang: Lang, key: string): string { return T[key]?.[lang]?.t || T[key]?.en?.t || key; }
+export function word(lang: Lang, key: string, vars: V = {}): string { return fill(T[key]?.[lang]?.t || T[key]?.en?.t || key, vars); }
