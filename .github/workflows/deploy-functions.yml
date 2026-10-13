@@ -25,8 +25,14 @@ jobs:
           version: latest
       - name: Deploy clv-* functions
         run: |
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then echo "::error::SUPABASE_ACCESS_TOKEN secret is not set on this repository/organisation"; exit 1; fi
+          fail=0
           for dir in supabase/functions/clv-*/; do
             name=$(basename "$dir")
             echo "Deploying $name ..."
-            supabase functions deploy "$name" --project-ref "$PROJECT_REF" --no-verify-jwt
+            if ! supabase functions deploy "$name" --project-ref "$PROJECT_REF" --no-verify-jwt > "/tmp/$name.log" 2>&1; then
+              fail=1; cat "/tmp/$name.log"
+              echo "::error::$name: $(tail -c 700 "/tmp/$name.log" | tr '\n' ' ')"
+            fi
           done
+          exit $fail

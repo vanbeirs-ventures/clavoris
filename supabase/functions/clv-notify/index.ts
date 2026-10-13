@@ -4,7 +4,7 @@
 //   { action: "scan" }  -> data-room file watcher (new / updated files), "new investment" mails,
 //                          access-expiry reminders (7 days / 24 h before the end date)
 // The run is rate-limited (one scan per 4 minutes) because the cron trigger carries no secret.
-// Deploy: supabase functions deploy clv-notify --no-verify-jwt
+// Deploy: supabase functions deploy clv-notify --no-verify-jwt (CI: .github/workflows/deploy-functions.yml)
 import { adminClient, cors, json, requireAdmin } from "../_shared/clv.ts";
 import { expiryReminders, notifyNewProducts, scanRooms } from "../_shared/notify.ts";
 
