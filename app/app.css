@@ -119,6 +119,7 @@ html.clv-checking body[data-clv-restrict] main { visibility: hidden; }
 
 /* ---- modal ---- */
 .scrim { position: fixed; inset: 0; background: rgba(18,42,68,.55); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 24px; }
+.scrim[hidden], [hidden] { display: none !important; }
 .modal { background: var(--bg-raised); border-radius: var(--r-lg); box-shadow: var(--shadow-lg); width: 100%; max-width: 460px; overflow: hidden; }
 .modal-head { background: var(--clavis-navy); padding: 18px 22px; display: flex; justify-content: space-between; align-items: center; }
 .modal-head .t { font-family: var(--font-display); font-size: 17px; color: var(--parchment); margin-top: 3px; }
