@@ -50,5 +50,46 @@
       });
     });
   }
-  window.ClavorisShell = { render: render, esc: esc, fmtDate: fmtDate, fmtSize: fmtSize, fmtMoney: fmtMoney, downloadFn: downloadFn };
+  // Access end date: "ends in 12 days" / "ends today" / "ended on …" plus a request-extension link.
+  function accessLeft(expiresAt) {
+    if (!expiresAt) return { state: 'none', days: null };
+    var ms = new Date(expiresAt).getTime() - Date.now();
+    if (ms <= 0) return { state: 'ended', days: 0 };
+    var days = Math.ceil(ms / 86400000);
+    return { state: ms <= 24 * 3600000 ? 'today' : days <= 7 ? 'soon' : 'ok', days: days, hours: Math.ceil(ms / 3600000) };
+  }
+  function accessText(expiresAt) {
+    var I = window.ClavorisI18n, t = I ? I.t : function (k) { return k; };
+    var x = accessLeft(expiresAt);
+    if (x.state === 'none') return '';
+    if (x.state === 'ended') return t('access.ended', { date: fmtDate(expiresAt) });
+    if (x.state === 'today') return t('access.hours', { n: x.hours, date: fmtDate(expiresAt) });
+    return t('access.days', { n: x.days, date: fmtDate(expiresAt) });
+  }
+  // Modal: pick a new end date and send the request to the company admins.
+  function extensionDialog(roomId, roomName, currentExpiry, onDone) {
+    var A = window.ClavorisAccess, I = window.ClavorisI18n, t = I.t;
+    var old = document.getElementById('extScrim'); if (old) old.remove();
+    var base = currentExpiry && new Date(currentExpiry) > new Date() ? new Date(currentExpiry) : new Date();
+    var def = new Date(base.getTime() + 30 * 86400000).toISOString().slice(0, 10), min = new Date().toISOString().slice(0, 10);
+    var el = document.createElement('div'); el.className = 'scrim'; el.id = 'extScrim';
+    el.innerHTML = '<div class="modal" role="dialog" aria-labelledby="extTitle"><div class="modal-head"><div><div class="e">' + esc(roomName) + '</div><div class="t" id="extTitle">' + esc(t('access.ext.title')) + '</div></div><button type="button" id="extClose" aria-label="Close">×</button></div>'
+      + '<form class="modal-body" id="extForm" onsubmit="return false;"><p style="font-size:13.5px;color:var(--fg-2);line-height:1.6">' + esc(t('access.ext.body')) + '</p>'
+      + '<div class="field"><label for="extUntil">' + esc(t('access.ext.until')) + '</label><input id="extUntil" type="date" class="mono" min="' + min + '" value="' + def + '"></div>'
+      + '<div class="field"><label for="extMsg">' + esc(t('access.ext.msg')) + '</label><textarea id="extMsg" rows="3" maxlength="1000"></textarea></div>'
+      + '<p class="msg" id="extMsgOut" role="status"></p><div style="display:flex;gap:10px;margin-top:16px"><button class="btn btn-ghost" type="button" id="extCancel" style="flex:1">' + esc(t('access.ext.cancel')) + '</button><button class="btn btn-primary" type="submit" id="extSend" style="flex:1.2">' + esc(t('access.ext.send')) + '</button></div></form></div>';
+    document.body.appendChild(el);
+    function close() { el.remove(); }
+    el.querySelector('#extClose').addEventListener('click', close); el.querySelector('#extCancel').addEventListener('click', close);
+    el.querySelector('#extForm').addEventListener('submit', function () {
+      var m = el.querySelector('#extMsgOut'), b = el.querySelector('#extSend'); m.className = 'msg'; m.textContent = ''; b.disabled = true;
+      A.callFn('clv-room', { room_id: roomId, action: 'extend_request', until: el.querySelector('#extUntil').value, message: el.querySelector('#extMsg').value.trim() }).then(function (r) {
+        b.disabled = false;
+        if (r.error) { m.className = 'msg err'; m.textContent = r.error === 'already-pending' ? t('access.ext.pending') : r.error === 'bad-date' ? t('access.ext.bad_date') : r.error; return; }
+        m.className = 'msg ok'; m.textContent = t('access.ext.sent');
+        setTimeout(function () { close(); if (onDone) onDone(); }, 1400);
+      });
+    });
+  }
+  window.ClavorisShell = { render: render, esc: esc, fmtDate: fmtDate, fmtSize: fmtSize, fmtMoney: fmtMoney, downloadFn: downloadFn, accessLeft: accessLeft, accessText: accessText, extensionDialog: extensionDialog };
 })();

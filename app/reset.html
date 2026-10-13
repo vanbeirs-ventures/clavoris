@@ -6,7 +6,7 @@
 <meta name="robots" content="noindex">
 <title>Set passphrase — Clavoris</title>
 <link rel="icon" href="../assets/clavoris-mark.png">
-<link rel="stylesheet" href="app.css?v=20261013j">
+<link rel="stylesheet" href="app.css?v=20261014b">
 </head>
 <body>
 <main class="auth" data-screen-label="Set passphrase" data-i18n-doctitle="reset.btn">
@@ -15,6 +15,7 @@
     <div>
       <p class="eyebrow" data-i18n="reset.eyebrow">Recovery</p>
       <h1 data-i18n="reset.title">Set a new<br>passphrase.</h1>
+      <p id="ctx" style="display:none;font-weight:500"></p>
       <p data-i18n="reset.body">This link was sent to the email on your Clavoris account. Choose a passphrase of at least 12 characters, with letters and numbers.</p>
     </div>
     <div class="trust" style="margin-top:0">Antwerp · Luxembourg · Nordic</div>
@@ -51,10 +52,10 @@
   </section>
 </main>
 
-<script src="config.js?v=20261013j"></script>
-<script src="i18n.js?v=20261013j"></script>
+<script src="config.js?v=20261014b"></script>
+<script src="i18n.js?v=20261014b"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="clavoris-access.js?v=20261013j"></script>
+<script src="clavoris-access.js?v=20261014b"></script>
 <script>
 (function () {
   'use strict';
@@ -80,7 +81,9 @@
   // when the user presses Continue, so mail link scanners cannot consume it.
   var params = new URLSearchParams(location.search);
   var tokenHash = params.get('token_hash');
-  if (params.get('welcome') === '1') { try { sessionStorage.setItem('clv_welcome', '1'); } catch (e) {} }
+  if (params.get('welcome') === '1') { try { sessionStorage.setItem('clv_welcome', '1'); if (params.get('room')) sessionStorage.setItem('clv_welcome_ctx', JSON.stringify({ room: params.get('room'), by: params.get('by') || '' })); } catch (e) {} }
+  // Invited to a data room: say so on the sign-up screen (room name + inviting company from the link).
+  (function () { var room = params.get('room'), by = params.get('by'); if (room) { var c = document.getElementById('ctx'); c.style.display = 'block'; c.textContent = window.ClavorisI18n.t('welcome.room', { room: room, company: by || 'Clavoris' }); } })();
   function start() {
     A.refresh().then(function () {
       if (A.isSignedIn()) { showForm(); return; }
