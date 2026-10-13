@@ -7,3 +7,7 @@ create table if not exists clv_settings (
   updated_by uuid
 );
 alter table clv_settings enable row level security;
+
+-- The edge functions use the service role; the table is otherwise private.
+grant all on table public.clv_settings to service_role;
+revoke all on table public.clv_settings from anon, authenticated;
