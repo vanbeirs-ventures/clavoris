@@ -6,16 +6,23 @@
 import { adminClient } from "./clv.ts";
 
 export type NcCreds = { url: string; user: string; pass: string };
-let cached: NcCreds | null | undefined;
+// Credentials are cached briefly so a (re)connection made in the admin panel is picked up
+// without a redeploy; a missing connection is never cached.
+let cached: { creds: NcCreds; at: number } | null = null;
+const CACHE_MS = 60_000;
 
 export async function ncCreds(): Promise<NcCreds | null> {
-  if (cached !== undefined) return cached;
+  if (cached && Date.now() - cached.at < CACHE_MS) return cached.creds;
   const { data } = await adminClient().from("clv_settings").select("value").eq("key", "nc").maybeSingle();
   const v = (data?.value || {}) as Partial<NcCreds>;
-  if (v.url && v.user && v.pass) { cached = { url: v.url.replace(/\/$/, ""), user: v.user, pass: v.pass }; return cached; }
-  const url = (Deno.env.get("NC_URL") || "").replace(/\/$/, ""), user = Deno.env.get("NC_USER") || "", pass = Deno.env.get("NC_PASS") || "";
-  cached = url && user && pass ? { url, user, pass } : null;
-  return cached;
+  let creds: NcCreds | null = null;
+  if (v.url && v.user && v.pass) creds = { url: v.url.replace(/\/$/, ""), user: v.user, pass: v.pass };
+  else {
+    const url = (Deno.env.get("NC_URL") || "").replace(/\/$/, ""), user = Deno.env.get("NC_USER") || "", pass = Deno.env.get("NC_PASS") || "";
+    if (url && user && pass) creds = { url, user, pass };
+  }
+  cached = creds ? { creds, at: Date.now() } : null;
+  return creds;
 }
 export async function ncConfigured(): Promise<boolean> { return !!(await ncCreds()); }
 
