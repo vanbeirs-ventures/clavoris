@@ -34,7 +34,7 @@
     }
   } catch (e) { sb = null; }
 
-  var PROFILE_SEL = 'id, email, full_name, company, job_title, mobile, lang, role, status, kyc_level, kyc_review_answer, last_login_at, created_at';
+  var PROFILE_SEL = 'id, email, full_name, company, job_title, mobile, lang, role, status, kyc_level, kyc_review_answer, last_login_at, created_at, features, notify';
 
   /* ---------------- cached session state ---------------- */
   var _user = null;      // supabase auth user
@@ -136,7 +136,7 @@
   // Update own profile fields (RLS: own row only).
   function updateProfile(fields) {
     if (!sb || !_user) return Promise.resolve({ ok: false });
-    var allowed = {}; ['full_name', 'company', 'job_title', 'mobile', 'lang'].forEach(function (k) { if (k in fields) allowed[k] = fields[k]; });
+    var allowed = {}; ['full_name', 'company', 'job_title', 'mobile', 'lang', 'notify'].forEach(function (k) { if (k in fields) allowed[k] = fields[k]; });
     return sb.from('clv_profiles').update(allowed).eq('id', _user.id).then(function (res) {
       if (res.error) return { ok: false, error: res.error.message };
       return refreshSession().then(function () { return { ok: true }; });

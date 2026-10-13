@@ -6,7 +6,7 @@
 <meta name="robots" content="noindex">
 <title>My account — Clavoris</title>
 <link rel="icon" href="../assets/clavoris-mark.png">
-<link rel="stylesheet" href="app.css?v=20261013j">
+<link rel="stylesheet" href="app.css?v=20261014a">
 <script>document.documentElement.classList.add('clv-checking');</script>
 </head>
 <body data-clv-restrict="full">
@@ -50,6 +50,19 @@
         <div id="kyc" style="margin-top:12px;font-size:13px;color:var(--fg-2);line-height:1.6"></div>
       </section>
     </div>
+    <section class="card" id="notif" style="padding:22px;margin-top:24px">
+      <h2 style="font-family:var(--font-display);font-size:20px;color:var(--clavis-navy)" data-i18n="notif.title">E-mail notifications</h2>
+      <p style="font-size:13px;color:var(--fg-2);margin-top:6px;line-height:1.6" data-i18n="notif.sub">Choose which automated messages Clavoris sends you. Transactional messages about your own actions (invitations, signatures, settlements) are always sent.</p>
+      <form id="notifForm" onsubmit="return false;" style="margin-top:12px">
+        <label class="check" style="margin-top:10px"><input type="checkbox" id="n_room_new"> <span data-i18n="notif.room_new">New files uploaded in a data room</span></label>
+        <label class="check" style="margin-top:10px"><input type="checkbox" id="n_room_updated"> <span data-i18n="notif.room_updated">Existing data-room files updated</span></label>
+        <label class="check" style="margin-top:10px"><input type="checkbox" id="n_contract_new"> <span data-i18n="notif.contract_new">New contracts assigned to me for signature</span></label>
+        <label class="check" style="margin-top:10px"><input type="checkbox" id="n_market_new"> <span data-i18n="notif.market_new">New investments available on the marketplace</span></label>
+        <label class="check" style="margin-top:10px"><input type="checkbox" id="n_portfolio_events"> <span data-i18n="notif.portfolio_events">Events in my portfolio: coupon payment, notices, end of contract, repayment of principal, conversion into shares</span></label>
+        <p class="msg" id="notifMsg" role="status"></p>
+        <button class="btn btn-primary" type="submit" id="notifBtn" data-i18n="notif.save">Save notifications</button>
+      </form>
+    </section>
     <section class="card" id="audit" style="padding:22px;margin-top:24px">
       <h2 style="font-family:var(--font-display);font-size:20px;color:var(--clavis-navy)" data-i18n="account.audit">Audit trail</h2>
       <p style="font-size:13px;color:var(--fg-2);margin-top:6px;line-height:1.6" data-i18n="account.audit.body">Your complete activity record on Clavoris: every sign-in, your identity verification (Sumsub, AMLD6), the NDAs you signed and every document you downloaded. Each download carries a unique reference and a SHA-256 fingerprint of the delivered file; PDFs are additionally watermarked on every page with your identity and the reference. The documents are confidential under the NDA you signed.</p>
@@ -61,11 +74,11 @@
   <footer class="app-foot"><span data-i18n="footer.tag">Clavoris · Private Investment Enablement Platform</span><span class="loc" data-i18n="footer.loc">Antwerp · Luxembourg · Nordic · CSSF · FSMA · MiCA</span></footer>
 </div>
 
-<script src="config.js?v=20261013j"></script>
-<script src="i18n.js?v=20261013j"></script>
+<script src="config.js?v=20261014a"></script>
+<script src="i18n.js?v=20261014a"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="clavoris-access.js?v=20261013j"></script>
-<script src="shell.js?v=20261013j"></script>
+<script src="clavoris-access.js?v=20261014a"></script>
+<script src="shell.js?v=20261014a"></script>
 <script>
 (function () {
   'use strict';
@@ -106,6 +119,14 @@
       var m = q('profileMsg'); m.className = 'msg'; m.textContent = ''; q('profileBtn').disabled = true;
       A.updateProfile({ full_name: q('full_name').value.trim(), company: q('company').value.trim(), job_title: q('job_title').value.trim(), mobile: q('mobile').value.trim(), lang: q('lang').value })
         .then(function (r) { q('profileBtn').disabled = false; m.className = r.ok ? 'msg ok' : 'msg err'; m.textContent = r.ok ? I.t('account.saved') : (r.error || I.t('account.save_failed')); if (r.ok) { q('name').textContent = A.displayName(); if (q('lang').value !== I.lang) location.reload(); } });
+    });
+
+    var NKEYS = ['room_new', 'room_updated', 'contract_new', 'market_new', 'portfolio_events'];
+    NKEYS.forEach(function (k) { q('n_' + k).checked = !(p.notify && p.notify[k] === false); });
+    q('notifForm').addEventListener('submit', function () {
+      var m = q('notifMsg'); m.className = 'msg'; m.textContent = ''; q('notifBtn').disabled = true;
+      var n = {}; NKEYS.forEach(function (k) { if (!q('n_' + k).checked) n[k] = false; });
+      A.updateProfile({ notify: n }).then(function (r) { q('notifBtn').disabled = false; m.className = r.ok ? 'msg ok' : 'msg err'; m.textContent = r.ok ? I.t('notif.saved') : (r.error || I.t('account.save_failed')); });
     });
 
     function refreshPw() { q('pwBtn').disabled = !(q('curPw').value && valid(q('newPw').value) && q('newPw').value === q('newPw2').value); }
