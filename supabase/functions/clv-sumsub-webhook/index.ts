@@ -6,8 +6,10 @@
 //   applicantReviewed RED  (RETRY)     -> kyc_retry
 //   applicantReviewed RED  (FINAL)     -> rejected
 //   applicantPending / applicantCreated -> kyc_pending (only from registered)
+// Also completes contract signatures (QES) in progress for the applicant.
 // Deploy: supabase functions deploy clv-sumsub-webhook --no-verify-jwt
 import { adminClient, json } from "../_shared/clv.ts";
+import { finalizeParty } from "../_shared/contracts.ts";
 
 async function hmacHex(secret: string, body: Uint8Array, algo: string): Promise<string> {
   const hash = /512/.test(algo) ? "SHA-512" : /1$/.test(algo) ? "SHA-1" : "SHA-256";
@@ -50,6 +52,11 @@ Deno.serve(async (req) => {
       if (p.role !== "user" && upd.status === "rejected") delete upd.status; // never lock out staff
       await admin.from("clv_profiles").update(upd).eq("id", p.id);
       await admin.from("clv_sumsub_events").update({ processed_at: new Date().toISOString() }).eq("digest", digest);
+      // Contract signatures in progress for this user: pick up the signed PDF.
+      if (type === "applicantReviewed" || type === "applicantPending") {
+        const { data: signing } = await admin.from("clv_contract_parties").select("id").eq("user_id", p.id).eq("status", "signing");
+        for (const sp of signing || []) { try { await finalizeParty(admin, sp.id); } catch (e) { console.error("finalizeParty", (e as Error).message); } }
+      }
     }
   }
   return json({ ok: true });

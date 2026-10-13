@@ -31,7 +31,7 @@ Deno.serve(async (req) => {
   const limit = Math.min(Number(body.limit || 300), 1000);
   const [logs, dls, kyc, rooms] = await Promise.all([
     admin.from("clv_access_log").select("ts, action, file_path, room_id, ip").eq("user_id", me.id).in("action", ["login", "kyc-start", "nda-signed", "download-nda"]).order("ts", { ascending: false }).limit(limit),
-    admin.from("clv_downloads").select("created_at, code, file_name, delivered_as, sha256_delivered, sha256_source, watermark, room_id, ip").eq("user_id", me.id).order("created_at", { ascending: false }).limit(limit),
+    admin.from("clv_downloads").select("created_at, code, file_name, delivered_as, sha256_delivered, sha256_source, watermark, room_id, contract_id, contract:clv_contracts(title), ip").eq("user_id", me.id).order("created_at", { ascending: false }).limit(limit),
     admin.from("clv_sumsub_events").select("received_at, type, review_answer, payload").eq("external_user_id", me.id).order("received_at", { ascending: false }).limit(limit),
     admin.from("clv_rooms").select("id, name"),
   ]);
@@ -48,7 +48,8 @@ Deno.serve(async (req) => {
   for (const d of dls.data || []) {
     const wm = (d.watermark || {}) as { stamped?: boolean };
     const stamped = d.delivered_as === "pdf-watermarked" || !!wm.stamped;
-    out.push({ ts: d.created_at, kind: "download", title: `Downloaded ${d.file_name}`, detail: `${ext(d.file_name)} · ${stamped ? "visible watermark on every page" : "download reference in file name"} · identity, time and IP recorded`, room: d.room_id ? roomName.get(d.room_id) || null : null, ref: d.code, sha: d.sha256_delivered, ip: d.ip });
+    const isContract = !!d.contract_id;
+    out.push({ ts: d.created_at, kind: "download", title: `Downloaded ${d.file_name}`, detail: `${ext(d.file_name)} · ${isContract ? (d.delivered_as === "qes-signed" ? "qualified e-signatures embedded (PAdES)" : "contract original, unsigned") : stamped ? "visible watermark on every page" : "download reference in file name"} · identity, time and IP recorded`, room: isContract ? ("Contract: " + ((d.contract as any)?.title || "")) : d.room_id ? roomName.get(d.room_id) || null : null, ref: d.code, sha: d.sha256_delivered, ip: d.ip });
   }
   for (const k of kyc.data || []) {
     const p = (k.payload || {}) as { reviewResult?: { reviewRejectType?: string; moderationComment?: string }; levelName?: string };
