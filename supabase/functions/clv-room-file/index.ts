@@ -40,7 +40,7 @@ Deno.serve(async (req) => {
   const body = await req.json().catch(() => ({}));
   const roomId = String(body.room_id || "");
   if (!roomId) return json({ error: "room-required" }, 400);
-  if (!ncConfigured()) return json({ error: "storage-not-configured" }, 503);
+  if (!(await ncConfigured())) return json({ error: "storage-not-configured" }, 503);
 
   const { data: room } = await admin.from("clv_rooms").select("id, name, nextcloud_folder, qes_nda_required, downloads_allowed, watermark").eq("id", roomId).maybeSingle();
   if (!room || !room.nextcloud_folder) return json({ error: "not-found" }, 404);

@@ -53,7 +53,8 @@ Deno.serve(async (req) => {
     if (r.status === 404) return json({ ok: true, pending: true });
     if (!r.ok) return json({ error: `nc-poll ${r.status}` }, 502);
     const d = await r.json() as { server: string; loginName: string; appPassword: string };
-    await admin.from("clv_settings").upsert({ key: "nc", value: { url: (d.server || NC_URL).replace(/\/$/, ""), user: d.loginName, pass: d.appPassword }, updated_at: new Date().toISOString(), updated_by: me.id });
+    const { error } = await admin.from("clv_settings").upsert({ key: "nc", value: { url: (d.server || NC_URL).replace(/\/$/, ""), user: d.loginName, pass: d.appPassword }, updated_at: new Date().toISOString(), updated_by: me.id });
+    if (error) { console.error("clv-nc-connect: store failed", error.message); return json({ error: "store-failed: " + error.message }, 500); }
     polls.delete(token);
     await audit(admin, me, "nextcloud-connected", d.loginName, { server: d.server });
     return json({ ok: true, user: d.loginName });

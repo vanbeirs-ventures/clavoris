@@ -105,7 +105,7 @@ Deno.serve(async (req) => {
   const shaSigned = await sha256Hex(pdfBytes);
 
   let ncPath: string | null = null;
-  if (ncConfigured() && room.nextcloud_folder) {
+  if ((await ncConfigured()) && room.nextcloud_folder) {
     const safeMail = me.email.toLowerCase().replace(/[^a-z0-9@._-]/g, "_");
     const folder = `${room.nextcloud_folder}/_users/${safeMail}`;
     const file = `${folder}/NDA_${room.slug}_${version}_${now.toISOString().slice(0, 10)}.pdf`;
