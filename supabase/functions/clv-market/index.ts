@@ -10,12 +10,12 @@
 //   coupon payment records, and the per-product access audit with distinct-investor counts.
 // Deploy: supabase functions deploy clv-market --no-verify-jwt
 import { PDFDocument, StandardFonts, rgb } from "https://esm.sh/pdf-lib@1.17.1";
-import { adminClient, APP_URL, audit, clientIp, cors, isStaff, json, type Profile, requireUser, sendMail } from "../_shared/clv.ts";
+import { adminClient, APP_URL, audit, clientIp, companyScope, cors, inScope, isStaff, json, type Profile, requireUser, sendMail } from "../_shared/clv.ts";
 import { notifyHolders, notifyNewProducts, type PfEvent } from "../_shared/notify.ts";
 import { mail, pickLang } from "../_shared/mail-i18n.ts";
 import { ncConfigured, ncGet, ncTree, sha256Hex } from "../_shared/nc.ts";
 
-const PRODUCT_COLS = "id, code, name, type, status, issuer_name, issuer_id, issuer_country, issuer_description, isin, currency, nominal, min_units, total_units, coupon_rate, coupon_frequency, issue_date, first_coupon_date, maturity_date, subscription_opens, subscription_closes, description, highlights, nextcloud_folder, secondary_enabled, max_investors, created_at, updated_at";
+const PRODUCT_COLS = "id, code, name, type, status, issuer_name, issuer_id, issuer_country, issuer_description, isin, currency, nominal, min_units, total_units, coupon_rate, coupon_frequency, issue_date, first_coupon_date, maturity_date, subscription_opens, subscription_closes, description, highlights, nextcloud_folder, secondary_enabled, max_investors, company_id, created_at, updated_at";
 const PERIODS: Record<string, number> = { annual: 1, semi: 2, quarterly: 4, monthly: 12, none: 0 };
 
 type Product = Record<string, any>;
@@ -270,8 +270,11 @@ Deno.serve(async (req) => {
   if (!staff) return json({ error: "forbidden" }, 403);
   const caller = { id: me.id, email: me.email, role: me.role };
 
+  const scope = companyScope(me);
   if (action === "admin_list") {
-    const { data: products } = await admin.from("clv_products").select(PRODUCT_COLS).order("created_at", { ascending: false });
+    let pq = admin.from("clv_products").select(PRODUCT_COLS).order("created_at", { ascending: false });
+    if (scope) pq = pq.eq("company_id", scope);
+    const { data: products } = await pq;
     const out = [];
     for (const p of products || []) {
       const { data: subs } = await admin.from("clv_subscriptions").select("units, status").eq("product_id", p.id);
@@ -298,9 +301,13 @@ Deno.serve(async (req) => {
       secondary_enabled: !!b.secondary_enabled, max_investors: num("max_investors"), updated_at: new Date().toISOString(),
     };
     if (!row.code || !row.name || !row.issuer_name) return json({ error: "code-name-issuer-required" }, 400);
+    row.company_id = me.role === "super" ? (String(b.company_id || "") || me.company_id || null) : me.company_id;
     let res;
-    if (b.id) res = await admin.from("clv_products").update(row).eq("id", String(b.id)).select("id").single();
-    else res = await admin.from("clv_products").insert({ ...row, created_by: me.id }).select("id").single();
+    if (b.id) {
+      const { data: ex } = await admin.from("clv_products").select("company_id").eq("id", String(b.id)).maybeSingle();
+      if (!ex || !inScope(me, ex.company_id)) return json({ error: "forbidden" }, 403);
+      res = await admin.from("clv_products").update(row).eq("id", String(b.id)).select("id").single();
+    } else res = await admin.from("clv_products").insert({ ...row, created_by: me.id }).select("id").single();
     if (res.error) return json({ error: res.error.message }, 400);
     await audit(admin, caller, b.id ? "product-updated" : "product-created", String(row.code), { id: res.data.id, status: row.status });
     // "New investment available" goes out once, the first time the product is open.
@@ -311,7 +318,7 @@ Deno.serve(async (req) => {
   if (action === "admin_product") {
     const id = String(body.id || "");
     const { data: p } = await admin.from("clv_products").select(PRODUCT_COLS).eq("id", id).maybeSingle();
-    if (!p) return json({ error: "not-found" }, 404);
+    if (!p || !inScope(me, p.company_id)) return json({ error: "not-found" }, 404);
     const prof = "profile:clv_profiles!";
     const { data: subs } = await admin.from("clv_subscriptions").select(`id, units, amount, status, created_at, settled_at, contract_id, user_id, ${prof}clv_subscriptions_user_id_fkey(full_name, email, company)`).eq("product_id", id).order("created_at", { ascending: false });
     const { data: lst } = await admin.from("clv_listings").select(`id, units, price_per_unit, status, created_at, matched_at, settled_at, contract_id, seller_id, buyer_id, seller:clv_profiles!clv_listings_seller_id_fkey(full_name, email), buyer:clv_profiles!clv_listings_buyer_id_fkey(full_name, email)`).eq("product_id", id).order("created_at", { ascending: false });
