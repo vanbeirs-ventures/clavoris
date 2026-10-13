@@ -2,134 +2,13 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta http-equiv="refresh" content="0; url=app/login.html">
 <title>Sign in — Clavoris</title>
 <link rel="icon" href="assets/clavoris-mark.png">
-<link rel="stylesheet" href="clavoris.css">
-<style>
-  .login-wrap { min-height: 100vh; display: grid; grid-template-columns: 1.05fr 1fr; }
-  @media (max-width: 820px) { .login-wrap { grid-template-columns: 1fr; } }
-
-  .login-left { position: relative; background: var(--clavis-navy); color: var(--fg-on-navy);
-    padding: clamp(32px,5vw,60px); display: flex; flex-direction: column; justify-content: space-between; overflow: hidden; min-height: 280px; }
-  .login-left::before { content: ""; position: absolute; inset: 0;
-    background: url("assets/clavoris-mark-reversed.png") no-repeat right -60px bottom -40px; background-size: 300px; opacity: .05; }
-  .login-left > * { position: relative; }
-  .ll-brand { display: flex; align-items: center; gap: 11px; }
-  .ll-brand img { height: 34px; }
-  .ll-brand .wm { font-family: var(--font-display); font-size: 24px; color: var(--parchment); line-height: 1; }
-  .ll-brand .wm .g { color: var(--gold-light); font-style: italic; }
-  .ll-eyebrow { color: var(--gold-light); }
-  .ll-title { font-family: var(--font-display); font-size: clamp(30px,4vw,46px); color: var(--parchment);
-    line-height: 1.08; letter-spacing: -.01em; margin-top: 16px; }
-  .ll-sub { font-size: 14.5px; color: var(--fg-on-navy-2); line-height: 1.65; margin-top: 18px; max-width: 44ch; }
-  .ll-badges { display: flex; flex-wrap: wrap; gap: 10px 22px; color: var(--fg-on-navy-2); font-size: 11.5px; letter-spacing: .02em; margin-top: 26px; }
-  .ll-badges span { display: inline-flex; align-items: center; gap: 7px; }
-  .ll-badges svg { width: 14px; height: 14px; color: var(--gold-light); }
-
-  .login-right { display: flex; align-items: center; justify-content: center; padding: clamp(32px,5vw,48px); background: var(--bg-page); position: relative; }
-  .back-link { position: absolute; top: 22px; right: 28px; display: inline-flex; align-items: center; gap: 7px;
-    font-size: 12.5px; color: var(--fg-2); transition: color var(--dur) var(--ease); }
-  .back-link:hover { color: var(--clavis-navy); }
-  .back-link svg { width: 15px; height: 15px; }
-  .login-card { width: 100%; max-width: 372px; }
-  .login-card .eyebrow { display: block; }
-  .lc-title { font-family: var(--font-display); font-size: 28px; color: var(--clavis-navy); margin-top: 8px; line-height: 1.15; }
-  .lc-sub { font-size: 13px; color: var(--fg-2); margin-top: 8px; line-height: 1.5; }
-  .field { margin-top: 22px; }
-  .field label { display: block; font-size: 11px; font-weight: var(--w-medium); text-transform: uppercase;
-    letter-spacing: .08em; color: var(--fg-2); margin-bottom: 7px; }
-  .field input { width: 100%; font-size: 14px; color: var(--fg-1); background: var(--bg-raised);
-    border: 1px solid var(--border-strong); border-radius: var(--r-sm); padding: 12px 13px; outline: none;
-    transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease); }
-  .field input:focus { border-color: var(--seal-gold); box-shadow: 0 0 0 3px rgba(184,134,11,.12); }
-  .field input.mono { font-family: var(--font-data); letter-spacing: .08em; }
-  .login-submit { width: 100%; justify-content: center; margin-top: 26px; padding: 14px; }
-  .secured { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 18px;
-    font-size: 11.5px; color: var(--fg-3); }
-  .secured svg { width: 13px; height: 13px; }
-  .verifying { text-align: center; }
-  .spinner { width: 54px; height: 54px; margin: 0 auto; border-radius: 50%;
-    border: 2px solid var(--seal-gold); border-top-color: transparent; animation: spin .8s linear infinite; }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  .verifying h2 { font-family: var(--font-display); font-size: 23px; color: var(--clavis-navy); margin-top: 24px; }
-  .verifying p { font-family: var(--font-data); font-size: 12px; color: var(--fg-2); margin-top: 10px; }
-  .hidden { display: none; }
-</style>
+<script>location.replace('app/login.html' + location.search);</script>
 </head>
-<body data-page="login" data-chrome="off">
-
-  <div class="login-wrap">
-    <div class="login-left">
-      <a class="ll-brand" href="index.html">
-        <img src="assets/clavoris-mark-reversed.png" alt="">
-        <span class="wm">Clavori<span class="g">s</span></span>
-      </a>
-      <div>
-        <span class="eyebrow ll-eyebrow" data-i18n="login_left_eyebrow"></span>
-        <h1 class="ll-title" data-i18n="login_left_title"></h1>
-        <p class="ll-sub" data-i18n="login_left_sub"></p>
-        <div class="ll-badges">
-          <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.4 8.5 8 11 4.6-2.5 8-6 8-11V5z"/><path d="m9 12 2 2 4-4"/></svg>MiFID II</span>
-          <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.4 8.5 8 11 4.6-2.5 8-6 8-11V5z"/><path d="m9 12 2 2 4-4"/></svg>AMLD6 KYC</span>
-          <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.4 8.5 8 11 4.6-2.5 8-6 8-11V5z"/><path d="m9 12 2 2 4-4"/></svg>Canton Network</span>
-          <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.4 8.5 8 11 4.6-2.5 8-6 8-11V5z"/><path d="m9 12 2 2 4-4"/></svg>EURC · MiCA</span>
-        </div>
-      </div>
-    </div>
-
-    <div class="login-right">
-      <a class="back-link" href="index.html">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>
-        <span data-i18n="cta_back"></span>
-      </a>
-
-      <div class="login-card" id="loginCard">
-        <span class="eyebrow" data-i18n="login_eyebrow"></span>
-        <h2 class="lc-title" data-i18n="login_title"></h2>
-        <p class="lc-sub" data-i18n="login_sub"></p>
-        <form id="loginForm">
-          <div class="field">
-            <label data-i18n="login_email"></label>
-            <input type="email" value="investor@clavoris.com" autocomplete="username">
-          </div>
-          <div class="field">
-            <label data-i18n="login_pass"></label>
-            <input type="password" class="mono" value="000000000000" autocomplete="current-password">
-          </div>
-          <button type="submit" class="btn btn-gold login-submit">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="4"/><path d="m10.5 12.5 8-8M16 5l3 3M18 7l2-2"/></svg>
-            <span data-i18n="login_submit"></span>
-          </button>
-          <div class="secured">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
-            <span data-i18n="login_secured"></span>
-          </div>
-        </form>
-      </div>
-
-      <div class="login-card verifying hidden" id="verifyCard">
-        <div class="spinner"></div>
-        <h2 data-i18n="login_verifying"></h2>
-        <p data-i18n="login_verifying_sub"></p>
-      </div>
-    </div>
-  </div>
-
-  <script src="i18n.js"></script>
-  <script src="i18n2.js"></script>
-  <script src="i18n-legal.js"></script>
-  <script src="site.js"></script>
-  <script>
-    (function () {
-      var form = document.getElementById("loginForm");
-      if (!form) return;
-      form.addEventListener("submit", function (e) {
-        e.preventDefault();
-        document.getElementById("loginCard").classList.add("hidden");
-        document.getElementById("verifyCard").classList.remove("hidden");
-      });
-    })();
-  </script>
+<body style="font-family:Poppins,sans-serif;background:#F7F3EC;color:#1A3A5C;margin:0;display:grid;place-items:center;min-height:100vh">
+<p>Taking you to the Clavoris sign-in… <a href="app/login.html">Continue</a></p>
 </body>
 </html>

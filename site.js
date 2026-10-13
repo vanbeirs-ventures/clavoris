@@ -113,7 +113,7 @@
       '<div class="menu-nav">' + navHtml + "</div>" +
       '<div class="menu-div"></div>' +
       '<div class="menu-actions">' +
-        '<a class="menu-login" href="login.html">' + ICON.key + '<span data-i18n="cta_login"></span></a>' +
+        '<a class="menu-login" href="app/login.html">' + ICON.key + '<span data-i18n="cta_login"></span></a>' +
       "</div>" +
       '<div class="menu-lang"><div class="menu-lang-head">' + ICON.globe +
         '<span class="eyebrow" data-i18n="menu_lang"></span></div>' +
@@ -141,15 +141,15 @@
           '<a class="social-li" href="https://www.linkedin.com/company/van-beirs" target="_blank" rel="noopener" aria-label="LinkedIn">' + ICON.linkedin + '</a>' +
         "</div>" +
         '<div class="footer-col"><h4 data-i18n="foot_platform"></h4>' +
-          '<a href="login.html" data-i18n="foot_f1"></a>' +
-          '<a href="login.html" data-i18n="foot_f2"></a>' +
+          '<a href="app/login.html" data-i18n="foot_f1"></a>' +
+          '<a href="app/login.html" data-i18n="foot_f2"></a>' +
           '<a href="technology.html" data-i18n="foot_f3"></a>' +
           '<a href="technology.html" data-i18n="foot_f4"></a></div>' +
         '<div class="footer-col"><h4 data-i18n="foot_company"></h4>' +
           '<a href="about.html" data-i18n="foot_c1"></a>' +
           '<a href="technology.html" data-i18n="foot_c2"></a>' +
           '<a href="why-clavoris.html" data-i18n="foot_c3"></a>' +
-          '<a href="login.html" data-i18n="foot_c4"></a></div>' +
+          '<a href="app/login.html" data-i18n="foot_c4"></a></div>' +
         '<div class="footer-col"><h4 data-i18n="foot_legal_h"></h4>' +
           '<a href="privacy.html" data-i18n="foot_privacy"></a>' +
           '<a href="terms.html" data-i18n="foot_terms"></a>' +
