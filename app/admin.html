@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Admin — Clavoris</title>
+<link rel="icon" href="../assets/clavoris-mark.png">
+<link rel="stylesheet" href="app.css">
+<script>document.documentElement.classList.add('clv-checking');</script>
+</head>
+<body data-clv-restrict="admin">
+<div class="app">
+  <nav class="nav" id="nav"></nav>
+  <main class="screen-wrap" data-screen-label="Admin — users">
+    <p class="eyebrow">Administration</p>
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:16px">
+      <div><h1 class="page-title">Users</h1><p class="page-sub">Investors and staff enrolled on Clavoris. Roles and statuses are changed server-side with an audit entry.</p></div>
+      <button class="btn btn-primary" id="newUser" type="button">+ New user</button>
+    </div>
+
+    <div class="tiles">
+      <div class="card tile"><div class="k">Users</div><div class="v" id="cUsers">—</div><div class="s">Enrolled</div></div>
+      <div class="card tile"><div class="k">Verified</div><div class="v" id="cVerified">—</div><div class="s">AMLD6 KYC complete</div></div>
+      <div class="card tile"><div class="k">In verification</div><div class="v gold" id="cPending">—</div><div class="s">Pending or retry</div></div>
+      <div class="card tile"><div class="k">Staff</div><div class="v" id="cStaff">—</div><div class="s">Admin · super</div></div>
+    </div>
+
+    <div class="card tbl-wrap" style="margin-top:28px">
+      <table class="tbl"><thead><tr><th>User</th><th>Company</th><th>Role</th><th>Status</th><th>Last login</th><th>Created</th><th></th></tr></thead>
+      <tbody id="rows"><tr><td colspan="7" style="color:var(--fg-3)">Loading…</td></tr></tbody></table>
+    </div>
+    <p class="msg err" id="listErr"></p>
+  </main>
+  <footer class="app-foot"><span>Clavoris · Institutional Capital Platform</span><span class="loc">Antwerp · Luxembourg · Nordic · CSSF · FSMA · MiCA</span></footer>
+</div>
+
+<!-- New user -->
+<div class="scrim" id="newModal" hidden>
+  <div class="modal" role="dialog" aria-labelledby="nmTitle">
+    <div class="modal-head"><div><div class="e">Enrol</div><div class="t" id="nmTitle">New user</div></div><button type="button" id="nmClose" aria-label="Close">×</button></div>
+    <form class="modal-body" id="newForm" autocomplete="off" onsubmit="return false;">
+      <div class="field" style="margin-top:0"><label for="nName">Full name</label><input id="nName" type="text"></div>
+      <div class="field"><label for="nEmail">Email</label><input id="nEmail" type="email"></div>
+      <div class="field"><label for="nCompany">Company / entity</label><input id="nCompany" type="text"></div>
+      <div class="field"><label for="nRole">Role</label>
+        <select id="nRole"><option value="user">Investor (user)</option><option value="admin">Admin (super-admin only)</option></select></div>
+      <div class="field"><label for="nLang">Language</label>
+        <select id="nLang"><option value="en">English</option><option value="nl">Nederlands</option><option value="fr">Français</option><option value="de">Deutsch</option><option value="es">Español</option><option value="it">Italiano</option></select></div>
+      <p class="msg" id="nMsg" role="status"></p>
+      <button class="btn btn-primary btn-block" type="submit" id="nBtn">Create and send invitation</button>
+    </form>
+  </div>
+</div>
+
+<!-- Edit role / status -->
+<div class="scrim" id="editModal" hidden>
+  <div class="modal" role="dialog" aria-labelledby="emTitle">
+    <div class="modal-head"><div><div class="e">User</div><div class="t" id="emTitle"></div></div><button type="button" id="emClose" aria-label="Close">×</button></div>
+    <form class="modal-body" id="editForm" autocomplete="off" onsubmit="return false;">
+      <div class="field" style="margin-top:0"><label for="eRole">Role</label>
+        <select id="eRole"><option value="user">Investor (user)</option><option value="admin">Admin</option><option value="super">Super-admin</option></select></div>
+      <div class="field"><label for="eStatus">Status</label>
+        <select id="eStatus"><option value="registered">registered</option><option value="kyc_pending">kyc_pending</option><option value="kyc_retry">kyc_retry</option><option value="verified">verified</option><option value="rejected">rejected</option><option value="suspended">suspended</option></select></div>
+      <p class="msg" id="eMsg" role="status"></p>
+      <div style="display:flex;gap:10px;margin-top:8px">
+        <button class="btn btn-ghost" type="button" id="eReset" style="flex:1">Send passphrase reset</button>
+        <button class="btn btn-primary" type="submit" id="eBtn" style="flex:1.2">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="clavoris-access.js"></script>
+<script src="shell.js"></script>
+<script>
+(function () {
+  'use strict';
+  var A = window.ClavorisAccess, S = window.ClavorisShell, esc = S.esc;
+  function q(id) { return document.getElementById(id); }
+  function fmt(ts) { if (!ts) return '—'; try { return new Date(ts).toLocaleDateString('en-GB', { year: 'numeric', month: 'short', day: 'numeric' }); } catch (e) { return String(ts).slice(0, 10); } }
+  var users = [], current = null;
+
+  function load() {
+    A.callFn('clv-admin-list', {}).then(function (r) {
+      if (r.error) { q('listErr').textContent = 'Could not load users (' + r.error + ').'; return; }
+      users = r.users || [];
+      q('cUsers').textContent = users.length;
+      q('cVerified').textContent = users.filter(function (u) { return u.status === 'verified'; }).length;
+      q('cPending').textContent = users.filter(function (u) { return u.status === 'kyc_pending' || u.status === 'kyc_retry'; }).length;
+      q('cStaff').textContent = users.filter(function (u) { return u.role !== 'user'; }).length;
+      q('rows').innerHTML = users.length ? users.map(function (u) {
+        return '<tr><td><div style="font-weight:500;color:var(--clavis-navy)">' + esc(u.full_name || '') + '</div><div class="mono" style="font-size:11px;color:var(--fg-3);margin-top:3px">' + esc(u.email) + '</div></td>'
+          + '<td>' + esc(u.company || '—') + '</td>'
+          + '<td><span class="chip ' + esc(u.role) + '">' + esc(u.role) + '</span></td>'
+          + '<td><span class="chip ' + esc(u.status) + '">' + esc(u.status.replace('_', ' ')) + '</span></td>'
+          + '<td class="mono" style="color:var(--fg-2)">' + esc(fmt(u.last_login_at)) + '</td>'
+          + '<td class="mono" style="color:var(--fg-2)">' + esc(fmt(u.created_at)) + '</td>'
+          + '<td><button class="btn-text" data-edit="' + esc(u.id) + '" type="button">Edit</button></td></tr>';
+      }).join('') : '<tr><td colspan="7" style="color:var(--fg-3)">No users yet.</td></tr>';
+      [].forEach.call(document.querySelectorAll('[data-edit]'), function (b) { b.addEventListener('click', function () { openEdit(b.getAttribute('data-edit')); }); });
+    });
+  }
+
+  function openEdit(id) {
+    current = users.filter(function (u) { return u.id === id; })[0]; if (!current) return;
+    q('emTitle').textContent = current.full_name || current.email;
+    q('eRole').value = current.role; q('eStatus').value = current.status;
+    q('eRole').disabled = !A.isSuper() && (current.role !== 'user'); // only super may touch staff roles
+    q('eMsg').className = 'msg'; q('eMsg').textContent = '';
+    q('editModal').hidden = false;
+  }
+  q('emClose').addEventListener('click', function () { q('editModal').hidden = true; });
+  q('editForm').addEventListener('submit', function () {
+    var m = q('eMsg'); m.className = 'msg'; m.textContent = ''; q('eBtn').disabled = true;
+    A.callFn('clv-admin-set-role', { id: current.id, role: q('eRole').value, status: q('eStatus').value }).then(function (r) {
+      q('eBtn').disabled = false;
+      if (r.error) { m.className = 'msg err'; m.textContent = r.error === 'super-only' ? 'Only the super-admin can change staff roles.' : r.error; return; }
+      m.className = 'msg ok'; m.textContent = 'Saved.'; load();
+    });
+  });
+  q('eReset').addEventListener('click', function () {
+    var m = q('eMsg'); m.className = 'msg'; m.textContent = '';
+    A.requestPasswordReset(current.email).then(function (r) { m.className = r.ok ? 'msg ok' : 'msg err'; m.textContent = r.ok ? 'Recovery link sent to ' + current.email + '.' : 'Could not send the link.'; });
+  });
+
+  q('newUser').addEventListener('click', function () { q('newForm').reset(); q('nMsg').className = 'msg'; q('nMsg').textContent = ''; q('newModal').hidden = false; });
+  q('nmClose').addEventListener('click', function () { q('newModal').hidden = true; });
+  q('newForm').addEventListener('submit', function () {
+    var m = q('nMsg'); m.className = 'msg'; m.textContent = '';
+    var name = q('nName').value.trim(), email = q('nEmail').value.trim();
+    if (!name) { m.className = 'msg err'; m.textContent = 'Enter a name.'; return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { m.className = 'msg err'; m.textContent = 'Enter a valid email.'; return; }
+    q('nBtn').disabled = true;
+    A.callFn('clv-admin-create-user', { name: name, email: email, company: q('nCompany').value.trim(), role: q('nRole').value, lang: q('nLang').value }).then(function (r) {
+      q('nBtn').disabled = false;
+      if (r.error) { m.className = 'msg err'; m.textContent = r.error === 'email-taken' ? 'This email is already enrolled.' : r.error === 'super-only' ? 'Only the super-admin can create admins.' : r.error; return; }
+      m.className = 'msg ok'; m.textContent = 'Created. ' + (r.invited ? 'An invitation with a one-time passphrase has been emailed.' : 'One-time passphrase: ' + r.password + ' (email not configured).');
+      load();
+    });
+  });
+
+  A.ready(function () { if (!A.clears('admin')) return; S.render('admin'); load(); });
+})();
+</script>
+</body>
+</html>
