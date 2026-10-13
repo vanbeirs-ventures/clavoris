@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>My account — Clavoris</title>
+<link rel="icon" href="../assets/clavoris-mark.png">
+<link rel="stylesheet" href="app.css">
+<script>document.documentElement.classList.add('clv-checking');</script>
+</head>
+<body data-clv-restrict="full">
+<div class="app">
+  <nav class="nav" id="nav"></nav>
+  <main class="screen-wrap" data-screen-label="My account">
+    <p class="eyebrow">Account</p>
+    <h1 class="page-title" id="name"></h1>
+    <p class="page-sub" id="meta"></p>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:24px;margin-top:28px;align-items:start">
+      <section class="card" style="padding:22px">
+        <h2 style="font-family:var(--font-display);font-size:20px;color:var(--clavis-navy)">Profile</h2>
+        <form id="profileForm" autocomplete="off" onsubmit="return false;">
+          <div class="field"><label for="full_name">Full name</label><input id="full_name" type="text" autocomplete="name"></div>
+          <div class="field"><label for="company">Company / entity</label><input id="company" type="text" autocomplete="organization"></div>
+          <div class="field"><label for="job_title">Role</label><input id="job_title" type="text" autocomplete="organization-title"></div>
+          <div class="field"><label for="mobile">Mobile</label><input id="mobile" type="tel" autocomplete="tel" class="mono"></div>
+          <div class="field"><label for="lang">Language</label>
+            <select id="lang"><option value="en">English</option><option value="nl">Nederlands</option><option value="fr">Français</option><option value="de">Deutsch</option><option value="es">Español</option><option value="it">Italiano</option></select></div>
+          <p class="msg" id="profileMsg" role="status"></p>
+          <button class="btn btn-primary" type="submit" id="profileBtn">Save profile</button>
+        </form>
+      </section>
+
+      <section class="card" style="padding:22px">
+        <h2 style="font-family:var(--font-display);font-size:20px;color:var(--clavis-navy)">Passphrase</h2>
+        <form id="pwForm" autocomplete="off" onsubmit="return false;">
+          <div class="field"><label for="curPw">Current passphrase</label><input id="curPw" type="password" autocomplete="current-password" class="mono"></div>
+          <div class="field"><label for="newPw">New passphrase</label><input id="newPw" type="password" autocomplete="new-password" class="mono"><span class="hint">At least 12 characters, with a letter and a number.</span></div>
+          <div class="field"><label for="newPw2">Repeat new passphrase</label><input id="newPw2" type="password" autocomplete="new-password" class="mono"></div>
+          <p class="msg" id="pwMsg" role="status"></p>
+          <button class="btn btn-primary" type="submit" id="pwBtn" disabled>Set new passphrase</button>
+        </form>
+        <h2 style="font-family:var(--font-display);font-size:20px;color:var(--clavis-navy);margin-top:32px">Verification</h2>
+        <div id="kyc" style="margin-top:12px;font-size:13px;color:var(--fg-2);line-height:1.6"></div>
+      </section>
+    </div>
+    <p class="note">Clavoris retains identity records per AMLD6 and CSSF requirements. To close your account, contact access@clavoris.com.</p>
+  </main>
+  <footer class="app-foot"><span>Clavoris · Institutional Capital Platform</span><span class="loc">Antwerp · Luxembourg · Nordic · CSSF · FSMA · MiCA</span></footer>
+</div>
+
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="clavoris-access.js"></script>
+<script src="shell.js"></script>
+<script>
+(function () {
+  'use strict';
+  var A = window.ClavorisAccess;
+  function q(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (m) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[m]; }); }
+  function valid(pw) { return pw.length >= 12 && /[A-Za-z]/.test(pw) && /[0-9]/.test(pw); }
+  var KYC = {
+    registered: 'Registered. Identity verification has not started yet.',
+    kyc_pending: 'Identity verification is in review.',
+    kyc_retry: 'Verification needs another attempt. Check your email for instructions.',
+    verified: 'Identity verified (AMLD6). Full portal access.',
+    rejected: 'Verification was not successful.',
+    suspended: 'Account suspended.'
+  };
+
+  A.ready(function () {
+    if (!A.clears('full')) return;
+    window.ClavorisShell.render('account');
+    var p = A.profile();
+    q('name').textContent = A.displayName();
+    q('meta').innerHTML = esc(A.user().email) + ' · <span class="chip ' + esc(p.role) + '">' + esc(p.role === 'super' ? 'Super-admin' : p.role === 'admin' ? 'Admin' : 'Investor') + '</span> '
+      + '<span class="chip ' + esc(p.status) + '">' + esc(p.status.replace('_', ' ')) + '</span>';
+    ['full_name', 'company', 'job_title', 'mobile', 'lang'].forEach(function (k) { if (p[k] != null) q(k).value = p[k]; });
+    q('kyc').innerHTML = '<span class="chip ' + esc(p.status) + '"><span class="dot"></span>' + esc(p.status.replace('_', ' ')) + '</span><p style="margin-top:8px">' + esc(KYC[p.status] || '') + '</p>'
+      + (p.kyc_level ? '<p class="mono" style="font-size:12px;margin-top:6px;color:var(--fg-3)">level ' + esc(p.kyc_level) + (p.kyc_reviewed_at ? ' · ' + esc(String(p.kyc_reviewed_at).slice(0, 10)) : '') + '</p>' : '');
+
+    q('profileForm').addEventListener('submit', function () {
+      var m = q('profileMsg'); m.className = 'msg'; m.textContent = ''; q('profileBtn').disabled = true;
+      A.updateProfile({ full_name: q('full_name').value.trim(), company: q('company').value.trim(), job_title: q('job_title').value.trim(), mobile: q('mobile').value.trim(), lang: q('lang').value })
+        .then(function (r) { q('profileBtn').disabled = false; m.className = r.ok ? 'msg ok' : 'msg err'; m.textContent = r.ok ? 'Profile saved.' : (r.error || 'Could not save.'); if (r.ok) q('name').textContent = A.displayName(); });
+    });
+
+    function refreshPw() { q('pwBtn').disabled = !(q('curPw').value && valid(q('newPw').value) && q('newPw').value === q('newPw2').value); }
+    ['curPw', 'newPw', 'newPw2'].forEach(function (id) { q(id).addEventListener('input', refreshPw); });
+    q('pwForm').addEventListener('submit', function () {
+      var m = q('pwMsg'); m.className = 'msg'; m.textContent = ''; q('pwBtn').disabled = true;
+      A.verifyPassword(q('curPw').value).then(function (ok) {
+        if (!ok) { m.className = 'msg err'; m.textContent = 'Current passphrase is not correct.'; q('pwBtn').disabled = false; return; }
+        return A.updatePassword(q('newPw').value).then(function (r) {
+          m.className = r.ok ? 'msg ok' : 'msg err'; m.textContent = r.ok ? 'Passphrase updated.' : (r.error || 'Could not update.');
+          if (r.ok) { q('curPw').value = ''; q('newPw').value = ''; q('newPw2').value = ''; }
+        });
+      });
+    });
+  });
+})();
+</script>
+</body>
+</html>

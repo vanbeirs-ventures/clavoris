@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Portfolio — Clavoris</title>
+<link rel="icon" href="../assets/clavoris-mark.png">
+<link rel="stylesheet" href="app.css">
+<script>document.documentElement.classList.add('clv-checking');</script>
+</head>
+<body data-clv-restrict="full">
+<div class="app">
+  <nav class="nav" id="nav"></nav>
+  <main class="screen-wrap" data-screen-label="Portfolio">
+    <p class="eyebrow">Portfolio</p>
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:16px">
+      <div><h1 class="page-title" id="greet"></h1><p class="page-sub" id="sub"></p></div>
+    </div>
+
+    <section id="kycBanner" class="card" style="padding:18px 22px;margin-top:24px;display:none;border-left:3px solid var(--seal-gold)">
+      <p class="eyebrow">Verification</p>
+      <p id="kycText" style="font-size:14px;line-height:1.6;margin-top:6px"></p>
+    </section>
+
+    <div class="tiles">
+      <div class="card tile"><div class="k">Total holdings value</div><div class="v" id="tHold">—</div><div class="s">Indicative · AIFMD NAV</div></div>
+      <div class="card tile"><div class="k">Active instruments</div><div class="v" id="tInst">—</div><div class="s">Bonds · SICAV share classes</div></div>
+      <div class="card tile"><div class="k">Data rooms</div><div class="v" id="tRooms">—</div><div class="s">Assigned to you</div></div>
+      <div class="card tile"><div class="k">Settlement</div><div class="v">T+0</div><div class="s">EURC · Canton Network</div></div>
+    </div>
+
+    <h2 id="rooms" style="font-family:var(--font-display);font-size:22px;color:var(--clavis-navy);margin-top:40px">Your data rooms</h2>
+    <p class="page-sub" style="margin-top:4px">Rooms you have been granted access to. Documents are watermarked and every access is logged.</p>
+    <div class="card tbl-wrap" style="margin-top:14px">
+      <table class="tbl"><thead><tr><th>Room</th><th>Type</th><th>Access</th><th>Expires</th><th>Status</th></tr></thead>
+      <tbody id="roomRows"><tr><td colspan="5" style="color:var(--fg-3)">Loading…</td></tr></tbody></table>
+    </div>
+
+    <h2 style="font-family:var(--font-display);font-size:22px;color:var(--clavis-navy);margin-top:40px">Your holdings</h2>
+    <div class="card" style="padding:22px;margin-top:14px;color:var(--fg-2);font-size:13.5px;line-height:1.6">
+      Instrument subscriptions and holdings become available once the marketplace opens. Instruments are tokenised on Canton Network and settle T+0 in EURC.
+    </div>
+    <p class="note">Valuations are indicative and subject to AIFMD-compliant NAV calculation. Past performance is not a reliable indicator of future results. Instruments are available exclusively to professional investors under MiFID II categorisation.</p>
+  </main>
+  <footer class="app-foot"><span>Clavoris · Institutional Capital Platform</span><span class="loc">Antwerp · Luxembourg · Nordic · CSSF · FSMA · MiCA</span></footer>
+</div>
+
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="clavoris-access.js"></script>
+<script src="shell.js"></script>
+<script>
+(function () {
+  'use strict';
+  var A = window.ClavorisAccess, S = window.ClavorisShell;
+  function q(id) { return document.getElementById(id); }
+  var KYC = {
+    registered: 'Your account is registered. Identity verification (AMLD6, via Sumsub) is required before instruments and data rooms open to you.',
+    kyc_pending: 'Your identity verification is in review. Clavoris will notify you by email when it completes.',
+    kyc_retry: 'Your verification needs another attempt. Check your email for instructions.',
+    rejected: 'Verification was not successful for this account. Contact access@clavoris.com.'
+  };
+  A.ready(function () {
+    if (!A.clears('full')) return;
+    S.render('portal');
+    var p = A.profile();
+    var h = new Date().getHours(); var g = h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
+    q('greet').textContent = g + ', ' + (p.full_name || '').split(' ')[0] + '.';
+    q('sub').textContent = [p.role === 'user' ? 'Professional · MiFID II' : (p.role === 'super' ? 'Super-admin' : 'Admin'), p.company].filter(Boolean).join(' · ');
+    if (KYC[p.status] && !A.isAdmin()) { q('kycBanner').style.display = 'block'; q('kycText').textContent = KYC[p.status]; }
+    q('tHold').textContent = '€0'; q('tInst').textContent = '0';
+
+    var sb = A.client();
+    sb.from('clv_room_assignments').select('can_download, expires_at, revoked_at, room:clv_rooms(name, project_type, status, seller)')
+      .eq('user_id', p.id).is('revoked_at', null)
+      .then(function (r) {
+        var rows = (r && r.data) || [];
+        q('tRooms').textContent = String(rows.length);
+        var tb = q('roomRows');
+        if (!rows.length) { tb.innerHTML = '<tr><td colspan="5" style="color:var(--fg-3)">No data rooms assigned yet.</td></tr>'; return; }
+        tb.innerHTML = rows.map(function (a) {
+          var rm = a.room || {};
+          var exp = a.expires_at ? String(a.expires_at).slice(0, 10) : '—';
+          var expired = a.expires_at && new Date(a.expires_at) < new Date();
+          return '<tr><td style="font-weight:500;color:var(--clavis-navy)">' + S.esc(rm.name || '') + (rm.seller ? '<div class="mono" style="font-size:11px;color:var(--fg-3);margin-top:3px">' + S.esc(rm.seller) + '</div>' : '') + '</td>'
+            + '<td>' + S.esc(rm.project_type || '') + '</td>'
+            + '<td>' + (a.can_download ? 'View + download' : 'View only') + '</td>'
+            + '<td class="mono">' + S.esc(exp) + '</td>'
+            + '<td>' + (expired ? '<span class="chip alert">Expired</span>' : '<span class="chip verified">Open</span>') + '</td></tr>';
+        }).join('');
+      });
+  });
+})();
+</script>
+</body>
+</html>

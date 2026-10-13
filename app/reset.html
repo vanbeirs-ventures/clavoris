@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Set passphrase — Clavoris</title>
+<link rel="icon" href="../assets/clavoris-mark.png">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<main class="auth" data-screen-label="Set passphrase">
+  <section class="auth-panel">
+    <div><a class="nav-brand" href="../index.html"><img src="../assets/clavoris-mark-reversed.png" alt=""><span class="nav-wm" style="color:var(--parchment)">Clavori<span class="g">s</span></span></a></div>
+    <div>
+      <p class="eyebrow">Recovery</p>
+      <h1>Set a new<br>passphrase.</h1>
+      <p>This link was sent to the email on your Clavoris account. Choose a passphrase of at least 12 characters, with letters and numbers.</p>
+    </div>
+    <div class="trust" style="margin-top:0">Antwerp · Luxembourg · Nordic</div>
+  </section>
+  <section class="auth-form">
+    <div>
+      <form id="resetForm" autocomplete="off" onsubmit="return false;">
+        <p class="eyebrow">Authorised access</p>
+        <h2>Choose your passphrase</h2>
+        <p class="lead" id="who"></p>
+        <div class="field"><label for="pw1">New passphrase</label>
+          <div class="pw-wrap"><input id="pw1" type="password" autocomplete="new-password" class="mono">
+            <button type="button" class="pw-eye" data-eye="pw1" aria-label="Show password"><svg viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></button></div>
+          <span class="hint">At least 12 characters, with a letter and a number.</span></div>
+        <div class="field"><label for="pw2">Repeat passphrase</label><input id="pw2" type="password" autocomplete="new-password" class="mono"></div>
+        <p class="msg" id="msg" role="status"></p>
+        <button class="btn btn-primary btn-block" type="submit" id="btn" disabled>Set passphrase</button>
+      </form>
+      <div id="noSession" hidden>
+        <p class="eyebrow">Recovery</p>
+        <h2>Link not valid</h2>
+        <p class="lead">This recovery link has expired or was already used. Request a new one from the sign-in page.</p>
+        <a class="btn btn-primary btn-block" style="margin-top:24px" href="login.html">Back to sign in</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="clavoris-access.js"></script>
+<script>
+(function () {
+  'use strict';
+  var A = window.ClavorisAccess;
+  function q(id) { return document.getElementById(id); }
+  function valid(pw) { return pw.length >= 12 && /[A-Za-z]/.test(pw) && /[0-9]/.test(pw); }
+  [].forEach.call(document.querySelectorAll('[data-eye]'), function (b) {
+    b.addEventListener('click', function () { var i = q(b.getAttribute('data-eye')); i.type = i.type === 'password' ? 'text' : 'password'; });
+  });
+  function refresh() { q('btn').disabled = !(valid(q('pw1').value) && q('pw1').value === q('pw2').value); }
+  q('pw1').addEventListener('input', refresh); q('pw2').addEventListener('input', refresh);
+
+  // supabase-js consumes the recovery token from the URL and establishes a session.
+  // Give it a moment, then check.
+  function start() {
+    A.refresh().then(function () {
+      if (!A.isSignedIn()) { q('resetForm').hidden = true; q('noSession').hidden = false; return; }
+      q('who').textContent = 'Signed in as ' + (A.user().email || '') + '.';
+    });
+  }
+  A.ready(function () { setTimeout(start, 400); });
+  document.addEventListener('clv:recovery', start);
+
+  q('resetForm').addEventListener('submit', function () {
+    var m = q('msg'); m.className = 'msg'; m.textContent = '';
+    q('btn').disabled = true;
+    A.updatePassword(q('pw1').value).then(function (r) {
+      if (!r.ok) { q('btn').disabled = false; m.className = 'msg err'; m.textContent = r.error || 'The passphrase could not be set.'; return; }
+      m.className = 'msg ok'; m.textContent = 'Passphrase set. Taking you to your portal…';
+      setTimeout(function () { location.href = A.homeFor(); }, 1200);
+    });
+  });
+})();
+</script>
+</body>
+</html>
