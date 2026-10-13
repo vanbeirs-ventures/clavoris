@@ -6,66 +6,69 @@
 <meta name="robots" content="noindex">
 <title>Sign in — Clavoris</title>
 <link rel="icon" href="../assets/clavoris-mark.png">
-<link rel="stylesheet" href="app.css?v=20261013g">
+<link rel="stylesheet" href="app.css?v=20261013j">
 </head>
 <body>
-<main class="auth" data-screen-label="Sign in">
+<main class="auth" data-screen-label="Sign in" data-i18n-doctitle="login.form_title">
   <section class="auth-panel">
     <div><a class="nav-brand" href="../index.html"><img src="../assets/clavoris-mark-reversed.png" alt=""><span class="nav-wm" style="color:var(--parchment)">Clavori<span class="g">s</span></span></a></div>
     <div>
-      <p class="eyebrow">Institutional Capital Platform</p>
-      <h1>Private capital,<br>precisely secured.</h1>
-      <p>Tokenised private bonds and SICAV-RAIF share classes from regulated partner issuers. T+0 settlement on Canton Network, for qualified professional investors.</p>
+      <p class="eyebrow" data-i18n="login.eyebrow">Private Investment Enablement Platform</p>
+      <h1 data-i18n="login.title">Private capital,<br>precisely secured.</h1>
+      <p data-i18n="login.body">Tokenised private bonds and SICAV-RAIF share classes from regulated partner issuers. T+0 settlement on Canton Network, for qualified professional investors.</p>
       <div class="trust"><span>MiFID II</span><span>AMLD6 KYC</span><span>Canton Network</span><span>EURC · MiCA</span></div>
     </div>
     <div class="trust" style="margin-top:0">Antwerp · Luxembourg · Nordic</div>
+    <div class="lang-sw" id="langSw"></div>
   </section>
 
   <section class="auth-form">
     <div>
       <form id="loginForm" autocomplete="off" onsubmit="return false;">
-        <p class="eyebrow">Authorised access</p>
-        <h2>Sign in to your portal</h2>
-        <p class="lead">Access is exclusive to verified professional investors and Clavoris staff.</p>
-        <div class="field"><label for="email">Institutional email</label><input id="email" type="email" autocomplete="email" placeholder="name@company.com"></div>
-        <div class="field"><label for="pw">Passphrase</label>
+        <p class="eyebrow" data-i18n="login.form_eyebrow">Authorised access</p>
+        <h2 data-i18n="login.form_title">Sign in to your portal</h2>
+        <p class="lead" data-i18n="login.lead">Access is exclusive to verified professional investors and Clavoris staff.</p>
+        <div class="field"><label for="email" data-i18n="login.email">Institutional email</label><input id="email" type="email" autocomplete="email" placeholder="name@company.com" data-i18n-placeholder="login.email_ph"></div>
+        <div class="field"><label for="pw" data-i18n="login.pass">Passphrase</label>
           <div class="pw-wrap"><input id="pw" type="password" autocomplete="current-password" class="mono" placeholder="••••••••••••">
             <button type="button" class="pw-eye" data-eye="pw" aria-label="Show password"><svg viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>
         <p class="msg err" id="loginError" role="alert"></p>
-        <button class="btn btn-primary btn-block" type="submit" id="loginBtn">Unlock portal</button>
-        <div style="text-align:center;margin-top:10px"><button type="button" class="btn-text" id="toForgot">Forgotten your passphrase?</button></div>
-        <div class="foot">Secured by Sumsub digital identity · eIDAS 2.0</div>
+        <button class="btn btn-primary btn-block" type="submit" id="loginBtn" data-i18n="login.btn">Unlock portal</button>
+        <div style="text-align:center;margin-top:10px"><button type="button" class="btn-text" id="toForgot" data-i18n="login.forgot">Forgotten your passphrase?</button></div>
+        <div class="foot" data-i18n="login.foot">Secured by Sumsub digital identity · eIDAS 2.0</div>
       </form>
 
       <form id="forgotForm" autocomplete="off" onsubmit="return false;" hidden>
-        <p class="eyebrow">Recovery</p>
-        <h2>Reset your passphrase</h2>
-        <p class="lead">Enter the email on your Clavoris account. Clavoris sends a one-time link to set a new passphrase.</p>
-        <div class="field"><label for="fEmail">Institutional email</label><input id="fEmail" type="email" autocomplete="email"></div>
+        <p class="eyebrow" data-i18n="forgot.eyebrow">Recovery</p>
+        <h2 data-i18n="forgot.title">Reset your passphrase</h2>
+        <p class="lead" data-i18n="forgot.lead">Enter the email on your Clavoris account. Clavoris sends a one-time link to set a new passphrase.</p>
+        <div class="field"><label for="fEmail" data-i18n="login.email">Institutional email</label><input id="fEmail" type="email" autocomplete="email"></div>
         <p class="msg" id="forgotMsg" role="status"></p>
-        <button class="btn btn-primary btn-block" type="submit" id="forgotBtn">Send recovery link</button>
-        <div style="text-align:center;margin-top:10px"><button type="button" class="btn-text" id="toLogin">Back to sign in</button></div>
+        <button class="btn btn-primary btn-block" type="submit" id="forgotBtn" data-i18n="forgot.btn">Send recovery link</button>
+        <div style="text-align:center;margin-top:10px"><button type="button" class="btn-text" id="toLogin" data-i18n="forgot.back">Back to sign in</button></div>
       </form>
     </div>
   </section>
 </main>
 
-<script src="config.js?v=20261013g"></script>
+<script src="config.js?v=20261013j"></script>
+<script src="i18n.js?v=20261013j"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="clavoris-access.js?v=20261013g"></script>
+<script src="clavoris-access.js?v=20261013j"></script>
 <script>
 (function () {
   'use strict';
-  var A = window.ClavorisAccess;
+  var A = window.ClavorisAccess, I = window.ClavorisI18n;
   function q(id) { return document.getElementById(id); }
   function param(k) { try { return new URLSearchParams(location.search).get(k); } catch (e) { return null; } }
-  var REASONS = {
-    invalid: 'Email or passphrase not recognised. Contact access@clavoris.com if you need assistance.',
-    'no-profile': 'This account is not enrolled on Clavoris. Contact access@clavoris.com.',
-    suspended: 'This account has been suspended. Contact access@clavoris.com.',
-    rejected: 'Verification was not successful for this account. Contact access@clavoris.com.',
-    unavailable: 'Service unavailable. Please try again in a moment.'
-  };
+  function reason(k) { return I.t(['invalid', 'no-profile', 'suspended', 'rejected', 'unavailable'].indexOf(k) >= 0 ? 'login.err.' + k : 'login.err.invalid'); }
+  // Language switcher (EN / NL / FR); the choice follows the user into the portal.
+  function renderLangSw() {
+    var sw = q('langSw'); if (!sw) return;
+    sw.innerHTML = I.langs.map(function (l) { return '<button type="button" class="lang-lk' + (l === I.lang ? ' active' : '') + '" data-lang="' + l + '">' + l.toUpperCase() + '</button>'; }).join('');
+    [].forEach.call(sw.querySelectorAll('[data-lang]'), function (b) { b.addEventListener('click', function () { I.set(b.getAttribute('data-lang')); renderLangSw(); }); });
+  }
+  renderLangSw();
 
   [].forEach.call(document.querySelectorAll('[data-eye]'), function (b) {
     b.addEventListener('click', function () { var i = q(b.getAttribute('data-eye')); i.type = i.type === 'password' ? 'text' : 'password'; });
@@ -74,17 +77,17 @@
   q('toLogin').addEventListener('click', function () { q('forgotForm').hidden = true; q('loginForm').hidden = false; });
 
   A.ready(function () {
-    if (param('denied')) q('loginError').textContent = 'Your account does not have access to that page.';
+    if (param('denied')) q('loginError').textContent = I.t('login.err.denied');
     if (A.isSignedIn() && A.profile() && !param('denied')) { location.replace(param('next') || A.homeFor()); return; }
 
     function submit() {
       var err = q('loginError'); err.textContent = '';
       var email = q('email').value.trim(), pw = q('pw').value;
-      if (!email || !pw) { err.textContent = 'Enter your email and passphrase.'; return; }
+      if (!email || !pw) { err.textContent = I.t('login.err.enter'); return; }
       q('loginBtn').disabled = true;
       A.signIn(email, pw).then(function (r) {
         if (r.ok) { location.href = param('next') || A.homeFor(r.profile); return; }
-        q('loginBtn').disabled = false; err.textContent = REASONS[r.reason] || REASONS.invalid;
+        q('loginBtn').disabled = false; err.textContent = reason(r.reason);
       });
     }
     q('loginForm').addEventListener('submit', submit);
@@ -93,12 +96,12 @@
     q('forgotForm').addEventListener('submit', function () {
       var m = q('forgotMsg'); m.className = 'msg'; m.textContent = '';
       var email = q('fEmail').value.trim();
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { m.className = 'msg err'; m.textContent = 'Enter a valid email address.'; return; }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { m.className = 'msg err'; m.textContent = I.t('forgot.err_email'); return; }
       q('forgotBtn').disabled = true;
       A.requestPasswordReset(email).then(function (r) {
         q('forgotBtn').disabled = false;
         m.className = r.ok ? 'msg ok' : 'msg err';
-        m.textContent = r.ok ? 'If this address is enrolled, a recovery link is on its way.' : 'The link could not be sent. Please try again.';
+        m.textContent = I.t(r.ok ? 'forgot.ok' : 'forgot.fail');
       });
     });
   });

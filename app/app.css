@@ -34,6 +34,7 @@ html.clv-checking body[data-clv-restrict] main { visibility: hidden; }
 .nav-lk.active { color: var(--clavis-navy); font-weight: 500; }
 .nav-lk.active::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--seal-gold); }
 .nav-right { display: flex; align-items: center; gap: 14px; }
+.nav-av.active { box-shadow: 0 0 0 2px var(--seal-gold); }
 .nav-av { width: 34px; height: 34px; border-radius: 50%; background: var(--clavis-navy); color: var(--parchment);
   display: inline-flex; align-items: center; justify-content: center; font-family: var(--font-display); font-size: 15px; }
 
@@ -128,3 +129,55 @@ html.clv-checking body[data-clv-restrict] main { visibility: hidden; }
 .modal-head button { color: var(--fg-on-navy-2); font-size: 20px; line-height: 1; padding: 4px 8px; }
 
 .note { font-size: 10.5px; color: var(--fg-3); margin-top: 16px; line-height: 1.5; max-width: 700px; }
+
+/* ---- shared form bits (used by several pages) ---- */
+textarea { font-family: inherit; font-size: 14px; }
+.field textarea { width: 100%; color: var(--fg-1); background: var(--bg-raised); border: 1px solid var(--border-strong); border-radius: var(--r-sm); padding: 10px 12px; line-height: 1.5; resize: vertical; }
+.field textarea:focus { border-color: var(--clavis-navy); box-shadow: 0 0 0 2px rgba(184,134,11,.35); outline: none; }
+.check { display: flex; gap: 10px; align-items: flex-start; font-size: 13.5px; margin-top: 18px; line-height: 1.5; }
+.check input { margin-top: 3px; width: 16px; height: 16px; flex: none; }
+.field .check { font-size: 13px; text-transform: none; letter-spacing: 0; color: var(--fg-1); font-weight: 400; }
+.picklist { max-height: 180px; overflow: auto; border: 1px solid var(--border); border-radius: var(--r-sm); padding: 8px 12px; font-size: 13px; }
+.g3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 0 14px; }
+.modal-wide { max-width: 780px; }
+.modal-body { max-height: calc(100vh - 110px); overflow: auto; }
+
+/* ---- language switcher on the auth pages ---- */
+.lang-sw { display: flex; gap: 6px; margin-top: 18px; }
+.lang-lk { font-family: var(--font-data); font-size: 11.5px; letter-spacing: .08em; color: var(--fg-on-navy-2); padding: 5px 9px; border: 1px solid transparent; border-radius: var(--r-sm); }
+.lang-lk:hover { color: var(--parchment); }
+.lang-lk.active { color: var(--parchment); border-color: var(--gold-light); }
+
+/* ---- mobile: collapsible navigation, touch-sized controls, tables scroll sideways ---- */
+.nav-burger { display: none; width: 40px; height: 40px; flex-direction: column; justify-content: center; align-items: center; gap: 5px; margin-left: auto; border-radius: var(--r-sm); }
+.nav-burger span { display: block; width: 20px; height: 2px; background: var(--clavis-navy); }
+@media (max-width: 860px) {
+  .nav { flex-wrap: wrap; padding-top: 10px; padding-bottom: 10px; row-gap: 8px; }
+  .nav-burger { display: flex; }
+  .nav-links { display: none; flex-direction: column; gap: 0; width: 100%; order: 3; border-top: 1px solid var(--border); padding-top: 6px; }
+  .nav.open .nav-links { display: flex; }
+  .nav-lk { padding: 12px 0; font-size: 15px; }
+  .nav-lk.active::after { display: none; }
+  .nav-lk.active { color: var(--seal-gold); }
+  .nav-right { width: 100%; order: 4; justify-content: space-between; display: none; }
+  .nav.open .nav-right { display: flex; }
+  .page-title { font-size: 26px; }
+  .app-foot { flex-direction: column; gap: 6px; padding: 16px; text-align: center; }
+  .btn { min-height: 44px; }
+  .btn-text { min-height: 36px; display: inline-flex; align-items: center; }
+  .field input, .field select, .field textarea { font-size: 16px; min-height: 44px; }
+  .tiles { grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 18px; }
+  .tile .v { font-size: 20px; }
+  .tbl th, .tbl td { padding: 10px 12px; white-space: nowrap; }
+  .scrim { padding: 10px; align-items: flex-end; }
+  .modal { max-width: none; max-height: 96vh; display: flex; flex-direction: column; }
+  .modal-body { max-height: none; flex: 1; overflow: auto; -webkit-overflow-scrolling: touch; }
+  .auth-panel { padding: 32px 24px; min-height: 0; }
+  .auth-panel p { margin-top: 12px; }
+  .auth-form { padding: 28px 16px 40px; }
+  .nav-wm { font-size: 20px; }
+}
+@media (max-width: 480px) {
+  .tiles { grid-template-columns: 1fr 1fr; }
+  .g3 { grid-template-columns: 1fr; }
+}

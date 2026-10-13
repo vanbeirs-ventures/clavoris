@@ -6,57 +6,53 @@
 <meta name="robots" content="noindex">
 <title>Data rooms — Clavoris</title>
 <link rel="icon" href="../assets/clavoris-mark.png">
-<link rel="stylesheet" href="app.css?v=20261013h">
+<link rel="stylesheet" href="app.css?v=20261013j">
 <script>document.documentElement.classList.add('clv-checking');</script>
 </head>
 <body data-clv-restrict="full">
 <div class="app">
   <nav class="nav" id="nav"></nav>
-  <main class="screen-wrap" data-screen-label="Data rooms">
-    <p class="eyebrow">Data rooms</p>
+  <main class="screen-wrap" data-screen-label="Data rooms" data-i18n-doctitle="nav.rooms">
+    <p class="eyebrow" data-i18n="nav.rooms">Data rooms</p>
     <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:16px">
       <div><h1 class="page-title" id="greet"></h1><p class="page-sub" id="sub"></p></div>
     </div>
 
     <section id="kycBanner" class="card" style="padding:18px 22px;margin-top:24px;display:none;border-left:3px solid var(--seal-gold)">
-      <p class="eyebrow">Identity verification</p>
+      <p class="eyebrow" data-i18n="portal.kyc.eyebrow">Identity verification</p>
       <p id="kycText" style="font-size:14px;line-height:1.6;margin-top:6px"></p>
-      <a class="btn btn-primary" id="kycBtn" href="kyc.html" style="margin-top:12px">Verify my identity</a>
+      <a class="btn btn-primary" id="kycBtn" href="kyc.html" style="margin-top:12px" data-i18n="portal.kyc.btn">Verify my identity</a>
     </section>
 
-    <p class="page-sub" style="margin-top:28px">Rooms you have been granted access to. Documents are confidential; a non-disclosure agreement is signed inside each room before documents open, and every access is logged.</p>
+    <p class="page-sub" style="margin-top:28px" data-i18n="portal.sub">Rooms you have been granted access to. Documents are confidential; a non-disclosure agreement is signed inside each room before documents open, and every access is logged.</p>
     <div class="card tbl-wrap" style="margin-top:14px">
-      <table class="tbl"><thead><tr><th>Room</th><th>Type</th><th>Access</th><th>Expires</th><th>Status</th><th></th></tr></thead>
-      <tbody id="roomRows"><tr><td colspan="6" style="color:var(--fg-3)">Loading…</td></tr></tbody></table>
+      <table class="tbl"><thead><tr><th data-i18n="portal.th.room">Room</th><th data-i18n="portal.th.type">Type</th><th data-i18n="portal.th.access">Access</th><th data-i18n="portal.th.expires">Expires</th><th data-i18n="portal.th.status">Status</th><th></th></tr></thead>
+      <tbody id="roomRows"><tr><td colspan="6" style="color:var(--fg-3)" data-i18n="common.loading">Loading…</td></tr></tbody></table>
     </div>
-    <p class="note">Access is personal and may not be shared. Instruments are available exclusively to professional investors under MiFID II categorisation.</p>
+    <p class="note" data-i18n="portal.note">Access is personal and may not be shared. Instruments are available exclusively to professional investors under MiFID II categorisation.</p>
   </main>
-  <footer class="app-foot"><span>Clavoris · Institutional Capital Platform</span><span class="loc">Antwerp · Luxembourg · Nordic · CSSF · FSMA · MiCA</span></footer>
+  <footer class="app-foot"><span data-i18n="footer.tag">Clavoris · Private Investment Enablement Platform</span><span class="loc" data-i18n="footer.loc">Antwerp · Luxembourg · Nordic · CSSF · FSMA · MiCA</span></footer>
 </div>
 
-<script src="config.js?v=20261013h"></script>
+<script src="config.js?v=20261013j"></script>
+<script src="i18n.js?v=20261013j"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="clavoris-access.js?v=20261013h"></script>
-<script src="shell.js?v=20261013h"></script>
+<script src="clavoris-access.js?v=20261013j"></script>
+<script src="shell.js?v=20261013j"></script>
 <script>
 (function () {
   'use strict';
-  var A = window.ClavorisAccess, S = window.ClavorisShell;
+  var A = window.ClavorisAccess, S = window.ClavorisShell, I = window.ClavorisI18n;
   function q(id) { return document.getElementById(id); }
-  var KYC = {
-    registered: 'Identity verification (AMLD6, via Sumsub) is required before you can sign a data room NDA and open documents.',
-    kyc_pending: 'Your identity verification is in review. Clavoris will notify you by email when it completes.',
-    kyc_retry: 'Your verification needs another attempt.',
-    rejected: 'Verification was not successful for this account. Contact access@clavoris.com.'
-  };
+  var KYC = { registered: 1, kyc_pending: 1, kyc_retry: 1, rejected: 1 };
   A.ready(function () {
     if (!A.clears('full')) return;
     S.render('rooms');
     var p = A.profile();
-    var h = new Date().getHours(); var g = h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
+    var h = new Date().getHours(); var g = I.t(h < 12 ? 'portal.greet.morning' : h < 18 ? 'portal.greet.afternoon' : 'portal.greet.evening');
     q('greet').textContent = g + ', ' + (p.full_name || '').split(' ')[0] + '.';
-    q('sub').textContent = [p.role === 'user' ? 'Professional investor · MiFID II' : (p.role === 'super' ? 'Super-admin' : 'Admin'), p.company].filter(Boolean).join(' · ');
-    if (KYC[p.status] && !A.isAdmin()) { q('kycBanner').style.display = 'block'; q('kycText').textContent = KYC[p.status]; if (p.status === 'rejected' || p.status === 'kyc_pending') q('kycBtn').style.display = 'none'; }
+    q('sub').textContent = [I.t(p.role === 'user' ? 'portal.role.investor' : p.role === 'super' ? 'portal.role.super' : 'portal.role.admin'), p.company].filter(Boolean).join(' · ');
+    if (KYC[p.status] && !A.isAdmin()) { q('kycBanner').style.display = 'block'; q('kycText').textContent = I.t('portal.kyc.' + p.status); if (p.status === 'rejected' || p.status === 'kyc_pending') q('kycBtn').style.display = 'none'; }
 
     var sb = A.client();
     var query = A.isAdmin()
@@ -64,17 +60,17 @@
       : sb.from('clv_room_assignments').select('can_download, expires_at, revoked_at, room:clv_rooms(id, name, project_type, status, seller)').eq('user_id', p.id).is('revoked_at', null).then(function (r) { return (r && r.data) || []; });
     query.then(function (rows) {
       var tb = q('roomRows');
-      if (!rows.length) { tb.innerHTML = '<tr><td colspan="6" style="color:var(--fg-3)">No data rooms assigned yet.</td></tr>'; return; }
+      if (!rows.length) { tb.innerHTML = '<tr><td colspan="6" style="color:var(--fg-3)">' + I.t('portal.none') + '</td></tr>'; return; }
       tb.innerHTML = rows.map(function (a) {
         var rm = a.room || {};
         var exp = a.expires_at ? String(a.expires_at).slice(0, 10) : '—';
         var expired = a.expires_at && new Date(a.expires_at) < new Date();
         return '<tr><td style="font-weight:500;color:var(--clavis-navy)">' + S.esc(rm.name || '') + (rm.seller ? '<div class="mono" style="font-size:11px;color:var(--fg-3);margin-top:3px">' + S.esc(rm.seller) + '</div>' : '') + '</td>'
-          + '<td>' + S.esc(rm.project_type === 'ma' ? 'M&A' : rm.project_type || '') + '</td>'
-          + '<td>' + (a.staff ? 'Staff' : a.can_download ? 'View + download' : 'View only') + '</td>'
+          + '<td>' + S.esc(rm.project_type === 'ma' ? I.t('portal.type.ma') : rm.project_type || '') + '</td>'
+          + '<td>' + I.t(a.staff ? 'portal.access.staff' : a.can_download ? 'portal.access.dl' : 'portal.access.view') + '</td>'
           + '<td class="mono">' + S.esc(exp) + '</td>'
-          + '<td>' + (expired ? '<span class="chip alert">Expired</span>' : '<span class="chip verified">Open</span>') + '</td>'
-          + '<td>' + (expired ? '' : '<a class="btn-text" href="room.html?id=' + S.esc(rm.id) + '">Open</a>') + '</td></tr>';
+          + '<td>' + (expired ? '<span class="chip alert">' + I.t('portal.expired') + '</span>' : '<span class="chip verified">' + I.t('room.status.open') + '</span>') + '</td>'
+          + '<td>' + (expired ? '' : '<a class="btn-text" href="room.html?id=' + S.esc(rm.id) + '">' + I.t('portal.open') + '</a>') + '</td></tr>';
       }).join('');
     });
   });

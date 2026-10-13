@@ -6,80 +6,74 @@
 <meta name="robots" content="noindex">
 <title>My account — Clavoris</title>
 <link rel="icon" href="../assets/clavoris-mark.png">
-<link rel="stylesheet" href="app.css?v=20261013h">
+<link rel="stylesheet" href="app.css?v=20261013j">
 <script>document.documentElement.classList.add('clv-checking');</script>
 </head>
 <body data-clv-restrict="full">
 <div class="app">
   <nav class="nav" id="nav"></nav>
-  <main class="screen-wrap" data-screen-label="My account">
-    <p class="eyebrow">Account</p>
+  <main class="screen-wrap" data-screen-label="My account" data-i18n-doctitle="account.eyebrow">
+    <p class="eyebrow" data-i18n="account.eyebrow">Account</p>
     <h1 class="page-title" id="name"></h1>
     <p class="page-sub" id="meta"></p>
     <section id="welcome" class="card" style="padding:18px 22px;margin-top:20px;border-left:3px solid var(--seal-gold)" hidden>
-      <p class="eyebrow">Welcome to Clavoris</p>
-      <p style="font-size:14px;line-height:1.6;margin-top:6px">Two steps remain before your data room opens: confirm your profile below (name and organisation appear on the NDA you will sign), then verify your identity.</p>
-      <a class="btn btn-primary" style="margin-top:12px" href="kyc.html?next=portal.html">Continue to identity verification</a>
+      <p class="eyebrow" data-i18n="account.welcome.eyebrow">Welcome to Clavoris</p>
+      <p style="font-size:14px;line-height:1.6;margin-top:6px" data-i18n="account.welcome.body">Two steps remain before your data room opens: confirm your profile below (name and organisation appear on the NDA you will sign), then verify your identity.</p>
+      <a class="btn btn-primary" style="margin-top:12px" href="kyc.html?next=portal.html" data-i18n="account.welcome.btn">Continue to identity verification</a>
     </section>
 
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:24px;margin-top:28px;align-items:start">
       <section class="card" style="padding:22px">
-        <h2 style="font-family:var(--font-display);font-size:20px;color:var(--clavis-navy)">Profile</h2>
+        <h2 style="font-family:var(--font-display);font-size:20px;color:var(--clavis-navy)" data-i18n="account.profile">Profile</h2>
         <form id="profileForm" autocomplete="off" onsubmit="return false;">
-          <div class="field"><label for="full_name">Full name</label><input id="full_name" type="text" autocomplete="name"></div>
-          <div class="field"><label for="company">Company / entity</label><input id="company" type="text" autocomplete="organization"></div>
-          <div class="field"><label for="job_title">Role</label><input id="job_title" type="text" autocomplete="organization-title"></div>
-          <div class="field"><label for="mobile">Mobile</label><input id="mobile" type="tel" autocomplete="tel" class="mono"></div>
-          <div class="field"><label for="lang">Language</label>
-            <select id="lang"><option value="en">English</option><option value="nl">Nederlands</option><option value="fr">Français</option><option value="de">Deutsch</option><option value="es">Español</option><option value="it">Italiano</option></select></div>
+          <div class="field"><label for="full_name" data-i18n="account.full_name">Full name</label><input id="full_name" type="text" autocomplete="name"></div>
+          <div class="field"><label for="company" data-i18n="account.company">Company / entity</label><input id="company" type="text" autocomplete="organization"></div>
+          <div class="field"><label for="job_title" data-i18n="account.job_title">Role</label><input id="job_title" type="text" autocomplete="organization-title"></div>
+          <div class="field"><label for="mobile" data-i18n="account.mobile">Mobile</label><input id="mobile" type="tel" autocomplete="tel" class="mono"></div>
+          <div class="field"><label for="lang" data-i18n="account.lang">Language</label>
+            <select id="lang"><option value="en">English</option><option value="nl">Nederlands</option><option value="fr">Français</option></select></div>
           <p class="msg" id="profileMsg" role="status"></p>
-          <button class="btn btn-primary" type="submit" id="profileBtn">Save profile</button>
+          <button class="btn btn-primary" type="submit" id="profileBtn" data-i18n="account.save">Save profile</button>
         </form>
       </section>
 
       <section class="card" style="padding:22px">
-        <h2 style="font-family:var(--font-display);font-size:20px;color:var(--clavis-navy)">Passphrase</h2>
+        <h2 style="font-family:var(--font-display);font-size:20px;color:var(--clavis-navy)" data-i18n="account.pass">Passphrase</h2>
         <form id="pwForm" autocomplete="off" onsubmit="return false;">
-          <div class="field"><label for="curPw">Current passphrase</label><input id="curPw" type="password" autocomplete="current-password" class="mono"></div>
-          <div class="field"><label for="newPw">New passphrase</label><input id="newPw" type="password" autocomplete="new-password" class="mono"><span class="hint">At least 12 characters, with a letter and a number.</span></div>
-          <div class="field"><label for="newPw2">Repeat new passphrase</label><input id="newPw2" type="password" autocomplete="new-password" class="mono"></div>
+          <div class="field"><label for="curPw" data-i18n="account.cur_pw">Current passphrase</label><input id="curPw" type="password" autocomplete="current-password" class="mono"></div>
+          <div class="field"><label for="newPw" data-i18n="account.new_pw">New passphrase</label><input id="newPw" type="password" autocomplete="new-password" class="mono"><span class="hint" data-i18n="account.pw_hint">At least 12 characters, with a letter and a number.</span></div>
+          <div class="field"><label for="newPw2" data-i18n="account.new_pw2">Repeat new passphrase</label><input id="newPw2" type="password" autocomplete="new-password" class="mono"></div>
           <p class="msg" id="pwMsg" role="status"></p>
-          <button class="btn btn-primary" type="submit" id="pwBtn" disabled>Set new passphrase</button>
+          <button class="btn btn-primary" type="submit" id="pwBtn" disabled data-i18n="account.pw_btn">Set new passphrase</button>
         </form>
-        <h2 style="font-family:var(--font-display);font-size:20px;color:var(--clavis-navy);margin-top:32px">Verification</h2>
+        <h2 style="font-family:var(--font-display);font-size:20px;color:var(--clavis-navy);margin-top:32px" data-i18n="account.verification">Verification</h2>
         <div id="kyc" style="margin-top:12px;font-size:13px;color:var(--fg-2);line-height:1.6"></div>
       </section>
     </div>
     <section class="card" id="audit" style="padding:22px;margin-top:24px">
-      <h2 style="font-family:var(--font-display);font-size:20px;color:var(--clavis-navy)">Audit trail</h2>
-      <p style="font-size:13px;color:var(--fg-2);margin-top:6px;line-height:1.6">Your complete activity record on Clavoris: every sign-in, your identity verification (Sumsub, AMLD6), the NDAs you signed and every document you downloaded. Each download carries a unique reference and a SHA-256 fingerprint of the delivered file; PDFs are additionally watermarked on every page with your identity and the reference. The documents are confidential under the NDA you signed.</p>
-      <div class="tbl-wrap" style="margin-top:14px"><table class="tbl"><thead><tr><th>Date (UTC)</th><th>Event</th><th>Details</th><th>Data room</th><th>Reference</th><th>Fingerprint</th><th>IP</th></tr></thead>
-      <tbody id="auditRows"><tr><td colspan="7" style="color:var(--fg-3)">Loading…</td></tr></tbody></table></div>
+      <h2 style="font-family:var(--font-display);font-size:20px;color:var(--clavis-navy)" data-i18n="account.audit">Audit trail</h2>
+      <p style="font-size:13px;color:var(--fg-2);margin-top:6px;line-height:1.6" data-i18n="account.audit.body">Your complete activity record on Clavoris: every sign-in, your identity verification (Sumsub, AMLD6), the NDAs you signed and every document you downloaded. Each download carries a unique reference and a SHA-256 fingerprint of the delivered file; PDFs are additionally watermarked on every page with your identity and the reference. The documents are confidential under the NDA you signed.</p>
+      <div class="tbl-wrap" style="margin-top:14px"><table class="tbl"><thead><tr><th data-i18n="account.audit.th.date">Date (UTC)</th><th data-i18n="account.audit.th.event">Event</th><th data-i18n="account.audit.th.details">Details</th><th data-i18n="account.audit.th.room">Data room</th><th data-i18n="account.audit.th.ref">Reference</th><th data-i18n="account.audit.th.fp">Fingerprint</th><th data-i18n="account.audit.th.ip">IP</th></tr></thead>
+      <tbody id="auditRows"><tr><td colspan="7" style="color:var(--fg-3)" data-i18n="common.loading">Loading…</td></tr></tbody></table></div>
     </section>
-    <p class="note">Clavoris retains identity records per AMLD6 and CSSF requirements. To close your account, contact access@clavoris.com.</p>
+    <p class="note" data-i18n="account.note">Clavoris retains identity records per AMLD6 and CSSF requirements. To close your account, contact access@clavoris.com.</p>
   </main>
-  <footer class="app-foot"><span>Clavoris · Institutional Capital Platform</span><span class="loc">Antwerp · Luxembourg · Nordic · CSSF · FSMA · MiCA</span></footer>
+  <footer class="app-foot"><span data-i18n="footer.tag">Clavoris · Private Investment Enablement Platform</span><span class="loc" data-i18n="footer.loc">Antwerp · Luxembourg · Nordic · CSSF · FSMA · MiCA</span></footer>
 </div>
 
-<script src="config.js?v=20261013h"></script>
+<script src="config.js?v=20261013j"></script>
+<script src="i18n.js?v=20261013j"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="clavoris-access.js?v=20261013h"></script>
-<script src="shell.js?v=20261013h"></script>
+<script src="clavoris-access.js?v=20261013j"></script>
+<script src="shell.js?v=20261013j"></script>
 <script>
 (function () {
   'use strict';
-  var A = window.ClavorisAccess;
+  var A = window.ClavorisAccess, I = window.ClavorisI18n;
   function q(id) { return document.getElementById(id); }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (m) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[m]; }); }
   function valid(pw) { return pw.length >= 12 && /[A-Za-z]/.test(pw) && /[0-9]/.test(pw); }
-  var KYC = {
-    registered: 'Registered. Identity verification has not started yet.',
-    kyc_pending: 'Identity verification is in review.',
-    kyc_retry: 'Verification needs another attempt. Check your email for instructions.',
-    verified: 'Identity verified (AMLD6). Full portal access.',
-    rejected: 'Verification was not successful.',
-    suspended: 'Account suspended.'
-  };
+  function tk(prefix, k) { var s = I.t(prefix + k); return s === prefix + k ? String(k).replace('_', ' ') : s; }
 
   A.ready(function () {
     if (!A.clears('full')) return;
@@ -87,11 +81,12 @@
     if (new URLSearchParams(location.search).get('welcome') === '1' && A.status() !== 'verified') { q('welcome').hidden = false; try { sessionStorage.removeItem('clv_welcome'); } catch (e) {} }
     var p = A.profile();
     q('name').textContent = A.displayName();
-    q('meta').innerHTML = esc(A.user().email) + ' · <span class="chip ' + esc(p.role) + '">' + esc(p.role === 'super' ? 'Super-admin' : p.role === 'admin' ? 'Admin' : 'Investor') + '</span> '
-      + '<span class="chip ' + esc(p.status) + '">' + esc(p.status.replace('_', ' ')) + '</span>';
-    ['full_name', 'company', 'job_title', 'mobile', 'lang'].forEach(function (k) { if (p[k] != null) q(k).value = p[k]; });
-    q('kyc').innerHTML = '<span class="chip ' + esc(p.status) + '"><span class="dot"></span>' + esc(p.status.replace('_', ' ')) + '</span><p style="margin-top:8px">' + esc(KYC[p.status] || '') + '</p>'
-      + (p.kyc_level ? '<p class="mono" style="font-size:12px;margin-top:6px;color:var(--fg-3)">level ' + esc(p.kyc_level) + (p.kyc_reviewed_at ? ' · ' + esc(String(p.kyc_reviewed_at).slice(0, 10)) : '') + '</p>' : '');
+    q('meta').innerHTML = esc(A.user().email) + ' · <span class="chip ' + esc(p.role) + '">' + esc(I.t(p.role === 'super' ? 'account.role.super' : p.role === 'admin' ? 'account.role.admin' : 'account.role.user')) + '</span> '
+      + '<span class="chip ' + esc(p.status) + '">' + esc(tk('status.', p.status)) + '</span>';
+    ['full_name', 'company', 'job_title', 'mobile'].forEach(function (k) { if (p[k] != null) q(k).value = p[k]; });
+    q('lang').value = I.langs.indexOf(p.lang) >= 0 ? p.lang : I.lang;
+    q('kyc').innerHTML = '<span class="chip ' + esc(p.status) + '"><span class="dot"></span>' + esc(tk('status.', p.status)) + '</span><p style="margin-top:8px">' + esc(tk('account.kyc.', p.status)) + '</p>'
+      + (p.kyc_level ? '<p class="mono" style="font-size:12px;margin-top:6px;color:var(--fg-3)">' + esc(I.t('account.kyc.level', { level: p.kyc_level })) + (p.kyc_reviewed_at ? ' · ' + esc(String(p.kyc_reviewed_at).slice(0, 10)) : '') + '</p>' : '');
 
     var KIND = { login: 'neutral', kyc: 'verified', nda: 'info', download: 'pending' };
     A.callFn('clv-audit', { action: 'list' }).then(function (r) {
@@ -102,15 +97,15 @@
           + '<td style="font-size:12.5px;color:var(--fg-2)">' + esc(e.detail || '') + '</td>'
           + '<td>' + esc(e.room || '—') + '</td>'
           + '<td class="mono">' + esc(e.ref || '—') + '</td>'
-          + '<td class="mono" style="font-size:11px;color:var(--fg-3)" title="' + esc(e.sha ? 'SHA-256 of the delivered file: ' + e.sha : '') + '">' + (e.sha ? esc(String(e.sha).slice(0, 16)) + '…' : '—') + '</td>'
+          + '<td class="mono" style="font-size:11px;color:var(--fg-3)" title="' + esc(e.sha ? I.t('account.audit.sha_title', { sha: e.sha }) : '') + '">' + (e.sha ? esc(String(e.sha).slice(0, 16)) + '…' : '—') + '</td>'
           + '<td class="mono" style="font-size:11px;color:var(--fg-3)">' + esc(e.ip || '—') + '</td></tr>';
-      }).join('') : '<tr><td colspan="7" style="color:var(--fg-3)">No activity recorded yet.</td></tr>';
+      }).join('') : '<tr><td colspan="7" style="color:var(--fg-3)">' + I.t('account.audit.none') + '</td></tr>';
     });
 
     q('profileForm').addEventListener('submit', function () {
       var m = q('profileMsg'); m.className = 'msg'; m.textContent = ''; q('profileBtn').disabled = true;
       A.updateProfile({ full_name: q('full_name').value.trim(), company: q('company').value.trim(), job_title: q('job_title').value.trim(), mobile: q('mobile').value.trim(), lang: q('lang').value })
-        .then(function (r) { q('profileBtn').disabled = false; m.className = r.ok ? 'msg ok' : 'msg err'; m.textContent = r.ok ? 'Profile saved.' : (r.error || 'Could not save.'); if (r.ok) q('name').textContent = A.displayName(); });
+        .then(function (r) { q('profileBtn').disabled = false; m.className = r.ok ? 'msg ok' : 'msg err'; m.textContent = r.ok ? I.t('account.saved') : (r.error || I.t('account.save_failed')); if (r.ok) { q('name').textContent = A.displayName(); if (q('lang').value !== I.lang) location.reload(); } });
     });
 
     function refreshPw() { q('pwBtn').disabled = !(q('curPw').value && valid(q('newPw').value) && q('newPw').value === q('newPw2').value); }
@@ -118,9 +113,9 @@
     q('pwForm').addEventListener('submit', function () {
       var m = q('pwMsg'); m.className = 'msg'; m.textContent = ''; q('pwBtn').disabled = true;
       A.verifyPassword(q('curPw').value).then(function (ok) {
-        if (!ok) { m.className = 'msg err'; m.textContent = 'Current passphrase is not correct.'; q('pwBtn').disabled = false; return; }
+        if (!ok) { m.className = 'msg err'; m.textContent = I.t('account.pw_wrong'); q('pwBtn').disabled = false; return; }
         return A.updatePassword(q('newPw').value).then(function (r) {
-          m.className = r.ok ? 'msg ok' : 'msg err'; m.textContent = r.ok ? 'Passphrase updated.' : (r.error || 'Could not update.');
+          m.className = r.ok ? 'msg ok' : 'msg err'; m.textContent = r.ok ? I.t('account.pw_ok') : (r.error || I.t('account.pw_fail'));
           if (r.ok) { q('curPw').value = ''; q('newPw').value = ''; q('newPw2').value = ''; }
         });
       });
