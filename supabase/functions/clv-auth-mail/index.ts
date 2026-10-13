@@ -29,11 +29,14 @@ Deno.serve(async (req) => {
   const { data: link, error } = await admin.auth.admin.generateLink({
     type: "recovery", email, options: { redirectTo: APP_URL + "/reset.html" },
   });
-  if (error || !link?.properties?.action_link) return json({ ok: true });
+  if (error || !link?.properties?.action_link) { console.error("clv-auth-mail generateLink failed:", error?.message || "no action_link"); return json({ ok: true }); }
 
   const text = `Dear ${p.full_name || "investor"},\n\nA passphrase reset was requested for your Clavoris account.\n\n`
     + `Set a new passphrase here (the link is valid once, for a limited time):\n${link.properties.action_link}\n\n`
     + `If you did not request this, you can ignore this message; your passphrase stays unchanged.`;
-  await sendMail(email, "Reset your Clavoris passphrase", text).catch(() => false);
+  try {
+    const sent = await sendMail(email, "Reset your Clavoris passphrase", text);
+    console.log("clv-auth-mail recovery mail", sent ? "sent" : "not sent (mail not configured)", "->", email);
+  } catch (e) { console.error("clv-auth-mail sendMail failed:", (e as Error)?.message || String(e)); }
   return json({ ok: true });
 });

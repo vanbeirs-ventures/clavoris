@@ -55,5 +55,5 @@ export async function sendMail(to: string, subject: string, text: string): Promi
   try {
     await client.send({ from: `Clavoris <${MAIL_FROM}>`, to, replyTo: MAIL_REPLY_TO, subject, content: text + "\n\n" + MAIL_SIGNATURE });
     return true;
-  } finally { client.close().catch(() => {}); }
+  } finally { try { await client.close(); } catch { /* ignore */ } }
 }
