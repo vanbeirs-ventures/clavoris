@@ -6,7 +6,7 @@
 <meta name="robots" content="noindex">
 <title>My account — Clavoris</title>
 <link rel="icon" href="../assets/clavoris-mark.png">
-<link rel="stylesheet" href="app.css?v=20261013e">
+<link rel="stylesheet" href="app.css?v=20261013g">
 <script>document.documentElement.classList.add('clv-checking');</script>
 </head>
 <body data-clv-restrict="full">
@@ -52,19 +52,19 @@
     </div>
     <section class="card" id="audit" style="padding:22px;margin-top:24px">
       <h2 style="font-family:var(--font-display);font-size:20px;color:var(--clavis-navy)">Audit trail</h2>
-      <p style="font-size:13px;color:var(--fg-2);margin-top:6px;line-height:1.6">Every document you download from a Clavoris data room is registered here with its unique download reference. The same reference is embedded in the delivered file as a watermark identifying you and the download event. The documents are confidential under the NDA you signed.</p>
-      <div class="tbl-wrap" style="margin-top:14px"><table class="tbl"><thead><tr><th>Date</th><th>Data room</th><th>Document</th><th>Reference</th><th>Delivered as</th><th>Fingerprint</th></tr></thead>
-      <tbody id="auditRows"><tr><td colspan="6" style="color:var(--fg-3)">Loading…</td></tr></tbody></table></div>
+      <p style="font-size:13px;color:var(--fg-2);margin-top:6px;line-height:1.6">Your complete activity record on Clavoris: every sign-in, your identity verification (Sumsub, AMLD6), the NDAs you signed and every document you downloaded. Each download carries a unique reference and a SHA-256 fingerprint of the delivered file; PDFs are additionally watermarked on every page with your identity and the reference. The documents are confidential under the NDA you signed.</p>
+      <div class="tbl-wrap" style="margin-top:14px"><table class="tbl"><thead><tr><th>Date (UTC)</th><th>Event</th><th>Details</th><th>Data room</th><th>Reference</th><th>Fingerprint</th><th>IP</th></tr></thead>
+      <tbody id="auditRows"><tr><td colspan="7" style="color:var(--fg-3)">Loading…</td></tr></tbody></table></div>
     </section>
     <p class="note">Clavoris retains identity records per AMLD6 and CSSF requirements. To close your account, contact access@clavoris.com.</p>
   </main>
   <footer class="app-foot"><span>Clavoris · Institutional Capital Platform</span><span class="loc">Antwerp · Luxembourg · Nordic · CSSF · FSMA · MiCA</span></footer>
 </div>
 
-<script src="config.js?v=20261013e"></script>
+<script src="config.js?v=20261013g"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="clavoris-access.js?v=20261013e"></script>
-<script src="shell.js?v=20261013e"></script>
+<script src="clavoris-access.js?v=20261013g"></script>
+<script src="shell.js?v=20261013g"></script>
 <script>
 (function () {
   'use strict';
@@ -93,12 +93,18 @@
     q('kyc').innerHTML = '<span class="chip ' + esc(p.status) + '"><span class="dot"></span>' + esc(p.status.replace('_', ' ')) + '</span><p style="margin-top:8px">' + esc(KYC[p.status] || '') + '</p>'
       + (p.kyc_level ? '<p class="mono" style="font-size:12px;margin-top:6px;color:var(--fg-3)">level ' + esc(p.kyc_level) + (p.kyc_reviewed_at ? ' · ' + esc(String(p.kyc_reviewed_at).slice(0, 10)) : '') + '</p>' : '');
 
-    A.client().from('clv_downloads').select('created_at, code, file_name, delivered_as, sha256_delivered, room:clv_rooms(name)').eq('user_id', p.id).order('created_at', { ascending: false }).limit(200).then(function (r) {
-      var rows = (r && r.data) || [], tb = q('auditRows');
-      tb.innerHTML = rows.length ? rows.map(function (d) {
-        return '<tr><td class="mono" style="white-space:nowrap">' + esc(String(d.created_at).replace('T', ' ').slice(0, 16)) + '</td><td>' + esc(d.room && d.room.name || '—') + '</td><td>' + esc(d.file_name || '') + '</td>'
-          + '<td class="mono">' + esc(d.code || '') + '</td><td>' + esc(d.delivered_as === 'pdf-watermarked' ? 'PDF, watermarked' : 'original') + '</td><td class="mono" style="font-size:11px;color:var(--fg-3)" title="SHA-256 of the delivered file">' + esc(String(d.sha256_delivered || '').slice(0, 16)) + '…</td></tr>';
-      }).join('') : '<tr><td colspan="6" style="color:var(--fg-3)">No downloads yet.</td></tr>';
+    var KIND = { login: 'neutral', kyc: 'verified', nda: 'info', download: 'pending' };
+    A.callFn('clv-audit', { action: 'list' }).then(function (r) {
+      var rows = (r && r.events) || [], tb = q('auditRows');
+      tb.innerHTML = rows.length ? rows.map(function (e) {
+        return '<tr><td class="mono" style="white-space:nowrap">' + esc(String(e.ts).replace('T', ' ').slice(0, 16)) + '</td>'
+          + '<td><span class="chip ' + esc(KIND[e.kind] || 'neutral') + '">' + esc(e.title) + '</span></td>'
+          + '<td style="font-size:12.5px;color:var(--fg-2)">' + esc(e.detail || '') + '</td>'
+          + '<td>' + esc(e.room || '—') + '</td>'
+          + '<td class="mono">' + esc(e.ref || '—') + '</td>'
+          + '<td class="mono" style="font-size:11px;color:var(--fg-3)" title="' + esc(e.sha ? 'SHA-256 of the delivered file: ' + e.sha : '') + '">' + (e.sha ? esc(String(e.sha).slice(0, 16)) + '…' : '—') + '</td>'
+          + '<td class="mono" style="font-size:11px;color:var(--fg-3)">' + esc(e.ip || '—') + '</td></tr>';
+      }).join('') : '<tr><td colspan="7" style="color:var(--fg-3)">No activity recorded yet.</td></tr>';
     });
 
     q('profileForm').addEventListener('submit', function () {

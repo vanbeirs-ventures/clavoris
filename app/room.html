@@ -6,7 +6,7 @@
 <meta name="robots" content="noindex">
 <title>Data room — Clavoris</title>
 <link rel="icon" href="../assets/clavoris-mark.png">
-<link rel="stylesheet" href="app.css?v=20261013e">
+<link rel="stylesheet" href="app.css?v=20261013g">
 <script>document.documentElement.classList.add('clv-checking');</script>
 <style>
   .room-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 24px; margin-top: 28px; align-items: start; }
@@ -91,10 +91,10 @@
   <footer class="app-foot"><span>Clavoris · Institutional Capital Platform</span><span class="loc">Antwerp · Luxembourg · Nordic · CSSF · FSMA · MiCA</span></footer>
 </div>
 
-<script src="config.js?v=20261013e"></script>
+<script src="config.js?v=20261013g"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="clavoris-access.js?v=20261013e"></script>
-<script src="shell.js?v=20261013e"></script>
+<script src="clavoris-access.js?v=20261013g"></script>
+<script src="shell.js?v=20261013g"></script>
 <script>
 (function () {
   'use strict';
@@ -159,6 +159,11 @@
       : 'Signed ' + esc(S.fmtDate(r.nda.signed_at)) + ' · version ' + esc(r.nda.version || '') + '<br>'
         + (r.nda.has_file ? '<button class="btn-text" type="button" id="dlNda">Download your signed NDA</button>' : '<span style="color:var(--fg-3)">Signed copy pending storage.</span>');
     var d = q('dlNda'); if (d) d.addEventListener('click', function () { d.disabled = true; S.downloadFn('clv-room-file', { room_id: roomId, nda: true }, 'NDA.pdf').then(function () { d.disabled = false; }); });
+    // Signed while storage was unavailable: store the copy now and refresh the panel.
+    if (r.nda.signed && !r.nda.has_file && !state._ndaStoreTried) {
+      state._ndaStoreTried = true;
+      A.callFn('clv-room-nda', { action: 'store', room_id: roomId }).then(function (x) { if (x && x.stored) { state.nda.has_file = true; renderSide(); } }).catch(function () {});
+    }
     var m = r.members || [];
     q('members').innerHTML = m.length ? m.map(function (x) {
       return '<li><div class="nm"><span class="pres ' + esc(x.presence || 'never') + '" title="' + (x.last_seen ? 'Last seen ' + esc(S.fmtDate(x.last_seen)) : 'Never visited') + '"></span>' + esc(x.name || '—') + '</div><div class="org">' + esc(x.company || '—') + (x.job_title ? ' · ' + esc(x.job_title) : '') + '</div>'

@@ -96,6 +96,8 @@
           return refreshSession().then(function () {
             // best-effort: stamp the login (own-row update policy)
             try { sb.from('clv_profiles').update({ last_login_at: new Date().toISOString() }).eq('id', p.id).then(function () {}); } catch (e) {}
+            // audit trail: server-side login record (IP + user agent captured there)
+            try { callFn('clv-audit', { action: 'login' }).catch(function () {}); } catch (e) {}
             return { ok: true, profile: p };
           });
         });
