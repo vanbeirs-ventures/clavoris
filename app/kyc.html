@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Identity verification — Clavoris</title>
+<link rel="icon" href="../assets/clavoris-mark.png">
+<link rel="stylesheet" href="app.css?v=20261013e">
+<script>document.documentElement.classList.add('clv-checking');</script>
+<style>#sumsub-websdk-container { min-height: 520px; margin-top: 18px; }</style>
+</head>
+<body data-clv-restrict="full">
+<div class="app">
+  <nav class="nav" id="nav"></nav>
+  <main class="screen-wrap" data-screen-label="Identity verification">
+    <p class="eyebrow">Identity verification</p>
+    <h1 class="page-title">Verify your identity</h1>
+    <p class="page-sub">Clavoris verifies every investor under AMLD6 before any data room or instrument opens. The check is handled by Sumsub (eIDAS-compliant identity provider); it takes a few minutes with an ID document and a camera.</p>
+
+    <section class="card" style="padding:22px 24px;margin-top:24px">
+      <div id="statusBox" style="font-size:14px;line-height:1.6;color:var(--fg-2)"></div>
+      <div id="sumsub-websdk-container"></div>
+      <p class="msg" id="msg" role="status"></p>
+      <div id="actions" style="margin-top:14px"></div>
+    </section>
+    <p class="note">Your identity data is processed by Sumsub on behalf of Clavoris for AMLD6/KYC purposes and retained per CSSF requirements. Clavoris never stores your document images.</p>
+  </main>
+  <footer class="app-foot"><span>Clavoris · Institutional Capital Platform</span><span class="loc">Antwerp · Luxembourg · Nordic · CSSF · FSMA · MiCA</span></footer>
+</div>
+
+<script src="config.js?v=20261013e"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="clavoris-access.js?v=20261013e"></script>
+<script src="shell.js?v=20261013e"></script>
+<script src="https://static.sumsub.com/idensic/static/sns-websdk-builder.js"></script>
+<script>
+(function () {
+  'use strict';
+  var A = window.ClavorisAccess, S = window.ClavorisShell, esc = S.esc;
+  function q(id) { return document.getElementById(id); }
+  var next = new URLSearchParams(location.search).get('next') || 'portal.html';
+  var TEXT = {
+    verified: 'Your identity is verified. You have full access to the data rooms you have been invited to.',
+    kyc_pending: 'Your verification is in review. This usually completes within minutes; you will also receive an email. You can leave this page and come back.',
+    kyc_retry: 'The last attempt could not be completed. Please go through the verification again.',
+    registered: 'Start the verification below. Keep your ID document at hand.'
+  };
+  function showStatus() {
+    var st = A.status();
+    q('statusBox').innerHTML = '<span class="chip ' + esc(st) + '"><span class="dot"></span>' + esc(String(st).replace('_', ' ')) + '</span><p style="margin-top:10px">' + esc(TEXT[st] || '') + '</p>';
+    q('actions').innerHTML = st === 'verified' ? '<a class="btn btn-primary" href="' + esc(next) + '">Continue</a>' : '';
+  }
+  function launch() {
+    A.callFn('clv-kyc-token', {}).then(function (r) {
+      if (r.verified) { A.refresh().then(showStatus); return; }
+      if (r.error === 'kyc-not-configured') { q('msg').className = 'msg'; q('msg').textContent = 'Identity verification is being set up. Clavoris will email you when it is available; your access remains reserved.'; return; }
+      if (r.error) { q('msg').className = 'msg err'; q('msg').textContent = 'Verification could not be started (' + r.error + ').'; return; }
+      var sdk = window.snsWebSdk.init(r.token, function () { return A.callFn('clv-kyc-token', {}).then(function (x) { return x.token; }); })
+        .withConf({ lang: 'en', email: r.email, theme: 'light' })
+        .withOptions({ addViewportTag: false, adaptIframeHeight: true })
+        .on('idCheck.onApplicantSubmitted', function () { q('msg').className = 'msg ok'; q('msg').textContent = 'Submitted. Clavoris is reviewing your verification.'; poll(); })
+        .on('idCheck.onApplicantStatusChanged', function () { poll(); })
+        .onMessage(function () {})
+        .build();
+      sdk.launch('#sumsub-websdk-container');
+    });
+  }
+  var polls = 0;
+  function poll() { if (polls++ > 60) return; setTimeout(function () { A.refresh().then(function () { showStatus(); if (A.status() !== 'verified' && A.status() !== 'rejected') poll(); }); }, 5000); }
+  A.ready(function () {
+    if (!A.clears('full')) return;
+    S.render('account'); showStatus();
+    if (A.status() !== 'verified' && A.status() !== 'rejected') launch();
+  });
+})();
+</script>
+</body>
+</html>

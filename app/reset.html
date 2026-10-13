@@ -6,7 +6,7 @@
 <meta name="robots" content="noindex">
 <title>Set passphrase — Clavoris</title>
 <link rel="icon" href="../assets/clavoris-mark.png">
-<link rel="stylesheet" href="app.css?v=20261013b">
+<link rel="stylesheet" href="app.css?v=20261013e">
 </head>
 <body>
 <main class="auth" data-screen-label="Set passphrase">
@@ -50,9 +50,9 @@
   </section>
 </main>
 
-<script src="config.js?v=20261013b"></script>
+<script src="config.js?v=20261013e"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="clavoris-access.js?v=20261013b"></script>
+<script src="clavoris-access.js?v=20261013e"></script>
 <script>
 (function () {
   'use strict';
@@ -72,6 +72,7 @@
   // when the user presses Continue, so mail link scanners cannot consume it.
   var params = new URLSearchParams(location.search);
   var tokenHash = params.get('token_hash');
+  if (params.get('welcome') === '1') { try { sessionStorage.setItem('clv_welcome', '1'); } catch (e) {} }
   function start() {
     A.refresh().then(function () {
       if (A.isSignedIn()) { showForm(); return; }
@@ -96,7 +97,8 @@
     A.updatePassword(q('pw1').value).then(function (r) {
       if (!r.ok) { q('btn').disabled = false; m.className = 'msg err'; m.textContent = r.error || 'The passphrase could not be set.'; return; }
       m.className = 'msg ok'; m.textContent = 'Passphrase set. Taking you to your portal…';
-      setTimeout(function () { location.href = A.homeFor(); }, 1200);
+      var welcome = params.get('welcome') === '1' || sessionStorage.getItem('clv_welcome') === '1';
+      setTimeout(function () { location.href = welcome ? 'account.html?welcome=1' : A.homeFor(); }, 1200);
     });
   });
 })();

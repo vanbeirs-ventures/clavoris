@@ -6,7 +6,7 @@
 <meta name="robots" content="noindex">
 <title>Admin — Clavoris</title>
 <link rel="icon" href="../assets/clavoris-mark.png">
-<link rel="stylesheet" href="app.css?v=20261013d">
+<link rel="stylesheet" href="app.css?v=20261013e">
 <script>document.documentElement.classList.add('clv-checking');</script>
 </head>
 <body data-clv-restrict="admin">
@@ -31,6 +31,11 @@
       <tbody id="rows"><tr><td colspan="7" style="color:var(--fg-3)">Loading…</td></tr></tbody></table>
     </div>
     <p class="msg err" id="listErr"></p>
+
+    <h2 style="font-family:var(--font-display);font-size:24px;color:var(--clavis-navy);margin-top:44px">Data rooms</h2>
+    <p class="page-sub" style="margin-top:4px">Invite by email address: the user is enrolled if new, receives an invitation to set a passphrase, completes KYC, signs the room NDA and gets access. Documents are read from the room's Nextcloud folder.</p>
+    <div id="rooms" style="margin-top:14px"></div>
+    <p class="msg err" id="roomsErr"></p>
   </main>
   <footer class="app-foot"><span>Clavoris · Institutional Capital Platform</span><span class="loc">Antwerp · Luxembourg · Nordic · CSSF · FSMA · MiCA</span></footer>
 </div>
@@ -53,6 +58,20 @@
   </div>
 </div>
 
+<!-- Invite to room -->
+<div class="scrim" id="invModal" hidden>
+  <div class="modal" role="dialog" aria-labelledby="imTitle">
+    <div class="modal-head"><div><div class="e">Data room</div><div class="t" id="imTitle">Invite</div></div><button type="button" id="imClose" aria-label="Close">×</button></div>
+    <form class="modal-body" id="invForm" autocomplete="off" onsubmit="return false;">
+      <div class="field" style="margin-top:0"><label for="iEmail">Email address</label><input id="iEmail" type="email"></div>
+      <div class="field"><label for="iName">Full name (new users)</label><input id="iName" type="text"></div>
+      <div class="field"><label for="iCompany">Organisation (new users)</label><input id="iCompany" type="text"></div>
+      <p class="msg" id="iMsg" role="status"></p>
+      <button class="btn btn-primary btn-block" type="submit" id="iBtn">Send invitation</button>
+    </form>
+  </div>
+</div>
+
 <!-- Edit role / status -->
 <div class="scrim" id="editModal" hidden>
   <div class="modal" role="dialog" aria-labelledby="emTitle">
@@ -71,10 +90,10 @@
   </div>
 </div>
 
-<script src="config.js?v=20261013d"></script>
+<script src="config.js?v=20261013e"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="clavoris-access.js?v=20261013d"></script>
-<script src="shell.js?v=20261013d"></script>
+<script src="clavoris-access.js?v=20261013e"></script>
+<script src="shell.js?v=20261013e"></script>
 <script>
 (function () {
   'use strict';
@@ -150,7 +169,63 @@
     });
   });
 
-  A.ready(function () { if (!A.clears('admin')) return; S.render('admin'); load(); });
+  /* ---- data rooms ---- */
+  var rooms = [], invRoom = null;
+  function loadRooms() {
+    A.callFn('clv-admin-rooms', { action: 'list' }).then(function (r) {
+      if (r.error) { q('roomsErr').textContent = 'Could not load data rooms (' + r.error + ').'; return; }
+      rooms = r.rooms || [];
+      q('rooms').innerHTML = rooms.length ? rooms.map(function (rm) {
+        return '<section class="card" style="padding:18px 20px;margin-top:12px" data-room="' + esc(rm.id) + '">'
+          + '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">'
+          + '<div><div style="font-family:var(--font-display);font-size:19px;color:var(--clavis-navy)">' + esc(rm.name) + '</div>'
+          + '<div class="mono" style="font-size:11px;color:var(--fg-3);margin-top:3px">' + esc(rm.nextcloud_folder || '—') + ' · ' + (rm.qes_nda_required ? 'NDA required' : 'no NDA') + ' · access ' + esc(rm.default_expiry_days) + ' days · ' + esc(rm.members) + ' member(s)</div></div>'
+          + '<div style="display:flex;gap:8px"><a class="btn btn-ghost" href="room.html?id=' + esc(rm.id) + '">Open</a><button class="btn btn-primary" type="button" data-invite="' + esc(rm.id) + '">Invite by email</button></div></div>'
+          + '<div class="tbl-wrap" style="margin-top:14px"><table class="tbl"><thead><tr><th>Member</th><th>Organisation</th><th>KYC</th><th>NDA</th><th>Last access</th><th>Expires</th><th></th></tr></thead><tbody id="mem-' + esc(rm.id) + '"><tr><td colspan="7" style="color:var(--fg-3)">Loading…</td></tr></tbody></table></div></section>';
+      }).join('') : '<p style="color:var(--fg-3)">No data rooms yet.</p>';
+      [].forEach.call(document.querySelectorAll('[data-invite]'), function (b) { b.addEventListener('click', function () { openInvite(b.getAttribute('data-invite')); }); });
+      rooms.forEach(loadMembers);
+    });
+  }
+  function loadMembers(rm) {
+    A.callFn('clv-admin-rooms', { action: 'members', room_id: rm.id }).then(function (r) {
+      var tb = q('mem-' + rm.id); if (!tb) return;
+      var m = r.members || [];
+      tb.innerHTML = m.length ? m.map(function (x) {
+        return '<tr><td><div style="font-weight:500;color:var(--clavis-navy)">' + esc(x.name || '—') + '</div><div class="mono" style="font-size:11px;color:var(--fg-3)">' + esc(x.email) + '</div></td>'
+          + '<td>' + esc(x.company || '—') + '</td><td><span class="chip ' + esc(x.status) + '">' + esc(String(x.status).replace('_', ' ')) + '</span></td>'
+          + '<td>' + (x.nda_signed_at ? '<span class="chip verified">signed ' + esc(fmt(x.nda_signed_at)) + '</span>' : '<span class="chip pending">not signed</span>') + '</td>'
+          + '<td class="mono" style="color:var(--fg-2)">' + esc(fmt(x.last_access)) + '</td><td class="mono" style="color:var(--fg-2)">' + esc(fmt(x.expires_at)) + '</td>'
+          + '<td><button class="btn-text" type="button" data-revoke="' + esc(x.user_id) + '" data-room="' + esc(rm.id) + '">Revoke</button></td></tr>';
+      }).join('') : '<tr><td colspan="7" style="color:var(--fg-3)">No members yet.</td></tr>';
+      [].forEach.call(tb.querySelectorAll('[data-revoke]'), function (b) {
+        b.addEventListener('click', function () {
+          b.disabled = true;
+          A.callFn('clv-admin-rooms', { action: 'revoke', room_id: b.getAttribute('data-room'), user_id: b.getAttribute('data-revoke') }).then(function () { loadRooms(); });
+        });
+      });
+    });
+  }
+  function openInvite(id) {
+    invRoom = rooms.filter(function (r) { return r.id === id; })[0]; if (!invRoom) return;
+    q('imTitle').textContent = invRoom.name; q('invForm').reset(); q('iMsg').className = 'msg'; q('iMsg').textContent = '';
+    q('newModal').hidden = true; q('editModal').hidden = true; q('invModal').hidden = false;
+  }
+  q('imClose').addEventListener('click', function () { q('invModal').hidden = true; });
+  q('invForm').addEventListener('submit', function () {
+    var m = q('iMsg'); m.className = 'msg'; m.textContent = '';
+    var email = q('iEmail').value.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { m.className = 'msg err'; m.textContent = 'Enter a valid email.'; return; }
+    q('iBtn').disabled = true;
+    A.callFn('clv-admin-rooms', { action: 'invite', room_id: invRoom.id, email: email, name: q('iName').value.trim(), company: q('iCompany').value.trim() }).then(function (r) {
+      q('iBtn').disabled = false;
+      if (r.error) { m.className = 'msg err'; m.textContent = r.error === 'user-blocked' ? 'This user is suspended or rejected.' : r.error; return; }
+      m.className = 'msg ok'; m.textContent = (r.created ? 'Enrolled and invited. ' : 'Access granted. ') + (r.mailed ? 'Invitation emailed.' : 'The email could not be sent — check the mail configuration.');
+      loadRooms(); load();
+    });
+  });
+
+  A.ready(function () { if (!A.clears('admin')) return; S.render('admin'); load(); loadRooms(); });
 })();
 </script>
 </body>

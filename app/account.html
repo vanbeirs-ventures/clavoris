@@ -6,7 +6,7 @@
 <meta name="robots" content="noindex">
 <title>My account — Clavoris</title>
 <link rel="icon" href="../assets/clavoris-mark.png">
-<link rel="stylesheet" href="app.css?v=20261013b">
+<link rel="stylesheet" href="app.css?v=20261013e">
 <script>document.documentElement.classList.add('clv-checking');</script>
 </head>
 <body data-clv-restrict="full">
@@ -16,6 +16,11 @@
     <p class="eyebrow">Account</p>
     <h1 class="page-title" id="name"></h1>
     <p class="page-sub" id="meta"></p>
+    <section id="welcome" class="card" style="padding:18px 22px;margin-top:20px;border-left:3px solid var(--seal-gold)" hidden>
+      <p class="eyebrow">Welcome to Clavoris</p>
+      <p style="font-size:14px;line-height:1.6;margin-top:6px">Two steps remain before your data room opens: confirm your profile below (name and organisation appear on the NDA you will sign), then verify your identity.</p>
+      <a class="btn btn-primary" style="margin-top:12px" href="kyc.html?next=portal.html">Continue to identity verification</a>
+    </section>
 
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:24px;margin-top:28px;align-items:start">
       <section class="card" style="padding:22px">
@@ -45,15 +50,21 @@
         <div id="kyc" style="margin-top:12px;font-size:13px;color:var(--fg-2);line-height:1.6"></div>
       </section>
     </div>
+    <section class="card" id="audit" style="padding:22px;margin-top:24px">
+      <h2 style="font-family:var(--font-display);font-size:20px;color:var(--clavis-navy)">Audit trail</h2>
+      <p style="font-size:13px;color:var(--fg-2);margin-top:6px;line-height:1.6">Every document you download from a Clavoris data room is registered here with its unique download reference. The same reference is embedded in the delivered file as a watermark identifying you and the download event. The documents are confidential under the NDA you signed.</p>
+      <div class="tbl-wrap" style="margin-top:14px"><table class="tbl"><thead><tr><th>Date</th><th>Data room</th><th>Document</th><th>Reference</th><th>Delivered as</th><th>Fingerprint</th></tr></thead>
+      <tbody id="auditRows"><tr><td colspan="6" style="color:var(--fg-3)">Loading…</td></tr></tbody></table></div>
+    </section>
     <p class="note">Clavoris retains identity records per AMLD6 and CSSF requirements. To close your account, contact access@clavoris.com.</p>
   </main>
   <footer class="app-foot"><span>Clavoris · Institutional Capital Platform</span><span class="loc">Antwerp · Luxembourg · Nordic · CSSF · FSMA · MiCA</span></footer>
 </div>
 
-<script src="config.js?v=20261013b"></script>
+<script src="config.js?v=20261013e"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="clavoris-access.js?v=20261013b"></script>
-<script src="shell.js?v=20261013b"></script>
+<script src="clavoris-access.js?v=20261013e"></script>
+<script src="shell.js?v=20261013e"></script>
 <script>
 (function () {
   'use strict';
@@ -73,6 +84,7 @@
   A.ready(function () {
     if (!A.clears('full')) return;
     window.ClavorisShell.render('account');
+    if (new URLSearchParams(location.search).get('welcome') === '1' && A.status() !== 'verified') { q('welcome').hidden = false; try { sessionStorage.removeItem('clv_welcome'); } catch (e) {} }
     var p = A.profile();
     q('name').textContent = A.displayName();
     q('meta').innerHTML = esc(A.user().email) + ' · <span class="chip ' + esc(p.role) + '">' + esc(p.role === 'super' ? 'Super-admin' : p.role === 'admin' ? 'Admin' : 'Investor') + '</span> '
@@ -80,6 +92,14 @@
     ['full_name', 'company', 'job_title', 'mobile', 'lang'].forEach(function (k) { if (p[k] != null) q(k).value = p[k]; });
     q('kyc').innerHTML = '<span class="chip ' + esc(p.status) + '"><span class="dot"></span>' + esc(p.status.replace('_', ' ')) + '</span><p style="margin-top:8px">' + esc(KYC[p.status] || '') + '</p>'
       + (p.kyc_level ? '<p class="mono" style="font-size:12px;margin-top:6px;color:var(--fg-3)">level ' + esc(p.kyc_level) + (p.kyc_reviewed_at ? ' · ' + esc(String(p.kyc_reviewed_at).slice(0, 10)) : '') + '</p>' : '');
+
+    A.client().from('clv_downloads').select('created_at, code, file_name, delivered_as, sha256_delivered, room:clv_rooms(name)').eq('user_id', p.id).order('created_at', { ascending: false }).limit(200).then(function (r) {
+      var rows = (r && r.data) || [], tb = q('auditRows');
+      tb.innerHTML = rows.length ? rows.map(function (d) {
+        return '<tr><td class="mono" style="white-space:nowrap">' + esc(String(d.created_at).replace('T', ' ').slice(0, 16)) + '</td><td>' + esc(d.room && d.room.name || '—') + '</td><td>' + esc(d.file_name || '') + '</td>'
+          + '<td class="mono">' + esc(d.code || '') + '</td><td>' + esc(d.delivered_as === 'pdf-watermarked' ? 'PDF, watermarked' : 'original') + '</td><td class="mono" style="font-size:11px;color:var(--fg-3)" title="SHA-256 of the delivered file">' + esc(String(d.sha256_delivered || '').slice(0, 16)) + '…</td></tr>';
+      }).join('') : '<tr><td colspan="6" style="color:var(--fg-3)">No downloads yet.</td></tr>';
+    });
 
     q('profileForm').addEventListener('submit', function () {
       var m = q('profileMsg'); m.className = 'msg'; m.textContent = ''; q('profileBtn').disabled = true;
