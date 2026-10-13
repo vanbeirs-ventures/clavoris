@@ -1,6 +1,6 @@
 /* Clavoris app shell — renders the top band for signed-in pages.
    Requires window.ClavorisAccess (session resolved).
-   Investors see Data rooms + Account only; staff also see Admin. */
+   Investors see Data rooms, Contracts and Account; staff also see Admin. */
 (function () {
   'use strict';
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (m) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[m]; }); }
@@ -8,6 +8,7 @@
     var A = window.ClavorisAccess; var nav = document.getElementById('nav'); if (!nav || !A) return;
     var links = [
       { id: 'rooms', label: 'Data rooms', href: 'portal.html' },
+      { id: 'contracts', label: 'Contracts', href: 'contracts.html' },
       { id: 'account', label: 'Account', href: 'account.html' }
     ];
     if (A.isAdmin()) links.push({ id: 'admin', label: 'Admin', href: 'admin.html' });

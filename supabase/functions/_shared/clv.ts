@@ -62,7 +62,7 @@ export const MAIL_SIGNATURE = "Clavoris · Keys to institutional capital\nAntwer
 export function mailConfigured(): boolean { return !!Deno.env.get("CLAVORIS_SMTP_HOST"); }
 
 export async function sendMail(to: string, subject: string, text: string): Promise<boolean> {
-  const host = Deno.env.get("CLAVORIS_SMTP_HOST"); if (!host) return false;
+  const host = Deno.env.get("CLAVORIS_SMTP_HOST"); if (!host || !to) return false;
   const port = Number(Deno.env.get("CLAVORIS_SMTP_PORT") || 465);
   const user = Deno.env.get("CLAVORIS_SMTP_USER") || MAIL_FROM;
   const pass = Deno.env.get("CLAVORIS_SMTP_PASS") || "";

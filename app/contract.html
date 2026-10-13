@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Contract — Clavoris</title>
+<link rel="icon" href="../assets/clavoris-mark.png">
+<link rel="stylesheet" href="app.css?v=20261013h">
+<script>document.documentElement.classList.add('clv-checking');</script>
+<style>
+  .grid { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 24px; margin-top: 28px; align-items: start; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+  .parties { list-style: none; }
+  .parties li { padding: 12px 0; border-top: 1px solid var(--border); font-size: 13px; display: flex; gap: 12px; align-items: flex-start; }
+  .parties li:first-child { border-top: none; padding-top: 0; }
+  .parties .n { width: 26px; height: 26px; border-radius: 50%; background: var(--parch-dark); color: var(--slate); font-family: var(--font-mono); font-size: 12px; display: flex; align-items: center; justify-content: center; flex: none; }
+  .parties .n.signed { background: #2F9E5A; color: #fff; } .parties .n.turn { background: var(--seal-gold); color: #fff; } .parties .n.aud { background: #E8EDF3; color: #2E5279; }
+  .parties .nm { font-weight: 500; color: var(--clavis-navy); }
+  .parties .org { color: var(--fg-2); font-size: 12.5px; }
+  .parties .st { font-size: 11.5px; color: var(--fg-3); margin-top: 3px; }
+  .events { list-style: none; font-size: 12.5px; }
+  .events li { padding: 7px 0; border-top: 1px solid var(--border); display: grid; grid-template-columns: 120px 1fr; gap: 10px; }
+  .events li:first-child { border-top: none; }
+  .events .ts { font-family: var(--font-mono); font-size: 11px; color: var(--fg-3); }
+  .newp { display: grid; grid-template-columns: 1.4fr 1.1fr 1fr 0.9fr 0.5fr auto; gap: 10px; align-items: end; margin-top: 14px; }
+  .newp .field { margin: 0; }
+  @media (max-width: 800px) { .newp { grid-template-columns: 1fr 1fr; } }
+  #sumsub-websdk-container { min-height: 560px; margin-top: 16px; }
+  .dl { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+</style>
+</head>
+<body data-clv-restrict="full">
+<div class="app">
+  <nav class="nav" id="nav"></nav>
+  <main class="screen-wrap" data-screen-label="Contract">
+    <p class="eyebrow"><a href="contracts.html" style="color:inherit;text-decoration:none">Contracts</a> › Contract</p>
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:16px">
+      <div><h1 class="page-title" id="title">…</h1><p class="page-sub" id="sub"></p></div>
+      <div id="headChips"></div>
+    </div>
+    <p class="msg err" id="err"></p>
+
+    <div class="grid" id="grid" hidden>
+      <section>
+        <!-- Signing -->
+        <section class="card" id="signCard" style="padding:22px" hidden>
+          <p class="eyebrow">Your signature</p>
+          <h2 style="font-family:var(--font-display);font-size:22px;color:var(--clavis-navy);margin-top:6px">Sign with a qualified electronic signature</h2>
+          <p style="font-size:14px;color:var(--fg-2);line-height:1.6;margin-top:8px;max-width:640px">Read the contract first (download below). The signature is created through Sumsub after verification of your identity document, liveness, e-mail and phone; it is a qualified electronic signature under eIDAS, embedded in the PDF with a qualified timestamp. A visible signature block is placed on the last page.</p>
+          <p class="msg" id="signMsg" role="status"></p>
+          <button class="btn btn-primary" type="button" id="signBtn" style="margin-top:12px">Start qualified signature</button>
+          <div id="sumsub-websdk-container" hidden></div>
+        </section>
+
+        <!-- Document & downloads -->
+        <section class="card" style="padding:22px;margin-top:16px">
+          <p class="eyebrow">Document</p>
+          <div id="docBox" style="margin-top:8px;font-size:13.5px;line-height:1.7"></div>
+          <div class="dl" id="dl"></div>
+        </section>
+
+        <!-- Staff: parties management -->
+        <section class="card" id="manageCard" style="padding:22px;margin-top:16px" hidden>
+          <p class="eyebrow">Manage</p>
+          <div id="manageBox" style="margin-top:8px;font-size:13.5px;line-height:1.6"></div>
+          <form id="partyForm" class="newp" autocomplete="off" onsubmit="return false;">
+            <div class="field"><label for="pEmail">E-mail</label><input id="pEmail" type="email"></div>
+            <div class="field"><label for="pName">Name (new users)</label><input id="pName" type="text"></div>
+            <div class="field"><label for="pCompany">Company</label><input id="pCompany" type="text"></div>
+            <div class="field"><label for="pRole">Role</label><select id="pRole"><option value="signatory">Signatory</option><option value="auditor">Auditor</option></select></div>
+            <div class="field"><label for="pOrder">Order</label><input id="pOrder" type="number" min="1" value="1"></div>
+            <button class="btn btn-primary" type="submit" id="pBtn">Add party</button>
+          </form>
+          <p class="msg" id="pMsg" role="status"></p>
+          <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap" id="manageBtns"></div>
+        </section>
+
+        <!-- Events -->
+        <section class="card" style="padding:22px;margin-top:16px">
+          <p class="eyebrow">Execution log</p>
+          <ul class="events" id="events" style="margin-top:10px"></ul>
+        </section>
+      </section>
+
+      <aside>
+        <section class="card" style="padding:18px 20px">
+          <p class="eyebrow">Parties</p>
+          <ul class="parties" id="parties" style="margin-top:10px"></ul>
+        </section>
+      </aside>
+    </div>
+  </main>
+  <footer class="app-foot"><span>Clavoris · Institutional Capital Platform</span><span class="loc">Antwerp · Luxembourg · Nordic · CSSF · FSMA · MiCA</span></footer>
+</div>
+
+<script src="config.js?v=20261013h"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="clavoris-access.js?v=20261013h"></script>
+<script src="shell.js?v=20261013h"></script>
+<script src="https://static.sumsub.com/idensic/static/sns-websdk-builder.js"></script>
+<script>
+(function () {
+  'use strict';
+  var A = window.ClavorisAccess, S = window.ClavorisShell, esc = S.esc;
+  function q(id) { return document.getElementById(id); }
+  var id = new URLSearchParams(location.search).get('id');
+  var state = null, opened = false;
+  var STATUS = { draft: ['neutral', 'Draft'], in_progress: ['pending', 'Signing in progress'], executed: ['verified', 'Executed'], declined: ['rejected', 'Declined'], cancelled: ['neutral', 'Cancelled'] };
+  var PSTATUS = { pending: 'Waiting for their turn', invited: 'Invited to sign', opened: 'Has opened the contract', signing: 'Signing in progress', signed: 'Signed', declined: 'Declined' };
+  var EV = { 'contract-created': 'Contract created', 'party-added': 'Party added', 'party-removed': 'Party removed', 'contract-launched': 'Signature round launched', 'party-invited': 'Invited to sign', 'party-opened': 'Opened the contract', 'signing-started': 'Started the qualified signature', 'party-signed': 'Signed (qualified electronic signature)', 'contract-executed': 'Contract executed by all parties', 'contract-cancelled': 'Contract cancelled', download: 'Downloaded a document' };
+  function fmt(ts) { return ts ? String(ts).replace('T', ' ').slice(0, 16) + ' UTC' : ''; }
+
+  function load() {
+    return A.callFn('clv-contracts', { action: 'get', id: id }).then(function (r) {
+      if (r.error) { q('err').textContent = r.error === 'forbidden' ? 'You are not a party to this contract.' : 'Could not open the contract (' + r.error + ').'; q('title').textContent = 'Contract'; return; }
+      state = r; render();
+      if (!opened) { opened = true; A.callFn('clv-contracts', { action: 'open', id: id }).catch(function () {}); }
+    });
+  }
+
+  function render() {
+    var r = state, c = r.contract, st = STATUS[c.status] || ['neutral', c.status];
+    q('grid').hidden = false;
+    q('title').textContent = c.title;
+    q('sub').textContent = c.description || '';
+    q('headChips').innerHTML = '<span class="chip ' + st[0] + '">' + st[1] + '</span>' + (r.me.role ? ' <span class="chip info">' + esc(r.me.role) + '</span>' : '');
+
+    // Signing card
+    q('signCard').hidden = !(r.me.my_turn);
+    if (r.me.my_turn && !r.qes_configured) { q('signMsg').className = 'msg'; q('signMsg').textContent = 'Qualified signatures are being activated on Clavoris; you will be notified when signing is available.'; q('signBtn').disabled = true; }
+
+    // Document
+    q('docBox').innerHTML = '<div><strong>' + esc(c.original_name) + '</strong>' + (c.pages ? ' · ' + c.pages + ' page' + (c.pages > 1 ? 's' : '') : '') + '</div>'
+      + '<div class="mono" style="font-size:11px;color:var(--fg-3)">SHA-256 (original) ' + esc(c.sha256_original) + '</div>'
+      + (c.sha256_executed ? '<div class="mono" style="font-size:11px;color:var(--fg-3)">SHA-256 (executed) ' + esc(c.sha256_executed) + '</div>' : '')
+      + (c.status === 'executed' ? '<div style="margin-top:6px">Executed ' + esc(fmt(c.executed_at)) + '. The executed PDF carries the qualified signatures of all signatories; the certificate of completion is the Clavoris evidence record.' + (r.me.can_download_executed ? '' : ' As auditor you can consult the status and the original document; the executed version is reserved for the signatories.') + '</div>' : '')
+      + (r.me.role === 'signatory' && c.status === 'in_progress' && !r.me.my_turn && r.me.status !== 'signed' ? '<div style="margin-top:6px;color:var(--fg-2)">Waiting for ' + esc(r.me.next_signatory || 'the previous signatory') + ' to sign; you will be notified when it is your turn.</div>' : '');
+    var dl = '<button class="btn-text" type="button" data-dl="original">Download the original (unsigned) PDF</button>';
+    if (r.me.can_download_executed) dl += '<button class="btn-text" type="button" data-dl="executed">Download the executed PDF (qualified signatures embedded)</button><button class="btn-text" type="button" data-dl="certificate">Download the certificate of completion</button>';
+    q('dl').innerHTML = dl;
+    [].forEach.call(q('dl').querySelectorAll('[data-dl]'), function (b) {
+      b.addEventListener('click', function () { b.disabled = true; S.downloadFn('clv-contracts', { action: 'download', id: id, which: b.getAttribute('data-dl') }, c.original_name).then(function (x) { b.disabled = false; if (!x.ok) q('err').textContent = 'Download failed (' + x.error + ').'; }); });
+    });
+
+    // Parties
+    var sigs = r.parties.filter(function (p) { return p.role === 'signatory'; }).sort(function (a, b) { return a.order_no - b.order_no; });
+    var auds = r.parties.filter(function (p) { return p.role === 'auditor'; });
+    var nextId = (sigs.filter(function (p) { return p.status !== 'signed'; })[0] || {}).id;
+    q('parties').innerHTML = (sigs.map(function (p) {
+      var cls = p.status === 'signed' ? 'signed' : (p.id === nextId && c.status === 'in_progress') ? 'turn' : '';
+      return '<li><div class="n ' + cls + '">' + (p.status === 'signed' ? '✓' : p.order_no) + '</div><div><div class="nm">' + esc(p.name || p.email) + '</div><div class="org">' + esc(p.company || '') + (p.company ? ' · ' : '') + esc(p.email) + '</div>'
+        + '<div class="st">' + esc(PSTATUS[p.status] || p.status) + (p.signed_at ? ' · ' + esc(fmt(p.signed_at)) : p.opened_at ? ' · opened ' + esc(fmt(p.opened_at)) : '') + '</div>'
+        + (r.me.can_manage && c.status === 'draft' ? '<button class="btn-text" type="button" data-rm="' + esc(p.id) + '" style="font-size:11.5px">remove</button>' : '') + '</div></li>';
+    }).join('') || '<li style="color:var(--fg-3)">No signatories yet.</li>')
+      + (auds.length ? '<li style="display:block;padding-top:14px"><p class="eyebrow">Auditors</p></li>' + auds.map(function (p) {
+        return '<li><div class="n aud">A</div><div><div class="nm">' + esc(p.name || p.email) + '</div><div class="org">' + esc(p.company || '') + (p.company ? ' · ' : '') + esc(p.email) + '</div><div class="st">' + (p.opened_at ? 'Following · opened ' + esc(fmt(p.opened_at)) : 'Not yet opened') + '</div>'
+          + (r.me.can_manage && c.status === 'draft' ? '<button class="btn-text" type="button" data-rm="' + esc(p.id) + '" style="font-size:11.5px">remove</button>' : '') + '</div></li>';
+      }).join('') : '');
+    [].forEach.call(q('parties').querySelectorAll('[data-rm]'), function (b) {
+      b.addEventListener('click', function () { A.callFn('clv-contracts', { action: 'remove_party', id: id, party_id: b.getAttribute('data-rm') }).then(load); });
+    });
+
+    // Manage (staff)
+    q('manageCard').hidden = !r.me.can_manage;
+    if (r.me.can_manage) {
+      q('partyForm').hidden = c.status !== 'draft';
+      q('manageBox').textContent = c.status === 'draft' ? 'Add the signatories in signing order and any auditors, then launch the signature round. Parties who are not yet enrolled on Clavoris receive an activation mail.' : c.status === 'in_progress' ? 'The signature round is running; signatories are invited one after the other.' : '';
+      q('pOrder').value = sigs.length + 1;
+      q('manageBtns').innerHTML = (c.status === 'draft' ? '<button class="btn btn-primary" type="button" id="launchBtn"' + (sigs.length ? '' : ' disabled') + '>Launch signature round</button>' : '')
+        + (c.status === 'draft' || c.status === 'in_progress' ? '<button class="btn" type="button" id="cancelBtn">Cancel contract</button>' : '');
+      var lb = q('launchBtn'); if (lb) lb.addEventListener('click', function () { lb.disabled = true; A.callFn('clv-contracts', { action: 'launch', id: id }).then(function (x) { if (x.error) { q('pMsg').className = 'msg err'; q('pMsg').textContent = x.error === 'qes-not-configured' ? 'Qualified signatures are not configured yet (SUMSUB_QES_LEVEL_NAME).' : x.error; lb.disabled = false; } load(); }); });
+      var cb = q('cancelBtn'); if (cb) cb.addEventListener('click', function () { if (!confirm('Cancel this contract? Parties will no longer be able to sign.')) return; A.callFn('clv-contracts', { action: 'cancel', id: id }).then(load); });
+    }
+
+    // Events
+    q('events').innerHTML = (r.events || []).map(function (e) {
+      var d = e.detail || {};
+      var extra = e.event === 'party-added' ? (d.email ? ' · ' + d.email + ' (' + d.role + ')' : '') : e.event === 'download' ? (d.which ? ' · ' + d.which : '') : e.event === 'party-signed' && d.sha256 ? ' · SHA-256 ' + String(d.sha256).slice(0, 16) + '…' : '';
+      return '<li><span class="ts">' + esc(fmt(e.ts)) + '</span><span>' + esc(e.who || '') + (e.who ? ' — ' : '') + esc(EV[e.event] || e.event) + esc(extra) + (e.ip ? ' <span class="mono" style="font-size:10.5px;color:var(--fg-3)">' + esc(e.ip) + '</span>' : '') + '</span></li>';
+    }).join('') || '<li style="color:var(--fg-3)">No events yet.</li>';
+  }
+
+  // Add party (staff)
+  q('partyForm').addEventListener('submit', function () {
+    var m = q('pMsg'); m.className = 'msg'; m.textContent = ''; q('pBtn').disabled = true;
+    A.callFn('clv-contracts', { action: 'add_party', id: id, email: q('pEmail').value.trim(), name: q('pName').value.trim(), company: q('pCompany').value.trim(), role: q('pRole').value, order_no: Number(q('pOrder').value) || 1 }).then(function (r) {
+      q('pBtn').disabled = false;
+      if (r.error) { m.className = 'msg err'; m.textContent = r.error === 'already-party' ? 'This person is already a party.' : r.error === 'email-invalid' ? 'Enter a valid e-mail address.' : r.error; return; }
+      m.className = 'msg ok'; m.textContent = r.created ? 'Added and invited to enrol on Clavoris.' : 'Added.';
+      q('pEmail').value = ''; q('pName').value = ''; q('pCompany').value = '';
+      load();
+    });
+  });
+
+  // Sign (Sumsub QES WebSDK)
+  var polls = 0;
+  function pollSigned() {
+    if (polls++ > 90) return;
+    setTimeout(function () {
+      A.callFn('clv-contracts', { action: 'sign_check', id: id }).then(function (r) {
+        if (r.state === 'signed' || r.state === 'executed') { q('signMsg').className = 'msg ok'; q('signMsg').textContent = r.state === 'executed' ? 'Signed. The contract is now executed by all parties.' : 'Signed. The next signatory has been invited.'; q('sumsub-websdk-container').hidden = true; load(); return; }
+        pollSigned();
+      });
+    }, 5000);
+  }
+  q('signBtn').addEventListener('click', function () {
+    var m = q('signMsg'); m.className = 'msg'; m.textContent = 'Preparing your signing session…'; q('signBtn').disabled = true;
+    A.callFn('clv-contracts', { action: 'sign_start', id: id }).then(function (r) {
+      if (r.error) { q('signBtn').disabled = false; m.className = 'msg err'; m.textContent = r.error === 'not-your-turn' ? 'It is not your turn yet (waiting for ' + (r.waiting_for || 'the previous signatory') + ').' : r.error === 'qes-not-configured' ? 'Qualified signatures are not available yet.' : 'The signing session could not be started (' + r.error + ').'; return; }
+      m.textContent = 'Complete the identity check and sign the document below.';
+      q('sumsub-websdk-container').hidden = false;
+      var sdk = window.snsWebSdk.init(r.token, function () { return A.callFn('clv-contracts', { action: 'sign_start', id: id }).then(function (x) { return x.token; }); })
+        .withConf({ lang: 'en', email: r.email, theme: 'light' })
+        .withOptions({ addViewportTag: false, adaptIframeHeight: true })
+        .on('idCheck.onApplicantSubmitted', function () { m.className = 'msg ok'; m.textContent = 'Submitted. Clavoris is collecting your signed document…'; pollSigned(); })
+        .on('idCheck.onApplicantStatusChanged', function () { pollSigned(); })
+        .onMessage(function () {})
+        .build();
+      sdk.launch('#sumsub-websdk-container');
+      pollSigned();
+    });
+  });
+
+  A.ready(function () {
+    if (!A.clears('full')) return;
+    S.render('contracts');
+    if (!id) { q('err').textContent = 'No contract selected.'; return; }
+    load();
+    setInterval(function () { if (!document.hidden && state && state.contract.status === 'in_progress') load(); }, 60000);
+  });
+})();
+</script>
+</body>
+</html>
