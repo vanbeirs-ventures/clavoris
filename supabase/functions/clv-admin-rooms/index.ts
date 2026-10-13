@@ -37,7 +37,7 @@ Deno.serve(async (req) => {
   if (!room) return json({ error: "not-found" }, 404);
 
   if (action === "members") {
-    const { data: rows } = await admin.from("clv_room_assignments").select("id, user_id, can_download, expires_at, granted_at, profile:clv_profiles(email, full_name, company, status, last_login_at)").eq("room_id", roomId).is("revoked_at", null).order("granted_at", { ascending: false });
+    const { data: rows } = await admin.from("clv_room_assignments").select("id, user_id, can_download, expires_at, granted_at, profile:clv_profiles!clv_room_assignments_user_id_fkey(email, full_name, company, status, last_login_at)").eq("room_id", roomId).is("revoked_at", null).order("granted_at", { ascending: false });
     const ids = (rows || []).map((r: any) => r.user_id);
     const { data: signed } = ids.length ? await admin.from("clv_signed_documents").select("user_id, signed_at").eq("room_id", roomId).eq("doc_type", "nda").in("user_id", ids) : { data: [] as any[] };
     const { data: last } = ids.length ? await admin.from("clv_access_log").select("user_id, ts, action").eq("room_id", roomId).in("user_id", ids).order("ts", { ascending: false }).limit(500) : { data: [] as any[] };

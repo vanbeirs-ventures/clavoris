@@ -36,7 +36,7 @@ Deno.serve(async (req) => {
   const gateOpen = !ndaRequired || ndaSigned || isStaff(me);
 
   // Members: everyone with an active assignment, plus staff who manage the room.
-  const { data: rows } = await admin.from("clv_room_assignments").select("user_id, granted_at, profile:clv_profiles(full_name, company, job_title, status)").eq("room_id", roomId).is("revoked_at", null);
+  const { data: rows } = await admin.from("clv_room_assignments").select("user_id, granted_at, profile:clv_profiles!clv_room_assignments_user_id_fkey(full_name, company, job_title, status)").eq("room_id", roomId).is("revoked_at", null);
   const memberIds = (rows || []).map((r: any) => r.user_id);
   const { data: signed } = memberIds.length ? await admin.from("clv_signed_documents").select("user_id").eq("room_id", roomId).eq("doc_type", "nda").in("user_id", memberIds) : { data: [] as any[] };
   const signedSet = new Set((signed || []).map((s: any) => s.user_id));
