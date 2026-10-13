@@ -1,11 +1,12 @@
 // supabase/functions/clv-notify/index.ts
 // Scheduled notification run (pg_cron → pg_net every 15 minutes, header x-clavoris-cron) and
 // the admin "Scan now" button:
-//   { action: "scan" }  -> data-room file watcher (new / updated files) + "new investment" mails
+//   { action: "scan" }  -> data-room file watcher (new / updated files), "new investment" mails,
+//                          access-expiry reminders (7 days / 24 h before the end date)
 // The run is rate-limited (one scan per 4 minutes) because the cron trigger carries no secret.
 // Deploy: supabase functions deploy clv-notify --no-verify-jwt
 import { adminClient, cors, json, requireAdmin } from "../_shared/clv.ts";
-import { notifyNewProducts, scanRooms } from "../_shared/notify.ts";
+import { expiryReminders, notifyNewProducts, scanRooms } from "../_shared/notify.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
@@ -24,7 +25,8 @@ Deno.serve(async (req) => {
 
   const rooms = await scanRooms(admin).catch((e) => { console.error("clv-notify rooms", (e as Error).message); return null; });
   const products = await notifyNewProducts(admin).catch((e) => { console.error("clv-notify products", (e as Error).message); return -1; });
-  const result = { ok: true, at: new Date().toISOString(), rooms, product_mails: products };
+  const expiry = await expiryReminders(admin).catch((e) => { console.error("clv-notify expiry", (e as Error).message); return null; });
+  const result = { ok: true, at: new Date().toISOString(), rooms, product_mails: products, expiry };
   await admin.from("clv_settings").upsert({ key: "notify_scan", value: { at: result.at, last: result } }, { onConflict: "key" });
   return json(result);
 });

@@ -3,7 +3,8 @@
 // (name + organisation), and the folder/file tree from Nextcloud. Files are only
 // listed once the NDA is signed (when the room requires one); downloads go through
 // clv-room-file. Deploy: supabase functions deploy clv-room --no-verify-jwt
-import { adminClient, clientIp, cors, isStaff, json, requireUser } from "../_shared/clv.ts";
+import { adminClient, APP_URL, audit, clientIp, cors, fmtDay, isStaff, json, requireUser, sendMail } from "../_shared/clv.ts";
+import { mail, pickLang } from "../_shared/mail-i18n.ts";
 import { ncConfigured, ncTree } from "../_shared/nc.ts";
 
 Deno.serve(async (req) => {
@@ -17,16 +18,41 @@ Deno.serve(async (req) => {
   if (!roomId) return json({ error: "room-required" }, 400);
   const light = body.action === "members"; // heartbeat + members only, no folder tree
 
-  const { data: room } = await admin.from("clv_rooms").select("id, slug, name, description, project_type, seller, nextcloud_folder, status, qes_nda_required, annex_version, downloads_allowed").eq("id", roomId).maybeSingle();
+  const { data: room } = await admin.from("clv_rooms").select("id, slug, name, description, project_type, seller, nextcloud_folder, status, qes_nda_required, annex_version, downloads_allowed, company_id, nda_pdf_path, nda_pdf_name, company:clv_companies(name)").eq("id", roomId).maybeSingle();
   if (!room) return json({ error: "not-found" }, 404);
+  const companyName = (room as any).company?.name || "Clavoris";
 
   // Access: an active, unexpired assignment — or staff.
   let assignment: { can_download: boolean; expires_at: string | null } | null = null;
   if (!isStaff(me)) {
     const { data: a } = await admin.from("clv_room_assignments").select("can_download, expires_at").eq("room_id", roomId).eq("user_id", me.id).is("revoked_at", null).maybeSingle();
     if (!a) return json({ error: "forbidden" }, 403);
-    if (a.expires_at && new Date(a.expires_at) < new Date()) return json({ error: "expired" }, 403);
     assignment = a;
+  }
+  // After the end date the room stays visible (tree listed) but downloads are blocked by clv-room-file.
+  const expired = !!assignment?.expires_at && new Date(assignment.expires_at!) < new Date();
+
+  if (body.action === "extend_request") {
+    // Member asks the company for a longer access; staff are mailed, the member gets a receipt.
+    if (isStaff(me)) return json({ error: "staff" }, 400);
+    const until = String(body.until || "");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(until) || new Date(until + "T00:00:00Z").getTime() < Date.now() - 86400000) return json({ error: "bad-date" }, 400);
+    const message = String(body.message || "").trim().slice(0, 1000);
+    const { data: open } = await admin.from("clv_access_requests").select("id").eq("room_id", roomId).eq("user_id", me.id).eq("status", "pending").maybeSingle();
+    if (open) return json({ error: "already-pending" }, 400);
+    const { error } = await admin.from("clv_access_requests").insert({ room_id: roomId, user_id: me.id, requested_until: until, message: message || null });
+    if (error) return json({ error: error.message }, 400);
+    await audit(admin, { id: me.id, email: me.email, role: me.role }, "access-extension-requested", roomId, { until, message });
+    const L = pickLang(me.lang);
+    const rc = mail(L, "ext_received", { name: me.full_name, room: room.name, company: companyName, date: fmtDay(until + "T12:00:00Z", L) });
+    sendMail(me.email, rc.subject, rc.text, L).catch(() => {});
+    const { data: staff } = await admin.from("clv_profiles").select("email, lang, role, company_id").in("role", ["admin", "super"]).neq("status", "suspended");
+    for (const s of (staff || []).filter((s: any) => s.role === "super" || s.company_id === room.company_id)) {
+      const sl = pickLang(s.lang);
+      const m = mail(sl, "ext_requested", { name: me.full_name || me.email, email: me.email, org: me.company || "—", room: room.name, date: fmtDay(until + "T12:00:00Z", sl), message: message || "—", link: `${APP_URL}/admin.html#rooms` });
+      sendMail(s.email, m.subject, m.text, sl).catch(() => {});
+    }
+    return json({ ok: true });
   }
 
   // NDA status for this user / room.
@@ -71,10 +97,11 @@ Deno.serve(async (req) => {
     await admin.from("clv_access_log").insert({ user_id: me.id, room_id: roomId, file_path: null, action: "room-view", ip: clientIp(req), user_agent: req.headers.get("user-agent") || "" }).then(() => {}, () => {});
   }
 
+  const { data: pendingReq } = isStaff(me) ? { data: null } : await admin.from("clv_access_requests").select("id, requested_until, created_at").eq("room_id", roomId).eq("user_id", me.id).eq("status", "pending").maybeSingle();
   return json({
     ok: true,
-    room: { id: room.id, slug: room.slug, name: room.name, description: room.description, project_type: room.project_type, seller: room.seller, status: room.status, nda_required: ndaRequired, nda_version: room.annex_version, downloads_allowed: !!room.downloads_allowed },
-    me: { verified: me.status === "verified" || isStaff(me), staff: isStaff(me), can_download: isStaff(me) ? true : !!assignment?.can_download, expires_at: assignment?.expires_at || null },
+    room: { id: room.id, slug: room.slug, name: room.name, description: room.description, project_type: room.project_type, seller: room.seller, status: room.status, nda_required: ndaRequired, nda_version: room.annex_version, downloads_allowed: !!room.downloads_allowed, company: companyName, nda_pdf: !!room.nda_pdf_path, nda_pdf_name: room.nda_pdf_name },
+    me: { verified: me.status === "verified" || isStaff(me), staff: isStaff(me), can_download: isStaff(me) ? true : (!!assignment?.can_download && !expired), expires_at: assignment?.expires_at || null, expired, pending_request: pendingReq || null },
     nda: { required: ndaRequired, signed: ndaSigned, signed_at: nda?.signed_at || null, version: nda?.doc_version || null, has_file: !!nda?.nextcloud_path },
     members, tree, storage_error: ncError,
   });

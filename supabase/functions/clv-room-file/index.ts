@@ -49,7 +49,11 @@ Deno.serve(async (req) => {
   let canDownload = true;
   if (!isStaff(me)) {
     const { data: a } = await admin.from("clv_room_assignments").select("can_download, expires_at").eq("room_id", roomId).eq("user_id", me.id).is("revoked_at", null).maybeSingle();
-    if (!a || (a.expires_at && new Date(a.expires_at) < new Date())) return json({ error: "forbidden" }, 403);
+    if (!a) return json({ error: "forbidden" }, 403);
+    // After the access end date the member may still open the room and fetch their own signed NDA,
+    // but no other document.
+    const expired = !!a.expires_at && new Date(a.expires_at) < new Date();
+    if (expired && body.nda !== true) return json({ error: "expired" }, 403);
     canDownload = !!a.can_download && !!room.downloads_allowed;
   }
   const { data: nda } = await admin.from("clv_signed_documents").select("nextcloud_path").eq("room_id", roomId).eq("user_id", me.id).eq("doc_type", "nda").maybeSingle();
