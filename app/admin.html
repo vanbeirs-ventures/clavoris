@@ -6,7 +6,7 @@
 <meta name="robots" content="noindex">
 <title>Admin — Clavoris</title>
 <link rel="icon" href="../assets/clavoris-mark.png">
-<link rel="stylesheet" href="app.css?v=20261013e">
+<link rel="stylesheet" href="app.css?v=20261013f">
 <script>document.documentElement.classList.add('clv-checking');</script>
 </head>
 <body data-clv-restrict="admin">
@@ -34,6 +34,11 @@
 
     <h2 style="font-family:var(--font-display);font-size:24px;color:var(--clavis-navy);margin-top:44px">Data rooms</h2>
     <p class="page-sub" style="margin-top:4px">Invite by email address: the user is enrolled if new, receives an invitation to set a passphrase, completes KYC, signs the room NDA and gets access. Documents are read from the room's Nextcloud folder.</p>
+    <section class="card" id="ncCard" style="padding:16px 20px;margin-top:14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
+      <div><p class="eyebrow">Document storage</p><div id="ncStatus" style="font-size:13.5px;margin-top:4px;color:var(--fg-2)">Checking Nextcloud connection…</div></div>
+      <div style="display:flex;gap:8px"><button class="btn btn-primary" type="button" id="ncConnect">Connect Nextcloud</button><button class="btn btn-ghost" type="button" id="ncDisconnect" hidden>Disconnect</button></div>
+    </section>
+    <p class="msg" id="ncMsg" role="status"></p>
     <div id="rooms" style="margin-top:14px"></div>
     <p class="msg err" id="roomsErr"></p>
   </main>
@@ -90,10 +95,10 @@
   </div>
 </div>
 
-<script src="config.js?v=20261013e"></script>
+<script src="config.js?v=20261013f"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="clavoris-access.js?v=20261013e"></script>
-<script src="shell.js?v=20261013e"></script>
+<script src="clavoris-access.js?v=20261013f"></script>
+<script src="shell.js?v=20261013f"></script>
 <script>
 (function () {
   'use strict';
@@ -225,7 +230,39 @@
     });
   });
 
-  A.ready(function () { if (!A.clears('admin')) return; S.render('admin'); load(); loadRooms(); });
+  /* ---- Nextcloud connection (Login Flow v2: the admin signs in to Nextcloud once, the app password never leaves the server) ---- */
+  function ncStatus() {
+    A.callFn('clv-nc-connect', { action: 'status' }).then(function (r) {
+      var el = q('ncStatus');
+      if (r.error) { el.textContent = 'Connection check failed (' + r.error + ').'; return; }
+      if (!r.connected) { el.innerHTML = 'Not connected. Data rooms read their documents from <span class="mono">' + esc(r.url) + '</span>.'; q('ncDisconnect').hidden = true; return; }
+      el.innerHTML = (r.checked ? '<span class="chip verified">connected</span> ' : '<span class="chip alert">error ' + esc(r.error || '') + '</span> ') + 'as <span class="mono">' + esc(r.user) + '</span> on ' + esc(r.url) + (r.since ? ' · since ' + esc(fmt(r.since)) : '');
+      q('ncDisconnect').hidden = false; q('ncConnect').textContent = 'Reconnect';
+    });
+  }
+  q('ncConnect').addEventListener('click', function () {
+    var m = q('ncMsg'); m.className = 'msg'; m.textContent = 'Opening Nextcloud…'; q('ncConnect').disabled = true;
+    var win = window.open('about:blank', '_blank');
+    A.callFn('clv-nc-connect', { action: 'start' }).then(function (r) {
+      if (r.error) { if (win) win.close(); q('ncConnect').disabled = false; m.className = 'msg err'; m.textContent = 'Could not start (' + r.error + ').'; return; }
+      if (win) win.location.href = r.login; else window.open(r.login, '_blank');
+      m.textContent = 'Sign in to Nextcloud in the new window and press "Grant access". Waiting…';
+      var tries = 0;
+      (function poll() {
+        if (tries++ > 150) { q('ncConnect').disabled = false; m.className = 'msg err'; m.textContent = 'Timed out — try again.'; return; }
+        A.callFn('clv-nc-connect', { action: 'poll', token: r.token, endpoint: r.endpoint }).then(function (p) {
+          if (p.pending) { setTimeout(poll, 2000); return; }
+          q('ncConnect').disabled = false;
+          if (p.error) { m.className = 'msg err'; m.textContent = 'Connection failed (' + p.error + ').'; return; }
+          m.className = 'msg ok'; m.textContent = 'Connected as ' + p.user + '.'; try { if (win) win.close(); } catch (e) {}
+          ncStatus(); loadRooms();
+        });
+      })();
+    });
+  });
+  q('ncDisconnect').addEventListener('click', function () { A.callFn('clv-nc-connect', { action: 'disconnect' }).then(function () { q('ncConnect').textContent = 'Connect Nextcloud'; ncStatus(); }); });
+
+  A.ready(function () { if (!A.clears('admin')) return; S.render('admin'); load(); loadRooms(); ncStatus(); });
 })();
 </script>
 </body>

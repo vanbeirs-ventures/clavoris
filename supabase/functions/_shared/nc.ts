@@ -1,18 +1,30 @@
 // Nextcloud WebDAV helper for the Clavoris data rooms.
-// Secrets: NC_URL (https://drive.example.com), NC_USER, NC_PASS (an app password).
-// Data rooms live under clv_rooms.nextcloud_folder (path relative to the NC user's root).
+// Credentials come from the stored connection (clv_settings key "nc", created by the
+// admin "Connect Nextcloud" button via Nextcloud Login Flow v2) or, as a fallback, from
+// the secrets NC_URL / NC_USER / NC_PASS. Data rooms live under clv_rooms.nextcloud_folder
+// (path relative to the connected user's root).
+import { adminClient } from "./clv.ts";
 
-const NC_URL = (Deno.env.get("NC_URL") || "").replace(/\/$/, "");
-const NC_USER = Deno.env.get("NC_USER") || "";
-const NC_PASS = Deno.env.get("NC_PASS") || "";
+export type NcCreds = { url: string; user: string; pass: string };
+let cached: NcCreds | null | undefined;
 
-export function ncConfigured(): boolean { return !!(NC_URL && NC_USER && NC_PASS); }
+export async function ncCreds(): Promise<NcCreds | null> {
+  if (cached !== undefined) return cached;
+  const { data } = await adminClient().from("clv_settings").select("value").eq("key", "nc").maybeSingle();
+  const v = (data?.value || {}) as Partial<NcCreds>;
+  if (v.url && v.user && v.pass) { cached = { url: v.url.replace(/\/$/, ""), user: v.user, pass: v.pass }; return cached; }
+  const url = (Deno.env.get("NC_URL") || "").replace(/\/$/, ""), user = Deno.env.get("NC_USER") || "", pass = Deno.env.get("NC_PASS") || "";
+  cached = url && user && pass ? { url, user, pass } : null;
+  return cached;
+}
+export async function ncConfigured(): Promise<boolean> { return !!(await ncCreds()); }
 
-function auth(): string { return "Basic " + btoa(`${NC_USER}:${NC_PASS}`); }
+function auth(c: NcCreds): string { return "Basic " + btoa(`${c.user}:${c.pass}`); }
 export function encPath(p: string): string {
   return p.split("/").filter(Boolean).map(encodeURIComponent).join("/");
 }
-function davUrl(p: string): string { return `${NC_URL}/remote.php/dav/files/${encodeURIComponent(NC_USER)}/${encPath(p)}`; }
+function davUrl(c: NcCreds, p: string): string { return `${c.url}/remote.php/dav/files/${encodeURIComponent(c.user)}/${encPath(p)}`; }
+async function need(): Promise<NcCreds> { const c = await ncCreds(); if (!c) throw new Error("storage-not-configured"); return c; }
 
 export type NcEntry = { name: string; path: string; dir: boolean; size: number; modified: string; etag: string; mime: string };
 
@@ -23,13 +35,14 @@ function xmlVal(block: string, tag: string): string {
 
 // List direct children of a folder (PROPFIND Depth: 1). Hidden entries (dot-prefixed) are skipped.
 export async function ncList(folder: string): Promise<NcEntry[]> {
+  const c = await need();
   const body = `<?xml version="1.0"?><d:propfind xmlns:d="DAV:"><d:prop><d:resourcetype/><d:getcontentlength/><d:getlastmodified/><d:getetag/><d:getcontenttype/></d:prop></d:propfind>`;
-  const res = await fetch(davUrl(folder) + "/", { method: "PROPFIND", headers: { authorization: auth(), depth: "1", "content-type": "application/xml" }, body });
+  const res = await fetch(davUrl(c, folder) + "/", { method: "PROPFIND", headers: { authorization: auth(c), depth: "1", "content-type": "application/xml" }, body });
   if (res.status === 404) return [];
   if (!res.ok) { const t = (await res.text().catch(() => "")).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 160); console.error("nc list", res.status, t); throw new Error(`nc list ${res.status}`); }
   const xml = await res.text();
   const out: NcEntry[] = [];
-  const base = `/remote.php/dav/files/${encodeURIComponent(NC_USER)}/`;
+  const base = `/remote.php/dav/files/${encodeURIComponent(c.user)}/`;
   const blocks = xml.split(/<(?:[a-z0-9]+:)?response>/i).slice(1);
   for (const b of blocks) {
     const href = decodeURIComponent(xmlVal(b, "href"));
@@ -58,23 +71,26 @@ export async function ncTree(folder: string, depth = 4): Promise<NcEntry[]> {
 }
 
 export async function ncGet(path: string): Promise<Response> {
-  const res = await fetch(davUrl(path), { headers: { authorization: auth() } });
+  const c = await need();
+  const res = await fetch(davUrl(c, path), { headers: { authorization: auth(c) } });
   if (!res.ok) throw new Error(`nc get ${res.status}`);
   return res;
 }
 
 export async function ncMkdirP(folder: string): Promise<void> {
+  const c = await need();
   const parts = folder.split("/").filter(Boolean);
   let cur = "";
   for (const p of parts) {
     cur += (cur ? "/" : "") + p;
-    const res = await fetch(davUrl(cur), { method: "MKCOL", headers: { authorization: auth() } });
+    const res = await fetch(davUrl(c, cur), { method: "MKCOL", headers: { authorization: auth(c) } });
     if (![201, 405].includes(res.status)) throw new Error(`nc mkcol ${res.status} ${cur}`);
   }
 }
 
 export async function ncPut(path: string, bytes: Uint8Array, contentType = "application/octet-stream"): Promise<void> {
-  const res = await fetch(davUrl(path), { method: "PUT", headers: { authorization: auth(), "content-type": contentType }, body: bytes });
+  const c = await need();
+  const res = await fetch(davUrl(c, path), { method: "PUT", headers: { authorization: auth(c), "content-type": contentType }, body: bytes });
   if (!res.ok) throw new Error(`nc put ${res.status}`);
 }
 

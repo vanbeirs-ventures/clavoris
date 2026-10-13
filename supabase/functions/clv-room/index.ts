@@ -59,7 +59,7 @@ Deno.serve(async (req) => {
   let ncError: string | null = null;
   if (gateOpen) {
     if (light) { /* no tree */ }
-    else if (!ncConfigured()) ncError = "storage-not-configured";
+    else if (!(await ncConfigured())) ncError = "storage-not-configured";
     else {
       try {
         const root = room.nextcloud_folder || "";
