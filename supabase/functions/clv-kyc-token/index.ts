@@ -4,7 +4,7 @@
 // Clavoris user id; results come back through clv-sumsub-webhook.
 // Secrets: SUMSUB_APP_TOKEN, SUMSUB_SECRET_KEY, SUMSUB_LEVEL_NAME (e.g. "clavoris-investor").
 // Deploy: supabase functions deploy clv-kyc-token --no-verify-jwt
-import { adminClient, cors, json, requireUser } from "../_shared/clv.ts";
+import { adminClient, clientIp, cors, json, requireUser } from "../_shared/clv.ts";
 
 const SUMSUB_URL = "https://api.sumsub.com";
 
@@ -34,5 +34,6 @@ Deno.serve(async (req) => {
   if (!res.ok || !data.token) { console.error("sumsub token:", res.status, JSON.stringify(data)); return json({ error: "kyc-token-failed" }, 502); }
 
   if (me.status === "registered") await admin.from("clv_profiles").update({ status: "kyc_pending", kyc_level: level }).eq("id", me.id);
+  await admin.from("clv_access_log").insert({ user_id: me.id, action: "kyc-start", ip: clientIp(req), user_agent: req.headers.get("user-agent") || "" }).then(() => {}, () => {});
   return json({ ok: true, token: data.token, level, email: me.email });
 });

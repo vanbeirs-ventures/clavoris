@@ -2,6 +2,8 @@
 // NDA gate for a data room.
 //   { action: "text", room_id }                       -> the NDA text and version
 //   { action: "sign", room_id, typed_name, accept }   -> signs it (identity-verified users only)
+//   { action: "store", room_id }                      -> stores the PDF of an existing signature whose
+//                                                        copy could not be stored at signing time
 // Signing: the user must be KYC-verified (Sumsub). The NDA is rendered to a PDF with a
 // signature block (name, email, organisation, time, IP, KYC reference, hashes), stored in
 // Nextcloud under <room>/_users/<email>/ and recorded in clv_signed_documents. The record
@@ -59,6 +61,25 @@ async function renderNdaPdf(opts: { title: string; room: string; text: string; s
   return await pdf.save();
 }
 
+async function storeNda(room: { nextcloud_folder: string | null; slug: string }, email: string, version: string, at: Date, pdfBytes: Uint8Array): Promise<string | null> {
+  if (!(await ncConfigured()) || !room.nextcloud_folder) return null;
+  const safeMail = email.toLowerCase().replace(/[^a-z0-9@._-]/g, "_");
+  const folder = `${room.nextcloud_folder}/_users/${safeMail}`;
+  const file = `${folder}/NDA_${room.slug}_${version}_${at.toISOString().slice(0, 10)}.pdf`;
+  try { await ncMkdirP(folder); await ncPut(file, pdfBytes, "application/pdf"); return file; }
+  catch (e) { console.error("clv-room-nda: nextcloud store failed:", (e as Error).message); return null; }
+}
+
+function sigBlock(me: { email: string; company: string | null; sumsub_applicant_id: string | null; kyc_reviewed_at: string | null }, typed: string, at: Date, ip: string, version: string, shaUnsigned: string): Record<string, string> {
+  return {
+    "Signatory": typed, "Email": me.email, "Organisation": me.company || "—",
+    "Signed at (UTC)": at.toISOString().replace("T", " ").slice(0, 19),
+    "Identity verification": `Sumsub KYC · applicant ${me.sumsub_applicant_id || "n/a"} · reviewed ${me.kyc_reviewed_at ? String(me.kyc_reviewed_at).slice(0, 10) : "n/a"}`,
+    "Signature method": "KYC-attested electronic acceptance (eIDAS simple e-signature)",
+    "IP address": ip || "n/a", "NDA version": version, "SHA-256 of text": shaUnsigned,
+  };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "method" }, 405);
@@ -81,6 +102,22 @@ Deno.serve(async (req) => {
 
   if (action === "text") return json({ ok: true, text, version, required: !!room.qes_nda_required });
 
+  if (action === "store") {
+    // Backfill: the signature exists but its PDF could not be stored at the time (storage down).
+    const { data: rec } = await admin.from("clv_signed_documents").select("id, doc_version, signed_at, nextcloud_path, validation").eq("room_id", roomId).eq("user_id", me.id).eq("doc_type", "nda").maybeSingle();
+    if (!rec) return json({ error: "no-nda" }, 404);
+    if (rec.nextcloud_path) return json({ ok: true, stored: true, already: true });
+    const v = (rec.validation || {}) as Record<string, string>;
+    const at = new Date(rec.signed_at);
+    const shaUnsigned = await sha256Hex(text);
+    const pdfBytes = await renderNdaPdf({ title: "Non-Disclosure Agreement", room: room.name, text, sig: sigBlock(me, v.typed_name || me.full_name || "", at, v.ip || "", rec.doc_version, shaUnsigned) });
+    const ncPath = await storeNda(room, me.email, rec.doc_version, at, pdfBytes);
+    if (!ncPath) return json({ ok: true, stored: false });
+    const shaSigned = await sha256Hex(pdfBytes);
+    await admin.from("clv_signed_documents").update({ nextcloud_path: ncPath, sha256_signed: shaSigned, validation: { ...v, stored: true, stored_at: new Date().toISOString(), stored_late: true } }).eq("id", rec.id);
+    return json({ ok: true, stored: true });
+  }
+
   if (action !== "sign") return json({ error: "bad-action" }, 400);
   if (!room.qes_nda_required) return json({ ok: true, already: true });
   if (me.status !== "verified" && !isStaff(me)) return json({ error: "kyc-required" }, 403);
@@ -94,24 +131,9 @@ Deno.serve(async (req) => {
   const now = new Date();
   const ip = clientIp(req), ua = req.headers.get("user-agent") || "";
   const shaUnsigned = await sha256Hex(text);
-  const sig: Record<string, string> = {
-    "Signatory": typed, "Email": me.email, "Organisation": me.company || "—",
-    "Signed at (UTC)": now.toISOString().replace("T", " ").slice(0, 19),
-    "Identity verification": `Sumsub KYC · applicant ${me.sumsub_applicant_id || "n/a"} · reviewed ${me.kyc_reviewed_at ? String(me.kyc_reviewed_at).slice(0, 10) : "n/a"}`,
-    "Signature method": "KYC-attested electronic acceptance (eIDAS simple e-signature)",
-    "IP address": ip || "n/a", "NDA version": version, "SHA-256 of text": shaUnsigned,
-  };
-  const pdfBytes = await renderNdaPdf({ title: "Non-Disclosure Agreement", room: room.name, text, sig });
+  const pdfBytes = await renderNdaPdf({ title: "Non-Disclosure Agreement", room: room.name, text, sig: sigBlock(me, typed, now, ip, version, shaUnsigned) });
   const shaSigned = await sha256Hex(pdfBytes);
-
-  let ncPath: string | null = null;
-  if ((await ncConfigured()) && room.nextcloud_folder) {
-    const safeMail = me.email.toLowerCase().replace(/[^a-z0-9@._-]/g, "_");
-    const folder = `${room.nextcloud_folder}/_users/${safeMail}`;
-    const file = `${folder}/NDA_${room.slug}_${version}_${now.toISOString().slice(0, 10)}.pdf`;
-    try { await ncMkdirP(folder); await ncPut(file, pdfBytes, "application/pdf"); ncPath = file; }
-    catch (e) { console.error("clv-room-nda: nextcloud store failed:", (e as Error).message); }
-  }
+  const ncPath = await storeNda(room, me.email, version, now, pdfBytes);
 
   const { error } = await admin.from("clv_signed_documents").insert({
     user_id: me.id, room_id: roomId, doc_type: "nda", doc_version: version,

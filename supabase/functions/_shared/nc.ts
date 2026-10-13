@@ -42,11 +42,12 @@ export async function ncList(folder: string): Promise<NcEntry[]> {
   if (!res.ok) { const t = (await res.text().catch(() => "")).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 160); console.error("nc list", res.status, t); throw new Error(`nc list ${res.status}`); }
   const xml = await res.text();
   const out: NcEntry[] = [];
-  const base = `/remote.php/dav/files/${encodeURIComponent(c.user)}/`;
+  // Hrefs carry the account id (which may differ from the login name used for auth):
+  // strip everything up to and including /remote.php/dav/files/<account>/.
   const blocks = xml.split(/<(?:[a-z0-9]+:)?response>/i).slice(1);
   for (const b of blocks) {
     const href = decodeURIComponent(xmlVal(b, "href"));
-    const rel = href.startsWith(base) ? href.slice(base.length) : href;
+    const rel = href.replace(/^.*?\/remote\.php\/dav\/files\/[^/]+\//, "");
     const clean = rel.replace(/\/$/, "");
     if (clean === folder.replace(/\/$/, "")) continue; // the folder itself
     const name = clean.split("/").pop() || "";
