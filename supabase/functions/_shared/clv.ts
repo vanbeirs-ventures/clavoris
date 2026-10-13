@@ -1,6 +1,7 @@
 // Shared helpers for the clv-admin-* functions (ported from the Minerva cloud).
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
+import { type Lang, pickLang, SIGNATURE } from "./mail-i18n.ts";
 
 export const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -29,18 +30,26 @@ export async function requireAdmin(admin: SupabaseClient, req: Request): Promise
 }
 
 // Resolve the caller from the JWT: any enrolled, non-suspended Clavoris user.
-export type Profile = { id: string; email: string; full_name: string | null; company: string | null; role: "user" | "admin" | "super"; status: string; sumsub_applicant_id: string | null; kyc_reviewed_at: string | null };
+export type Features = { market?: boolean; trading?: boolean; products?: string[] | null };
+export type Profile = { id: string; email: string; full_name: string | null; company: string | null; role: "user" | "admin" | "super"; status: string; lang: string | null; features: Features; sumsub_applicant_id: string | null; kyc_reviewed_at: string | null };
 export async function requireUser(admin: SupabaseClient, req: Request): Promise<Profile | Response> {
   const jwt = (req.headers.get("authorization") || "").replace("Bearer ", "");
   if (!jwt) return json({ error: "unauthorized" }, 401);
   const { data } = await admin.auth.getUser(jwt);
   const user = data?.user;
   if (!user) return json({ error: "unauthorized" }, 401);
-  const { data: p } = await admin.from("clv_profiles").select("id, email, full_name, company, role, status, sumsub_applicant_id, kyc_reviewed_at").eq("id", user.id).single();
+  const { data: p } = await admin.from("clv_profiles").select("id, email, full_name, company, role, status, lang, features, sumsub_applicant_id, kyc_reviewed_at").eq("id", user.id).single();
   if (!p || p.status === "suspended" || p.status === "rejected") return json({ error: "forbidden" }, 403);
+  if (!p.features || typeof p.features !== "object") p.features = {};
   return p as Profile;
 }
 export function isStaff(p: { role: string }): boolean { return p.role === "admin" || p.role === "super"; }
+// Normalise a feature object coming from the admin console.
+export function cleanFeatures(f: unknown): Features {
+  const o = (f && typeof f === "object" ? f : {}) as Record<string, unknown>;
+  const products = Array.isArray(o.products) ? o.products.map(String).filter((x) => /^[0-9a-f-]{36}$/.test(x)).slice(0, 200) : null;
+  return { market: !!o.market, trading: !!o.trading, products };
+}
 export function clientIp(req: Request): string { return (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || req.headers.get("cf-connecting-ip") || ""; }
 
 export async function audit(admin: SupabaseClient, actor: Caller, event_type: string, target: string, detail: Record<string, unknown> = {}) {
@@ -57,18 +66,43 @@ export const STATUSES = ["registered", "kyc_pending", "kyc_retry", "verified", "
 export const MAIL_FROM = Deno.env.get("CLAVORIS_MAIL_FROM") || "noreply@clavoris.com";
 export const MAIL_REPLY_TO = "access@clavoris.com";
 export const APP_URL = (Deno.env.get("CLAVORIS_APP_URL") || "https://www.clavoris.com/app").replace(/\/$/, "");
-export const MAIL_SIGNATURE = "Clavoris · Keys to institutional capital\nAntwerp · Luxembourg · Nordic\n\nThis mailbox is not monitored. For assistance write to access@clavoris.com.";
+export const MAIL_SIGNATURE = "Clavoris · Private investment, enabled\nAntwerp · Luxembourg · Nordic\n\nThis mailbox is not monitored. For assistance write to access@clavoris.com.";
 
 export function mailConfigured(): boolean { return !!Deno.env.get("CLAVORIS_SMTP_HOST"); }
 
-export async function sendMail(to: string, subject: string, text: string): Promise<boolean> {
+export async function sendMail(to: string, subject: string, text: string, lang: Lang | string = "en"): Promise<boolean> {
   const host = Deno.env.get("CLAVORIS_SMTP_HOST"); if (!host || !to) return false;
   const port = Number(Deno.env.get("CLAVORIS_SMTP_PORT") || 465);
   const user = Deno.env.get("CLAVORIS_SMTP_USER") || MAIL_FROM;
   const pass = Deno.env.get("CLAVORIS_SMTP_PASS") || "";
   const client = new SMTPClient({ connection: { hostname: host, port, tls: port === 465, auth: { username: user, password: pass } } });
   try {
-    await client.send({ from: `Clavoris <${MAIL_FROM}>`, to, replyTo: MAIL_REPLY_TO, subject, content: text + "\n\n" + MAIL_SIGNATURE });
+    await client.send({ from: `Clavoris <${MAIL_FROM}>`, to, replyTo: MAIL_REPLY_TO, subject, content: text + "\n\n" + SIGNATURE[pickLang(lang)] });
     return true;
   } finally { try { await client.close(); } catch { /* ignore */ } }
+}
+
+// ---- enrolment on the shared user directory ----
+// The Supabase project is shared with the Minerva cloud: one auth user per e-mail address.
+// A Clavoris enrolment therefore either creates the auth user (new to both platforms) or
+// attaches a Clavoris profile to an existing user (who keeps their existing passphrase).
+// Returns the activation link to send: a one-time recovery link lands on reset.html.
+export type Enrolled = { id: string; created: boolean; linked: boolean; link: string };
+export async function enrolUser(admin: SupabaseClient, email: string, name: string, company: string | null, lang = "en", role: "user" | "admin" = "user"): Promise<Enrolled | { error: string }> {
+  const { data: existing } = await admin.from("clv_profiles").select("id, status").eq("email", email).maybeSingle();
+  if (existing) return { error: "already-enrolled" };
+  let id: string | null = null, created = false, linked = false;
+  const pw = Array.from(crypto.getRandomValues(new Uint8Array(24))).map((b) => "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789".charAt(b % 54)).join("");
+  const { data: u, error: cErr } = await admin.auth.admin.createUser({ email, password: pw, email_confirm: true, user_metadata: { full_name: name }, app_metadata: { app: "clavoris" } });
+  if (!cErr && u?.user) { id = u.user.id; created = true; }
+  else if (cErr && /registered|exists|already/i.test(cErr.message)) linked = true; // existing Minerva/Clavoris auth user
+  else return { error: cErr?.message || "create-failed" };
+  // One-time link; for an existing user this also yields the user id without listing the directory.
+  const { data: l, error: lErr } = await admin.auth.admin.generateLink({ type: "recovery", email, options: { redirectTo: APP_URL + "/reset.html" } });
+  if (lErr || !l?.user) { if (created && id) await admin.auth.admin.deleteUser(id).catch(() => {}); return { error: lErr?.message || "link-failed" }; }
+  id = id || l.user.id;
+  const link = l.properties?.hashed_token ? `${APP_URL}/reset.html?token_hash=${encodeURIComponent(l.properties.hashed_token)}&type=recovery&welcome=1` : `${APP_URL}/login.html`;
+  const { error: pErr } = await admin.from("clv_profiles").insert({ id, email, full_name: name || (l.user.user_metadata as { full_name?: string } | null)?.full_name || email.split("@")[0], company, lang, role, status: "registered" });
+  if (pErr) { if (created) await admin.auth.admin.deleteUser(id).catch(() => {}); return { error: pErr.message }; }
+  return { id, created, linked, link };
 }

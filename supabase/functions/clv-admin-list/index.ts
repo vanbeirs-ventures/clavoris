@@ -11,7 +11,7 @@ Deno.serve(async (req) => {
 
   const { data, error } = await admin
     .from("clv_profiles")
-    .select("id, email, full_name, company, job_title, lang, role, status, kyc_level, kyc_review_answer, kyc_reviewed_at, suspended_at, last_login_at, created_at")
+    .select("id, email, full_name, company, job_title, lang, role, status, features, kyc_level, kyc_review_answer, kyc_reviewed_at, suspended_at, last_login_at, created_at")
     .order("created_at", { ascending: true });
   if (error) return json({ error: error.message }, 400);
   return json({ ok: true, users: data || [] });

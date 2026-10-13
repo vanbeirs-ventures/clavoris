@@ -3,24 +3,17 @@
 //   - caller must be admin or super (verified server-side);
 //   - creating an admin requires the caller to be super;
 //   - status is fixed server-side ('registered': KYC still to run).
-// Generates a one-time passphrase and emails a sign-in invitation from
-// noreply@clavoris.com (CLAVORIS_SMTP_* secrets; see _shared/clv.ts).
+// Emails a one-time activation link from noreply@clavoris.com in the chosen language. The user
+// directory is shared with the Minerva cloud: an existing user keeps their passphrase and gets a
+// Clavoris profile. Feature switches (marketplace, trading, product allowlist) are stored on the profile.
 // Deploy: supabase functions deploy clv-admin-create-user --no-verify-jwt
-import { adminClient, APP_URL, audit, cors, json, LANGS, requireAdmin, sendMail } from "../_shared/clv.ts";
+import { adminClient, APP_URL, audit, cleanFeatures, cors, enrolUser, json, requireAdmin, sendMail } from "../_shared/clv.ts";
+import { type Lang, mail, pickLang, word } from "../_shared/mail-i18n.ts";
+const withLang = (u: string, l: string) => u + (u.includes("?") ? "&" : "?") + "lang=" + l;
 
-function genPassword(): string {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
-  const r = crypto.getRandomValues(new Uint32Array(14));
-  let out = "";
-  for (let i = 0; i < 14; i++) { out += chars[r[i] % chars.length]; if (i === 4 || i === 9) out += "-"; }
-  return out;
-}
-
-async function sendInvite(to: string, name: string, roleLabel: string, password: string): Promise<boolean> {
-  const text = `Dear ${name || "investor"},\n\nClavoris has enrolled you as ${roleLabel}.\n\n`
-    + `Sign in at ${APP_URL}/login.html\nEmail: ${to}\nOne-time passphrase: ${password}\n\n`
-    + `Please set your own passphrase after first sign-in (Account › Passphrase).`;
-  return sendMail(to, "Your Clavoris access", text);
+function sendInvite(to: string, name: string, role: "user" | "admin", link: string, linked: boolean, lang: Lang): Promise<boolean> {
+  const m = mail(lang, linked ? "user_enrolled_linked" : "user_enrolled_new", { name, role: word(lang, role === "admin" ? "role_admin" : "role_investor"), link: withLang(link, lang), login: `${APP_URL}/login.html?lang=${lang}` });
+  return sendMail(to, m.subject, m.text, lang);
 }
 
 Deno.serve(async (req) => {
@@ -35,25 +28,20 @@ Deno.serve(async (req) => {
   const name = String(body.name || "").trim().slice(0, 120);
   const email = String(body.email || "").trim().toLowerCase().slice(0, 200);
   const company = String(body.company || "").trim().slice(0, 160) || null;
-  const lang = LANGS.includes(body.lang) ? body.lang : "en";
+  const lang = pickLang(body.lang);
+  const features = cleanFeatures(body.features);
   if (!name) return json({ error: "name-required" }, 400);
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json({ error: "email-invalid" }, 400);
   if (role === "admin" && me.role !== "super") return json({ error: "super-only" }, 403);
 
-  const password = genPassword();
-  const { data: created, error: cErr } = await admin.auth.admin.createUser({
-    email, password, email_confirm: true, user_metadata: { full_name: name }, app_metadata: { app: "clavoris" },
-  });
-  if (cErr) return json({ error: /registered|exists|already/i.test(cErr.message) ? "email-taken" : cErr.message }, 400);
-  const id = created.user!.id;
+  const en = await enrolUser(admin, email, name, company, lang, role);
+  if ("error" in en) return json({ error: en.error === "already-enrolled" ? "email-taken" : en.error }, 400);
+  const id = en.id;
+  if (role === "user") await admin.from("clv_profiles").update({ features }).eq("id", id).then(() => {}, () => {});
 
-  const { error: pErr } = await admin.from("clv_profiles").insert({ id, email, full_name: name, company, lang, role, status: "registered" });
-  if (pErr) { await admin.auth.admin.deleteUser(id).catch(() => {}); return json({ error: pErr.message }, 400); }
-
-  await audit(admin, me, role === "admin" ? "admin-created" : "user-created", email, { role, company });
+  await audit(admin, me, role === "admin" ? "admin-created" : "user-created", email, { role, company, features });
 
   let invited = false;
-  try { invited = await sendInvite(email, name, role === "admin" ? "an administrator" : "a professional investor", password); } catch { invited = false; }
-  // The one-time passphrase is returned to the console ONLY when it could not be emailed.
-  return json({ ok: true, id, email, role, invited, ...(invited ? {} : { password }) });
+  try { invited = await sendInvite(email, name, role, en.link, en.linked, lang); } catch { invited = false; }
+  return json({ ok: true, id, email, role, invited, linked: en.linked });
 });
