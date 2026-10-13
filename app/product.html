@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Product — Clavoris</title>
+<link rel="icon" href="../assets/clavoris-mark.png">
+<link rel="stylesheet" href="app.css?v=20261013j">
+<script>document.documentElement.classList.add('clv-checking');</script>
+<style>
+  .grid { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 24px; margin-top: 28px; align-items: start; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+  .terms { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px 18px; font-size: 13px; }
+  .terms span { display: block; color: var(--fg-3); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
+  .terms b { font-weight: 500; color: var(--clavis-navy); font-size: 14.5px; }
+  .tree { list-style: none; }
+  .tree li { border-top: 1px solid var(--border); }
+  .tree li:first-child { border-top: none; }
+  .tree .row { display: flex; align-items: center; gap: 12px; padding: 10px 14px; font-size: 13.5px; }
+  .tree .row.dir { background: var(--parch-100); font-weight: 500; color: var(--clavis-navy); }
+  .tree .row .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tree .row .meta { font-size: 11.5px; color: var(--fg-3); white-space: nowrap; }
+  .lst { list-style: none; font-size: 13px; }
+  .lst li { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 9px 0; border-top: 1px solid var(--border); }
+  .lst li:first-child { border-top: none; }
+  .hl { white-space: pre-line; font-size: 14px; line-height: 1.7; color: var(--fg-1); }
+  .pre { white-space: pre-wrap; font-size: 13.5px; line-height: 1.65; color: var(--fg-2); }
+</style>
+</head>
+<body data-clv-restrict="full">
+<div class="app">
+  <nav class="nav" id="nav"></nav>
+  <main class="screen-wrap" data-screen-label="Product" data-i18n-doctitle="nav.market">
+    <p class="eyebrow"><a href="marketplace.html" style="color:inherit;text-decoration:none" data-i18n="nav.market">Marketplace</a> › <span id="code"></span></p>
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:16px">
+      <div><h1 class="page-title" id="title">…</h1><p class="page-sub" id="sub"></p></div>
+      <div id="headChips"></div>
+    </div>
+    <p class="msg err" id="err"></p>
+
+    <div class="grid" id="grid" hidden>
+      <section>
+        <section class="card" style="padding:22px">
+          <p class="eyebrow" data-i18n="product.terms">Terms</p>
+          <div class="terms" id="terms" style="margin-top:12px"></div>
+          <div class="hl" id="highlights" style="margin-top:16px"></div>
+          <div class="pre" id="desc" style="margin-top:12px"></div>
+        </section>
+
+        <section class="card" style="padding:22px;margin-top:16px">
+          <p class="eyebrow" data-i18n="product.issuer">Issuer</p>
+          <div id="issuer" style="margin-top:8px;font-size:13.5px;line-height:1.7"></div>
+        </section>
+
+        <section class="card" style="padding:22px;margin-top:16px" id="docsCard">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+            <div><p class="eyebrow" data-i18n="product.docs">Documentation</p><p style="font-size:13px;color:var(--fg-2);margin-top:4px" data-i18n="product.docs.body">Prospectus or information memorandum, terms and conditions, issuer reports. Opening the documentation is recorded in your audit trail; it is required before you can subscribe or buy.</p></div>
+            <button class="btn btn-primary" type="button" id="docsBtn" data-i18n="product.docs.open">Open the full documentation</button>
+          </div>
+          <div id="docsBox" style="margin-top:14px" hidden><ul class="tree" id="tree"></ul></div>
+          <p class="msg" id="docsMsg" role="status"></p>
+        </section>
+      </section>
+
+      <aside>
+        <section class="card" style="padding:18px 20px" id="subCard">
+          <p class="eyebrow" data-i18n="product.subscribe">Subscribe at emission</p>
+          <div id="subBox" style="margin-top:8px;font-size:13px;color:var(--fg-2);line-height:1.6"></div>
+          <form id="subForm" autocomplete="off" onsubmit="return false;" hidden>
+            <div class="field"><label for="units" data-i18n="product.units">Units</label><input id="units" type="number" min="1" step="1" class="mono"><span class="hint" id="subHint"></span></div>
+            <p class="msg" id="subMsg" role="status"></p>
+            <button class="btn btn-primary btn-block" type="submit" id="subBtn" data-i18n="product.subscribe.btn">Request subscription</button>
+          </form>
+        </section>
+
+        <section class="card" style="padding:18px 20px;margin-top:16px" id="secCard" hidden>
+          <p class="eyebrow" data-i18n="product.secondary">Secondary market</p>
+          <div id="secBox" style="margin-top:8px;font-size:13px;color:var(--fg-2);line-height:1.6"></div>
+          <ul class="lst" id="listings" style="margin-top:10px"></ul>
+          <form id="sellForm" autocomplete="off" onsubmit="return false;" hidden>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 10px">
+              <div class="field"><label for="sUnits" data-i18n="product.units">Units</label><input id="sUnits" type="number" min="1" step="1" class="mono"></div>
+              <div class="field"><label for="sPrice" data-i18n="product.price_unit">Price per unit</label><input id="sPrice" type="number" min="0.01" step="0.01" class="mono"></div>
+            </div>
+            <p class="msg" id="sellMsg" role="status"></p>
+            <button class="btn btn-ghost btn-block" type="submit" id="sellBtn" data-i18n="product.sell.btn">List units for sale</button>
+          </form>
+        </section>
+
+        <section class="card" style="padding:18px 20px;margin-top:16px" id="posCard" hidden>
+          <p class="eyebrow" data-i18n="nav.portfolio">Portfolio</p>
+          <div id="posBox" style="margin-top:8px;font-size:13px;color:var(--fg-2);line-height:1.6"></div>
+        </section>
+      </aside>
+    </div>
+  </main>
+  <footer class="app-foot"><span data-i18n="footer.tag">Clavoris · Private Investment Enablement Platform</span><span class="loc" data-i18n="footer.loc">Antwerp · Luxembourg · Nordic · CSSF · FSMA · MiCA</span></footer>
+</div>
+
+<script src="config.js?v=20261013j"></script>
+<script src="i18n.js?v=20261013j"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="clavoris-access.js?v=20261013j"></script>
+<script src="shell.js?v=20261013j"></script>
+<script>
+(function () {
+  'use strict';
+  var A = window.ClavorisAccess, S = window.ClavorisShell, I = window.ClavorisI18n, esc = S.esc;
+  function q(id) { return document.getElementById(id); }
+  var id = new URLSearchParams(location.search).get('id');
+  var state = null, docsOpened = false;
+  var STATUS = { upcoming: 'neutral', open: 'verified', closed: 'pending', matured: 'neutral', cancelled: 'rejected' };
+  function money(n, c) { return S.fmtMoney(n, c || (state && state.product.currency)); }
+
+  function load() {
+    return A.callFn('clv-market', { action: 'get', id: id }).then(function (r) {
+      if (r.error) { q('err').textContent = r.error === 'forbidden' ? I.t('product.err.forbidden') : I.t('product.err.generic', { err: r.error }); return; }
+      state = r; render();
+    });
+  }
+
+  function render() {
+    var r = state, p = r.product;
+    q('grid').hidden = false;
+    q('code').textContent = p.code;
+    q('title').textContent = p.name;
+    q('sub').textContent = [p.issuer_name, I.t('ptype.' + p.type), p.isin].filter(Boolean).join(' · ');
+    q('headChips').innerHTML = '<span class="chip ' + (STATUS[p.status] || 'neutral') + '">' + esc(I.t('pstat.' + p.status)) + '</span>' + (r.my_units ? ' <span class="chip verified">' + esc(I.t('market.held', { n: r.my_units })) + '</span>' : '');
+    var size = p.total_units ? money(Number(p.total_units) * Number(p.nominal)) : '—';
+    var filled = p.total_units ? Math.round(100 * Number(r.units_subscribed || 0) / Number(p.total_units)) : null;
+    q('terms').innerHTML = [
+      ['product.t.currency', p.currency], ['market.nominal', money(p.nominal)], ['market.min', money(Number(p.nominal) * Number(p.min_units || 1)) + ' (' + p.min_units + ' ' + I.t('product.units_lc') + ')'],
+      ['market.coupon', p.coupon_rate != null ? Number(p.coupon_rate).toFixed(2) + ' % · ' + I.t('freq.' + p.coupon_frequency) : '—'],
+      ['product.t.issue', S.fmtDate(p.issue_date)], ['product.t.first_coupon', S.fmtDate(p.first_coupon_date)], ['market.maturity', S.fmtDate(p.maturity_date)],
+      ['product.t.next_coupon', r.next_coupon ? S.fmtDate(r.next_coupon.due) : '—'],
+      ['product.t.size', size + (filled != null ? ' · ' + filled + ' % ' + I.t('product.t.subscribed') : '')],
+      ['product.t.window', (p.subscription_opens || p.subscription_closes) ? S.fmtDate(p.subscription_opens) + ' → ' + S.fmtDate(p.subscription_closes) : '—'],
+      ['product.t.secondary', I.t(p.secondary_enabled ? 'common.yes' : 'common.no')]
+    ].map(function (kv) { return '<div><span>' + esc(I.t(kv[0])) + '</span><b>' + esc(kv[1]) + '</b></div>'; }).join('');
+    q('highlights').textContent = p.highlights || '';
+    q('desc').textContent = p.description || '';
+    q('issuer').innerHTML = '<div style="font-weight:500;color:var(--clavis-navy)">' + esc(p.issuer_name) + '</div>' + (p.issuer_id || p.issuer_country ? '<div class="mono" style="font-size:11.5px;color:var(--fg-3)">' + esc([p.issuer_id, p.issuer_country].filter(Boolean).join(' · ')) + '</div>' : '') + (p.issuer_description ? '<p style="margin-top:8px;white-space:pre-wrap;color:var(--fg-2)">' + esc(p.issuer_description) + '</p>' : '');
+    q('docsBtn').disabled = !r.docs_available;
+    q('docsMsg').textContent = r.docs_available ? '' : I.t('product.docs.none');
+
+    // Subscription
+    var sb = q('subBox'), isStaff = A.isAdmin();
+    if (isStaff) { sb.textContent = I.t('product.staff_view'); q('subForm').hidden = true; }
+    else if (p.status !== 'open') { sb.textContent = I.t('product.sub.not_open'); q('subForm').hidden = true; }
+    else if (!r.kyc_verified) { sb.innerHTML = esc(I.t('product.sub.kyc')) + ' <a class="btn-text" href="kyc.html?next=' + encodeURIComponent('product.html?id=' + id) + '">' + esc(I.t('room.kyc.btn')) + '</a>'; q('subForm').hidden = true; }
+    else { sb.textContent = I.t('product.sub.intro'); q('subForm').hidden = false; q('units').min = p.min_units || 1; if (!q('units').value) q('units').value = p.min_units || 1; updateHint(); }
+    if (r.my_subscriptions && r.my_subscriptions.length) {
+      sb.innerHTML += '<ul class="lst" style="margin-top:10px">' + r.my_subscriptions.map(function (s) { return '<li><span>' + esc(S.fmtDate(s.created_at)) + ' · ' + s.units + ' × ' + esc(money(p.nominal)) + '</span><span class="chip ' + (s.status === 'settled' ? 'verified' : s.status === 'requested' || s.status === 'accepted' ? 'pending' : 'neutral') + '">' + esc(I.t('sstat.' + s.status)) + '</span></li>'; }).join('') + '</ul>';
+    }
+
+    // Secondary market
+    q('secCard').hidden = !(p.secondary_enabled);
+    if (p.secondary_enabled) {
+      var box = q('secBox');
+      box.textContent = r.can_trade ? I.t('product.sec.intro') : isStaff ? I.t('product.staff_view') : I.t('product.sec.off');
+      var ls = r.listings || [];
+      q('listings').innerHTML = ls.length ? ls.map(function (l) {
+        var tot = money(Number(l.units) * Number(l.price_per_unit));
+        var right = l.mine ? (l.status === 'open' ? '<button class="btn-text" type="button" data-cancel="' + esc(l.id) + '">' + esc(I.t('product.sec.withdraw')) + '</button>' : '<span class="chip pending">' + esc(I.t('lstat.matched')) + '</span>')
+          : l.buying ? '<span class="chip pending">' + esc(I.t('lstat.matched')) + '</span>'
+          : (r.can_trade && l.status === 'open' && r.kyc_verified ? '<button class="btn btn-primary" type="button" style="padding:6px 12px;font-size:12px" data-buy="' + esc(l.id) + '">' + esc(I.t('product.sec.buy')) + '</button>' : '<span class="chip ' + (l.status === 'open' ? 'info' : 'pending') + '">' + esc(I.t('lstat.' + l.status)) + '</span>');
+        return '<li><span>' + l.units + ' × ' + esc(money(l.price_per_unit)) + ' <span style="color:var(--fg-3)">= ' + esc(tot) + '</span>' + (l.mine ? ' <span class="chip neutral">' + esc(I.t('product.sec.yours')) + '</span>' : '') + '</span>' + right + '</li>';
+      }).join('') : '<li style="color:var(--fg-3)">' + esc(I.t('product.sec.none')) + '</li>';
+      q('sellForm').hidden = !(r.can_trade && r.my_units > 0);
+      [].forEach.call(q('listings').querySelectorAll('[data-buy]'), function (b) {
+        b.addEventListener('click', function () {
+          if (!confirm(I.t('product.sec.buy_confirm'))) return;
+          b.disabled = true;
+          A.callFn('clv-market', { action: 'buy', id: id, listing_id: b.getAttribute('data-buy') }).then(function (x) { if (x.error) { q('err').textContent = errText(x); b.disabled = false; } load(); });
+        });
+      });
+      [].forEach.call(q('listings').querySelectorAll('[data-cancel]'), function (b) {
+        b.addEventListener('click', function () { b.disabled = true; A.callFn('clv-market', { action: 'cancel_listing', id: id, listing_id: b.getAttribute('data-cancel') }).then(load); });
+      });
+    }
+
+    // Position
+    q('posCard').hidden = !(r.my_units > 0);
+    if (r.my_units > 0) q('posBox').innerHTML = '<div><b style="color:var(--clavis-navy);font-size:18px;font-family:var(--font-display)">' + r.my_units + '</b> ' + esc(I.t('product.units_lc')) + ' · ' + esc(money(Number(r.my_units) * Number(p.nominal))) + '</div><a class="btn-text" href="portfolio.html">' + esc(I.t('product.to_portfolio')) + '</a>';
+  }
+  function errText(x) { var k = 'merr.' + x.error; var s = I.t(k); return s === k ? x.error : s; }
+  function updateHint() { var u = Number(q('units').value || 0); q('subHint').textContent = u > 0 ? I.t('product.sub.hint', { amount: money(u * Number(state.product.nominal)) }) : ''; }
+  q('units').addEventListener('input', updateHint);
+
+  // Documentation (opening it is the investor's assessment, logged server-side)
+  q('docsBtn').addEventListener('click', function () {
+    q('docsBtn').disabled = true; q('docsMsg').className = 'msg'; q('docsMsg').textContent = I.t('common.loading');
+    A.callFn('clv-market', { action: 'docs', id: id }).then(function (r) {
+      q('docsBtn').disabled = false; q('docsMsg').textContent = '';
+      if (r.error) { q('docsMsg').className = 'msg err'; q('docsMsg').textContent = errText(r); return; }
+      docsOpened = true; q('docsBox').hidden = false; q('docsBtn').hidden = true;
+      var t = r.tree || [];
+      q('tree').innerHTML = t.length ? t.map(function (e) {
+        var depth = e.path.split('/').length - 1, pad = 'style="padding-left:' + (14 + depth * 20) + 'px"';
+        if (e.dir) return '<li><div class="row dir" ' + pad + '><span class="nm">' + esc(e.name) + '</span></div></li>';
+        return '<li><div class="row" ' + pad + '><span class="nm" title="' + esc(e.path) + '">' + esc(e.name) + '</span><span class="meta">' + esc(S.fmtSize(e.size)) + ' · ' + esc(S.fmtDate(e.modified)) + '</span><button class="btn-text" type="button" data-dl="' + esc(e.path) + '">' + esc(I.t('common.download')) + '</button></div></li>';
+      }).join('') : '<li><div class="row"><span class="nm" style="color:var(--fg-3)">' + esc(I.t('product.docs.empty')) + '</span></div></li>';
+      [].forEach.call(q('tree').querySelectorAll('[data-dl]'), function (b) {
+        b.addEventListener('click', function () {
+          b.disabled = true; b.textContent = I.t('common.preparing');
+          S.downloadFn('clv-market', { action: 'download', id: id, path: b.getAttribute('data-dl') }, b.getAttribute('data-dl').split('/').pop()).then(function (x) { b.disabled = false; b.textContent = I.t(x.ok ? 'common.download' : 'common.failed'); if (!x.ok) q('err').textContent = I.t('room.dl.failed', { err: x.error }); });
+        });
+      });
+    });
+  });
+
+  q('subForm').addEventListener('submit', function () {
+    var m = q('subMsg'); m.className = 'msg'; m.textContent = '';
+    var u = Math.floor(Number(q('units').value || 0));
+    if (!u || u < Number(state.product.min_units || 1)) { m.className = 'msg err'; m.textContent = I.t('merr.min-units'); return; }
+    if (!confirm(I.t('product.sub.confirm', { units: u, amount: money(u * Number(state.product.nominal)) }))) return;
+    q('subBtn').disabled = true;
+    A.callFn('clv-market', { action: 'subscribe', id: id, units: u }).then(function (r) {
+      q('subBtn').disabled = false;
+      if (r.error) { m.className = 'msg err'; m.textContent = errText(r); return; }
+      m.className = 'msg ok'; m.textContent = I.t('product.sub.ok'); load();
+    });
+  });
+
+  q('sellForm').addEventListener('submit', function () {
+    var m = q('sellMsg'); m.className = 'msg'; m.textContent = ''; q('sellBtn').disabled = true;
+    A.callFn('clv-market', { action: 'list_sell', id: id, units: Number(q('sUnits').value), price_per_unit: Number(q('sPrice').value) }).then(function (r) {
+      q('sellBtn').disabled = false;
+      if (r.error) { m.className = 'msg err'; m.textContent = errText(r) + (r.free != null ? ' (' + r.free + ')' : ''); return; }
+      m.className = 'msg ok'; m.textContent = I.t('product.sell.ok'); q('sUnits').value = ''; q('sPrice').value = ''; load();
+    });
+  });
+
+  A.ready(function () {
+    if (!A.clears('full')) return;
+    S.render('market');
+    if (!id) { q('err').textContent = I.t('product.err.none'); return; }
+    load();
+  });
+})();
+</script>
+</body>
+</html>

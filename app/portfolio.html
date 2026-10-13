@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Portfolio — Clavoris</title>
+<link rel="icon" href="../assets/clavoris-mark.png">
+<link rel="stylesheet" href="app.css?v=20261013j">
+<script>document.documentElement.classList.add('clv-checking');</script>
+<style>
+  .pos { padding: 20px 22px; margin-top: 16px; }
+  .pos .head { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px; }
+  .pos .nm { font-family: var(--font-display); font-size: 20px; color: var(--clavis-navy); }
+  .pos .iss { font-size: 12.5px; color: var(--fg-2); margin-top: 2px; }
+  .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px 16px; margin-top: 14px; font-size: 13px; }
+  .facts span { display: block; color: var(--fg-3); font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; }
+  .facts b { font-weight: 500; color: var(--clavis-navy); font-size: 14.5px; }
+  .sub2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px 24px; margin-top: 16px; }
+  .lst { list-style: none; font-size: 12.5px; }
+  .lst li { display: flex; justify-content: space-between; gap: 10px; padding: 7px 0; border-top: 1px solid var(--border); }
+  .lst li:first-child { border-top: none; }
+  .lst .mono { color: var(--fg-3); }
+  .more { font-size: 12px; }
+</style>
+</head>
+<body data-clv-restrict="full">
+<div class="app">
+  <nav class="nav" id="nav"></nav>
+  <main class="screen-wrap" data-screen-label="Portfolio" data-i18n-doctitle="nav.portfolio">
+    <p class="eyebrow" data-i18n="nav.portfolio">Portfolio</p>
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:16px">
+      <div><h1 class="page-title" data-i18n="pf.title">Your positions</h1><p class="page-sub" data-i18n="pf.sub">Subscribed instruments with nominal totals, coupon schedule and payments, executed documentation and issuer details.</p></div>
+    </div>
+    <p class="msg err" id="err"></p>
+    <div class="tiles" id="tiles"></div>
+    <div id="positions"></div>
+    <p class="note" data-i18n="pf.note">Nominal values and coupon amounts derive from the instrument terms; payments are recorded by Clavoris when executed by the issuer or paying agent. Executed documentation carries qualified electronic signatures (eIDAS).</p>
+  </main>
+  <footer class="app-foot"><span data-i18n="footer.tag">Clavoris · Private Investment Enablement Platform</span><span class="loc" data-i18n="footer.loc">Antwerp · Luxembourg · Nordic · CSSF · FSMA · MiCA</span></footer>
+</div>
+
+<script src="config.js?v=20261013j"></script>
+<script src="i18n.js?v=20261013j"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="clavoris-access.js?v=20261013j"></script>
+<script src="shell.js?v=20261013j"></script>
+<script>
+(function () {
+  'use strict';
+  var A = window.ClavorisAccess, S = window.ClavorisShell, I = window.ClavorisI18n, esc = S.esc;
+  function q(id) { return document.getElementById(id); }
+  var CSTAT = { paid: 'verified', due: 'pending', scheduled: 'neutral' };
+
+  function render(r) {
+    var t = r.totals || {}, ccys = Object.keys(t);
+    q('tiles').innerHTML = ccys.length ? ccys.map(function (c) {
+      var x = t[c];
+      return '<div class="card tile"><div class="k">' + esc(I.t('pf.tile.nominal')) + ' · ' + esc(c) + '</div><div class="v">' + esc(S.fmtMoney(x.nominal, c)) + '</div><div class="s">' + esc(I.t('pf.tile.positions', { n: x.positions })) + '</div></div>'
+        + '<div class="card tile"><div class="k">' + esc(I.t('pf.tile.cost')) + '</div><div class="v">' + esc(S.fmtMoney(x.cost, c)) + '</div><div class="s">' + esc(I.t('pf.tile.cost_s')) + '</div></div>'
+        + '<div class="card tile"><div class="k">' + esc(I.t('pf.tile.annual')) + '</div><div class="v gold">' + esc(S.fmtMoney(x.annual_coupon, c)) + '</div><div class="s">' + esc(I.t('pf.tile.annual_s')) + '</div></div>'
+        + '<div class="card tile"><div class="k">' + esc(I.t('pf.tile.received')) + '</div><div class="v">' + esc(S.fmtMoney(x.received, c)) + '</div><div class="s">' + esc(I.t('pf.tile.received_s')) + '</div></div>';
+    }).join('') : '';
+    var ps = r.positions || [];
+    q('positions').innerHTML = ps.length ? ps.map(function (x) {
+      var p = x.product, c = p.currency;
+      var upcoming = x.coupons.filter(function (k) { return k.status !== 'paid'; }).slice(0, 6), paid = x.coupons.filter(function (k) { return k.status === 'paid'; }).slice(-6).reverse();
+      return '<section class="card pos">'
+        + '<div class="head"><div><a class="nm" href="product.html?id=' + esc(p.id) + '" style="text-decoration:none">' + esc(p.name) + '</a><div class="iss">' + esc(p.code) + (p.isin ? ' · ' + esc(p.isin) : '') + ' · ' + esc(p.issuer_name) + (p.issuer_country ? ' (' + esc(p.issuer_country) + ')' : '') + ' · ' + esc(I.t('ptype.' + p.type)) + '</div></div>'
+        + '<div>' + (x.units > 0 ? '<span class="chip verified">' + esc(I.t('market.held', { n: x.units })) + '</span>' : '') + (x.pending_subscriptions.length ? ' <span class="chip pending">' + esc(I.t('pf.pending_sub', { n: x.pending_subscriptions.length })) + '</span>' : '') + (x.listings.length ? ' <span class="chip info">' + esc(I.t('pf.open_trades', { n: x.listings.length })) + '</span>' : '') + '</div></div>'
+        + '<div class="facts">'
+        + '<div><span>' + esc(I.t('pf.f.units')) + '</span><b>' + x.units + '</b></div>'
+        + '<div><span>' + esc(I.t('pf.f.nominal')) + '</span><b>' + esc(S.fmtMoney(x.nominal_value, c)) + '</b></div>'
+        + '<div><span>' + esc(I.t('pf.f.cost')) + '</span><b>' + esc(S.fmtMoney(x.cost, c)) + '</b></div>'
+        + '<div><span>' + esc(I.t('market.coupon')) + '</span><b>' + (p.coupon_rate != null ? esc(Number(p.coupon_rate).toFixed(2)) + ' % · ' + esc(I.t('freq.' + p.coupon_frequency)) : '—') + '</b></div>'
+        + '<div><span>' + esc(I.t('pf.f.annual')) + '</span><b>' + esc(S.fmtMoney(x.annual_coupon, c)) + '</b></div>'
+        + '<div><span>' + esc(I.t('pf.f.next')) + '</span><b>' + (x.next_coupon ? esc(S.fmtDate(x.next_coupon.due)) + ' · ' + esc(S.fmtMoney(x.next_coupon.amount, c)) : '—') + '</b></div>'
+        + '<div><span>' + esc(I.t('market.maturity')) + '</span><b>' + esc(S.fmtDate(p.maturity_date)) + '</b></div>'
+        + '<div><span>' + esc(I.t('pf.f.received')) + '</span><b>' + esc(S.fmtMoney(x.coupons_received, c)) + '</b></div>'
+        + '</div>'
+        + '<div class="sub2">'
+        + '<div><p class="eyebrow">' + esc(I.t('pf.coupons')) + '</p><ul class="lst" style="margin-top:8px">'
+        + (upcoming.length || paid.length ? upcoming.map(function (k) { return '<li><span class="mono">' + esc(S.fmtDate(k.due)) + '</span><span>' + esc(S.fmtMoney(k.amount, c)) + ' <span class="chip ' + CSTAT[k.status] + '">' + esc(I.t('cpn.' + k.status)) + '</span></span></li>'; }).join('')
+            + paid.map(function (k) { return '<li><span class="mono">' + esc(S.fmtDate(k.due)) + '</span><span>' + esc(S.fmtMoney(k.amount, c)) + ' <span class="chip verified" title="' + esc(k.reference || '') + '">' + esc(I.t('cpn.paid')) + ' ' + esc(S.fmtDate(k.paid_at)) + '</span></span></li>'; }).join('')
+          : '<li style="color:var(--fg-3)">' + esc(I.t('pf.coupons.none')) + '</li>') + '</ul></div>'
+        + '<div><p class="eyebrow">' + esc(I.t('pf.docs')) + '</p><ul class="lst" style="margin-top:8px">'
+        + (x.documents.length ? x.documents.map(function (d) { return '<li><a class="btn-text" href="contract.html?id=' + esc(d.id) + '">' + esc(d.title) + '</a><span class="chip ' + (d.status === 'executed' ? 'verified' : 'pending') + '">' + esc(I.t('cstatus.' + d.status)) + '</span></li>'; }).join('') : '<li style="color:var(--fg-3)">' + esc(I.t('pf.docs.none')) + '</li>')
+        + '</ul>'
+        + '<p class="eyebrow" style="margin-top:14px">' + esc(I.t('pf.history')) + '</p><ul class="lst" style="margin-top:8px">'
+        + (x.holdings.map(function (h) { return '<li><span class="mono">' + esc(S.fmtDate(h.acquired_at)) + '</span><span>' + esc(I.t('src.' + h.source)) + (h.note ? ' · ' + esc(h.note) : '') + ' · ' + h.units + ' × ' + esc(S.fmtMoney(h.price_per_unit, c)) + '</span></li>'; }).join('')
+          + x.pending_subscriptions.map(function (s) { return '<li><span class="mono">' + esc(S.fmtDate(s.created_at)) + '</span><span>' + esc(I.t('pf.subscription')) + ' · ' + s.units + ' · ' + esc(S.fmtMoney(s.amount, c)) + ' <span class="chip pending">' + esc(I.t('sstat.' + s.status)) + '</span></span></li>'; }).join('')
+          + x.listings.map(function (l) { return '<li><span class="mono">' + esc(S.fmtDate(l.created_at)) + '</span><span>' + esc(I.t(l.side === 'sell' ? 'pf.sell' : 'pf.buy')) + ' · ' + l.units + ' × ' + esc(S.fmtMoney(l.price_per_unit, c)) + ' <span class="chip ' + (l.status === 'open' ? 'info' : 'pending') + '">' + esc(I.t('lstat.' + l.status)) + '</span></span></li>'; }).join('')
+          || '<li style="color:var(--fg-3)">—</li>') + '</ul></div>'
+        + '</div></section>';
+    }).join('') : '<section class="card" style="padding:26px;margin-top:24px"><p style="font-size:14px;color:var(--fg-2)">' + esc(I.t('pf.none')) + '</p>' + (r.features && r.features.market ? '<a class="btn btn-primary" style="margin-top:14px" href="marketplace.html">' + esc(I.t('nav.market')) + '</a>' : '') + '</section>';
+  }
+
+  A.ready(function () {
+    if (!A.clears('full')) return;
+    S.render('portfolio');
+    A.callFn('clv-market', { action: 'portfolio' }).then(function (r) {
+      if (r.error) { q('err').textContent = I.t('market.err', { err: r.error }); return; }
+      render(r);
+    });
+  });
+})();
+</script>
+</body>
+</html>
