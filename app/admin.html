@@ -6,7 +6,7 @@
 <meta name="robots" content="noindex">
 <title>Admin — Clavoris</title>
 <link rel="icon" href="../assets/clavoris-mark.png">
-<link rel="stylesheet" href="app.css?v=20261013b">
+<link rel="stylesheet" href="app.css?v=20261013c">
 <script>document.documentElement.classList.add('clv-checking');</script>
 </head>
 <body data-clv-restrict="admin">
@@ -71,10 +71,10 @@
   </div>
 </div>
 
-<script src="config.js?v=20261013b"></script>
+<script src="config.js?v=20261013c"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="clavoris-access.js?v=20261013b"></script>
-<script src="shell.js?v=20261013b"></script>
+<script src="clavoris-access.js?v=20261013c"></script>
+<script src="shell.js?v=20261013c"></script>
 <script>
 (function () {
   'use strict';
@@ -110,14 +110,22 @@
     q('eRole').value = current.role; q('eStatus').value = current.status;
     q('eRole').disabled = !A.isSuper() && (current.role !== 'user'); // only super may touch staff roles
     q('eMsg').className = 'msg'; q('eMsg').textContent = '';
-    q('editModal').hidden = false;
+    if (current.id === A.user().id) { q('eMsg').className = 'msg'; q('eMsg').textContent = 'This is your own account: role and status cannot be changed from here.'; }
+    q('newModal').hidden = true; q('editModal').hidden = false;
   }
   q('emClose').addEventListener('click', function () { q('editModal').hidden = true; });
   q('editForm').addEventListener('submit', function () {
     var m = q('eMsg'); m.className = 'msg'; m.textContent = ''; q('eBtn').disabled = true;
     A.callFn('clv-admin-set-role', { id: current.id, role: q('eRole').value, status: q('eStatus').value }).then(function (r) {
       q('eBtn').disabled = false;
-      if (r.error) { m.className = 'msg err'; m.textContent = r.error === 'super-only' ? 'Only the super-admin can change staff roles.' : r.error; return; }
+      if (r.error) {
+        m.className = 'msg err';
+        m.textContent = r.error === 'super-only' ? 'Only the super-admin can change staff roles.'
+          : r.error === 'self' ? 'You cannot change your own role or status.'
+          : r.error === 'forbidden' ? 'Your account is not allowed to do this.'
+          : r.error;
+        return;
+      }
       m.className = 'msg ok'; m.textContent = 'Saved.'; load();
     });
   });
@@ -126,7 +134,7 @@
     A.requestPasswordReset(current.email).then(function (r) { m.className = r.ok ? 'msg ok' : 'msg err'; m.textContent = r.ok ? 'Recovery link sent to ' + current.email + '.' : 'Could not send the link.'; });
   });
 
-  q('newUser').addEventListener('click', function () { q('newForm').reset(); q('nMsg').className = 'msg'; q('nMsg').textContent = ''; q('newModal').hidden = false; });
+  q('newUser').addEventListener('click', function () { q('newForm').reset(); q('nMsg').className = 'msg'; q('nMsg').textContent = ''; q('editModal').hidden = true; q('newModal').hidden = false; });
   q('nmClose').addEventListener('click', function () { q('newModal').hidden = true; });
   q('newForm').addEventListener('submit', function () {
     var m = q('nMsg'); m.className = 'msg'; m.textContent = '';
