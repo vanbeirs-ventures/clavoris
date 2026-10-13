@@ -7,13 +7,14 @@
 import { PDFDocument, StandardFonts, rgb } from "https://esm.sh/pdf-lib@1.17.1";
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { APP_URL, sendMail } from "./clv.ts";
+import { mail, pickLang } from "./mail-i18n.ts";
 import { ncGet, ncMkdirP, ncPut, sha256Hex } from "./nc.ts";
 import { sumsub, sumsubApplicantId, sumsubJson } from "./sumsub.ts";
 
 export const CONTRACTS_ROOT = "Documents/Clavoris/Contracts";
 export const QES_LEVEL = () => Deno.env.get("SUMSUB_QES_LEVEL_NAME") || "";
 
-export type Party = { id: string; contract_id: string; user_id: string; role: string; order_no: number; status: string; signed_at: string | null; signed_path: string | null; sha256_signed: string | null; sumsub_applicant_id: string | null; sumsub_doc_name: string | null; evidence: Record<string, unknown>; ip: string | null; invited_at: string | null; opened_at: string | null; signing_started_at: string | null; declined_at: string | null; profile?: { full_name: string | null; email: string; company: string | null } };
+export type Party = { id: string; contract_id: string; user_id: string; role: string; order_no: number; status: string; signed_at: string | null; signed_path: string | null; sha256_signed: string | null; sumsub_applicant_id: string | null; sumsub_doc_name: string | null; evidence: Record<string, unknown>; ip: string | null; invited_at: string | null; opened_at: string | null; signing_started_at: string | null; declined_at: string | null; profile?: { full_name: string | null; email: string; company: string | null; lang?: string | null } };
 export type Contract = { id: string; title: string; description: string | null; status: string; folder: string; original_name: string; original_path: string; sha256_original: string; current_path: string | null; executed_path: string | null; sha256_executed: string | null; certificate_path: string | null; pages: number | null; created_at: string; launched_at: string | null; executed_at: string | null };
 
 export async function logEvent(admin: SupabaseClient, contractId: string, userId: string | null, event: string, detail: Record<string, unknown> = {}, ip = "") {
@@ -21,7 +22,7 @@ export async function logEvent(admin: SupabaseClient, contractId: string, userId
 }
 
 export async function loadParties(admin: SupabaseClient, contractId: string): Promise<Party[]> {
-  const { data } = await admin.from("clv_contract_parties").select("*, profile:clv_profiles!clv_contract_parties_user_id_fkey(full_name, email, company)").eq("contract_id", contractId).order("role").order("order_no").order("added_at");
+  const { data } = await admin.from("clv_contract_parties").select("*, profile:clv_profiles!clv_contract_parties_user_id_fkey(full_name, email, company, lang)").eq("contract_id", contractId).order("role").order("order_no").order("added_at");
   return (data || []) as Party[];
 }
 
@@ -34,8 +35,8 @@ export async function inviteNext(admin: SupabaseClient, c: Contract, parties: Pa
   if (!nxt || nxt.status !== "pending") return nxt;
   await admin.from("clv_contract_parties").update({ status: "invited", invited_at: new Date().toISOString() }).eq("id", nxt.id);
   const link = `${APP_URL}/contract.html?id=${c.id}`;
-  sendMail(nxt.profile?.email || "", `Clavoris: your signature is requested — ${c.title}`,
-    `Dear ${nxt.profile?.full_name || "signatory"},\n\nThe contract "${c.title}" is ready for your qualified electronic signature (eIDAS). Sign in to Clavoris, read the document and sign it:\n${link}\n\nThe signature is created with your verified identity (Sumsub QES) and is legally equivalent to a handwritten signature across the EU.`).catch((e) => console.error("contract invite mail", e));
+  const L = pickLang(nxt.profile?.lang); const m = mail(L, "contract_your_turn", { name: nxt.profile?.full_name, title: c.title, link });
+  sendMail(nxt.profile?.email || "", m.subject, m.text, L).catch((e) => console.error("contract invite mail", e));
   await logEvent(admin, c.id, nxt.user_id, "party-invited", { party_id: nxt.id, order: nxt.order_no });
   return nxt;
 }
@@ -43,7 +44,7 @@ export async function inviteNext(admin: SupabaseClient, c: Contract, parties: Pa
 // Complete the signature of a party whose Sumsub e-sign session finished: fetch the signed PDF,
 // store it, advance the sequence. Idempotent; safe to call from the webhook and from the app.
 export async function finalizeParty(admin: SupabaseClient, partyId: string): Promise<{ ok: boolean; state: string; error?: string }> {
-  const { data: pRaw } = await admin.from("clv_contract_parties").select("*, profile:clv_profiles!clv_contract_parties_user_id_fkey(full_name, email, company)").eq("id", partyId).maybeSingle();
+  const { data: pRaw } = await admin.from("clv_contract_parties").select("*, profile:clv_profiles!clv_contract_parties_user_id_fkey(full_name, email, company, lang)").eq("id", partyId).maybeSingle();
   const p = pRaw as Party | null;
   if (!p) return { ok: false, state: "missing", error: "no-party" };
   if (p.status === "signed") return { ok: true, state: "signed" };
@@ -103,10 +104,9 @@ async function executeContract(admin: SupabaseClient, c: Contract, parties: Part
   const link = `${APP_URL}/contract.html?id=${c.id}`;
   for (const p of parties) {
     const email = p.profile?.email; if (!email) continue;
-    const text = p.role === "signatory"
-      ? `Dear ${p.profile?.full_name || "signatory"},\n\nThe contract "${c.title}" has been executed by all parties with qualified electronic signatures. The executed PDF and the certificate of completion are available for download in Clavoris:\n${link}\n\nSHA-256 of the executed document: ${sha}`
-      : `Dear ${p.profile?.full_name || "auditor"},\n\nThe contract "${c.title}" has been executed by all parties with qualified electronic signatures. You can consult the execution record in Clavoris:\n${link}`;
-    sendMail(email, `Clavoris: contract executed — ${c.title}`, text).catch((e) => console.error("contract executed mail", e));
+    const L = pickLang(p.profile?.lang);
+    const m = mail(L, p.role === "signatory" ? "contract_executed_signatory" : "contract_executed_auditor", { name: p.profile?.full_name, title: c.title, link, sha });
+    sendMail(email, m.subject, m.text, L).catch((e) => console.error("contract executed mail", e));
   }
 }
 
@@ -132,7 +132,7 @@ export async function renderCertificate(c: Contract, parties: Party[], shaExecut
   const kv = (k: string, v: string) => { if (y < M + LH) newPage(); page.drawText(k, { x: M, y, size: 8.5, font: mono, color: grey }); for (const l of wrap(v, 78)) { page.drawText(l, { x: M + 150, y, size: 9.5, font, color: ink }); y -= 12.5; if (y < M) newPage(); } };
 
   page.drawText("Clavoris", { x: M, y, size: 22, font: bold, color: navy });
-  page.drawText("Keys to institutional capital", { x: M + 96, y: y + 4, size: 9, font, color: gold });
+  page.drawText("Private investment, enabled", { x: M + 96, y: y + 4, size: 9, font, color: gold });
   y -= 30; page.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: 1, color: gold }); y -= 24;
   line("Certificate of completion", bold, 17, navy); y -= 6;
   line("Qualified electronic signature record (eIDAS Regulation (EU) 910/2014)", font, 10.5, grey); y -= 14;

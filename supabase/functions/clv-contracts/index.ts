@@ -4,7 +4,7 @@
 //   { action: "list" }                                        -> contracts the caller is party to (staff: all)
 //   { action: "get", id }                                     -> contract, parties, events, caller's rights
 //   { action: "create", title, description, file_name, pdf_base64 }   (staff; PDF only)
-//   { action: "add_party", id, email, name, company, role, order_no } (staff; draft only)
+//   { action: "add_party", id, email, name, company, role, lang, order_no } (staff; draft only)
 //   { action: "remove_party", id, party_id }                  (staff; draft only)
 //   { action: "launch", id }                                  (staff) -> invites the first signatory
 //   { action: "cancel", id }                                  (staff)
@@ -14,13 +14,14 @@
 //   { action: "download", id, which: original|executed|certificate } -> binary
 // Secrets: SUMSUB_APP_TOKEN, SUMSUB_SECRET_KEY, SUMSUB_QES_LEVEL_NAME. Deploy with --no-verify-jwt.
 import { PDFDocument } from "https://esm.sh/pdf-lib@1.17.1";
-import { adminClient, APP_URL, audit, clientIp, cors, isStaff, json, requireUser, sendMail } from "../_shared/clv.ts";
+import { adminClient, APP_URL, audit, clientIp, cors, enrolUser, isStaff, json, requireUser, sendMail } from "../_shared/clv.ts";
 import { ncConfigured, ncGet, ncMkdirP, ncPut, sha256Hex } from "../_shared/nc.ts";
 import { sumsub, sumsubAccessToken, sumsubApplicantId, sumsubConfigured } from "../_shared/sumsub.ts";
+import { mail, pickLang, word } from "../_shared/mail-i18n.ts";
+const withLang = (u: string, l: string) => u + (u.includes("?") ? "&" : "?") + "lang=" + l;
 import { CONTRACTS_ROOT, type Contract, finalizeParty, inviteNext, loadParties, logEvent, nextSignatory, type Party, QES_LEVEL, signatoriesInOrder } from "../_shared/contracts.ts";
 
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 48) || "contract";
-function genPassword(): string { const a = crypto.getRandomValues(new Uint8Array(24)); return Array.from(a).map((b) => "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789".charAt(b % 54)).join(""); }
 
 function partyView(p: Party) {
   return { id: p.id, user_id: p.user_id, name: p.profile?.full_name || "", email: p.profile?.email || "", company: p.profile?.company || "", role: p.role, order_no: p.order_no, status: p.status, invited_at: p.invited_at, opened_at: p.opened_at, signed_at: p.signed_at, declined_at: p.declined_at, sha256_signed: p.sha256_signed };
@@ -132,27 +133,25 @@ Deno.serve(async (req) => {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json({ error: "email-invalid" }, 400);
     const role = body.role === "auditor" ? "auditor" : "signatory";
     const name = String(body.name || "").trim().slice(0, 120), company = String(body.company || "").trim().slice(0, 160) || null;
+    const lang = pickLang(body.lang);
     let { data: prof } = await admin.from("clv_profiles").select("id, email, full_name, status").eq("email", email).maybeSingle();
-    let created = false;
+    let created = false, linked = false, link = `${APP_URL}/login.html`;
     if (!prof) {
-      const { data: u, error: cErr } = await admin.auth.admin.createUser({ email, password: genPassword(), email_confirm: true, user_metadata: { full_name: name }, app_metadata: { app: "clavoris" } });
-      if (cErr) return json({ error: cErr.message }, 400);
-      const { error: pErr } = await admin.from("clv_profiles").insert({ id: u.user!.id, email, full_name: name || email.split("@")[0], company, role: "user", status: "registered" });
-      if (pErr) { await admin.auth.admin.deleteUser(u.user!.id).catch(() => {}); return json({ error: pErr.message }, 400); }
-      prof = { id: u.user!.id, email, full_name: name, status: "registered" }; created = true;
-      await audit(admin, me, "user-created", email, { via: "contract-party", contract: c.id });
+      const en = await enrolUser(admin, email, name, company, lang);
+      if ("error" in en) return json({ error: en.error }, 400);
+      prof = { id: en.id, email, full_name: name, status: "registered" }; created = en.created; linked = en.linked; link = en.link;
+      await audit(admin, me, "user-created", email, { via: "contract-party", contract: c.id, linked });
     } else if (prof.status === "suspended" || prof.status === "rejected") return json({ error: "user-blocked" }, 400);
     if (parties.some((p) => p.user_id === prof!.id)) return json({ error: "already-party" }, 400);
     const order = Number(body.order_no) || (signatoriesInOrder(parties).length + 1);
     const { error } = await admin.from("clv_contract_parties").insert({ contract_id: c.id, user_id: prof.id, role, order_no: role === "signatory" ? order : 0, status: "pending", added_by: me.id });
     if (error) return json({ error: error.message }, 400);
     await logEvent(admin, c.id, me.id, "party-added", { email, role, order: role === "signatory" ? order : null, created }, ip);
-    if (created) {
-      const { data: l } = await admin.auth.admin.generateLink({ type: "recovery", email, options: { redirectTo: APP_URL + "/reset.html" } });
-      const link = l?.properties?.hashed_token ? `${APP_URL}/reset.html?token_hash=${encodeURIComponent(l.properties.hashed_token)}&type=recovery&welcome=1` : `${APP_URL}/login.html`;
-      sendMail(email, `Clavoris: you have been added to a contract — ${c.title}`, `Dear ${name || "participant"},\n\nYou have been added as ${role} to the contract "${c.title}" on Clavoris.\n\nTo activate your access, set your passphrase and complete your profile here (the link is valid once):\n${link}\n\n${role === "signatory" ? "You will be notified when it is your turn to sign; the signature is a qualified electronic signature created with your verified identity." : "You can follow the execution of the contract by all parties."}`).catch((e) => console.error("contract party mail", e));
+    if (created || linked) {
+      const m = mail(lang, linked ? "contract_added_linked" : "contract_added_new", { name, title: c.title, role: word(lang, role === "auditor" ? "role_auditor" : "role_signatory"), link: withLang(link, lang), login: `${APP_URL}/login.html?lang=${lang}`, tail: word(lang, role === "auditor" ? "tail_auditor" : "tail_signatory") });
+      sendMail(email, m.subject, m.text, lang).catch((e) => console.error("contract party mail", e));
     }
-    return json({ ok: true, created });
+    return json({ ok: true, created, linked });
   }
 
   if (action === "remove_party") {
@@ -178,8 +177,9 @@ Deno.serve(async (req) => {
     const link = `${APP_URL}/contract.html?id=${c.id}`;
     for (const p of parties) {
       if (!p.profile?.email) continue;
-      if (p.role === "auditor") sendMail(p.profile.email, `Clavoris: contract in execution — ${c.title}`, `Dear ${p.profile.full_name || "auditor"},\n\nThe signature process of the contract "${c.title}" has started. As auditor you can follow the status of every party here:\n${link}`).catch(() => {});
-      else if (p.status === "pending") sendMail(p.profile.email, `Clavoris: contract awaiting signatures — ${c.title}`, `Dear ${p.profile.full_name || "signatory"},\n\nThe signature process of the contract "${c.title}" has started. You are signatory no. ${p.order_no}; Clavoris will notify you when it is your turn. You can read the document and follow the process here:\n${link}`).catch(() => {});
+      const L = pickLang(p.profile.lang);
+      if (p.role === "auditor") { const m = mail(L, "contract_launched_auditor", { name: p.profile.full_name, title: c.title, link }); sendMail(p.profile.email, m.subject, m.text, L).catch(() => {}); }
+      else if (p.status === "pending") { const m = mail(L, "contract_launched_wait", { name: p.profile.full_name, title: c.title, order: p.order_no, link }); sendMail(p.profile.email, m.subject, m.text, L).catch(() => {}); }
     }
     return json({ ok: true });
   }

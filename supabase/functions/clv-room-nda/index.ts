@@ -40,7 +40,7 @@ async function renderNdaPdf(opts: { title: string; room: string; text: string; s
     page.drawText(s, { x: M, y, size, font: f, color }); y -= LH;
   };
   page.drawText("Clavoris", { x: M, y, size: 22, font: bold, color: navy });
-  page.drawText("Keys to institutional capital", { x: M + 96, y: y + 4, size: 9, font, color: gold });
+  page.drawText("Private investment, enabled", { x: M + 96, y: y + 4, size: 9, font, color: gold });
   y -= 30;
   page.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: 1, color: gold }); y -= 22;
   line(opts.title, bold, 15, navy); y -= 4;
