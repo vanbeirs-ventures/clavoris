@@ -14,7 +14,7 @@
 //   { action: "download", id, which: original|executed|certificate } -> binary
 // Secrets: SUMSUB_APP_TOKEN, SUMSUB_SECRET_KEY, SUMSUB_QES_LEVEL_NAME. Deploy with --no-verify-jwt.
 import { PDFDocument } from "https://esm.sh/pdf-lib@1.17.1";
-import { adminClient, APP_URL, audit, clientIp, cors, enrolUser, isStaff, json, requireUser, sendMail } from "../_shared/clv.ts";
+import { adminClient, APP_URL, audit, clientIp, companyScope, cors, enrolUser, inScope, isStaff, json, requireUser, sendMail } from "../_shared/clv.ts";
 import { wants } from "../_shared/notify.ts";
 import { ncConfigured, ncGet, ncMkdirP, ncPut, sha256Hex } from "../_shared/nc.ts";
 import { sumsub, sumsubAccessToken, sumsubApplicantId, sumsubConfigured } from "../_shared/sumsub.ts";
@@ -45,7 +45,7 @@ Deno.serve(async (req) => {
     if (!data) return json({ error: "not-found" }, 404);
     const parties = await loadParties(admin, id);
     const mine = parties.find((p) => p.user_id === me.id) || null;
-    if (!staff && !mine) return json({ error: "forbidden" }, 403);
+    if (!mine && !(staff && inScope(me, (data as any).company_id))) return json({ error: "forbidden" }, 403);
     return { c: data as Contract, parties, mine };
   }
 
@@ -56,8 +56,9 @@ Deno.serve(async (req) => {
       ids = (mine || []).map((r: { contract_id: string }) => r.contract_id);
       if (!ids.length) return json({ ok: true, contracts: [], staff });
     }
-    let q = admin.from("clv_contracts").select("id, title, description, status, original_name, created_at, launched_at, executed_at").order("created_at", { ascending: false });
+    let q = admin.from("clv_contracts").select("id, title, description, status, original_name, created_at, launched_at, executed_at, company_id").order("created_at", { ascending: false });
     if (ids) q = q.in("id", ids);
+    else if (companyScope(me)) q = q.eq("company_id", companyScope(me)!);
     const { data: cs } = await q;
     const cids = (cs || []).map((c: { id: string }) => c.id);
     const { data: ps } = cids.length ? await admin.from("clv_contract_parties").select("contract_id, user_id, role, status, order_no").in("contract_id", cids) : { data: [] as any[] };
@@ -118,7 +119,7 @@ Deno.serve(async (req) => {
     const folder = `${CONTRACTS_ROOT}/${new Date().toISOString().slice(0, 10)}-${slug(title)}-${id.slice(0, 8)}`;
     const originalPath = `${folder}/original.pdf`;
     try { await ncMkdirP(folder); await ncPut(originalPath, bytes, "application/pdf"); } catch (e) { return json({ error: "storage-failed", detail: (e as Error).message }, 502); }
-    const { error } = await admin.from("clv_contracts").insert({ id, title, description, status: "draft", folder, original_name: fileName, original_path: originalPath, sha256_original: sha, current_path: originalPath, pages, created_by: me.id });
+    const { error } = await admin.from("clv_contracts").insert({ id, title, description, status: "draft", folder, original_name: fileName, original_path: originalPath, sha256_original: sha, current_path: originalPath, pages, created_by: me.id, company_id: me.company_id || null });
     if (error) return json({ error: error.message }, 400);
     await logEvent(admin, id, me.id, "contract-created", { title, file: fileName, sha256: sha, pages }, ip);
     await audit(admin, me, "contract-created", title, { id });
