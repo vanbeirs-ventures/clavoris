@@ -6,7 +6,7 @@
 <meta name="robots" content="noindex">
 <title>Data room — Clavoris</title>
 <link rel="icon" href="../assets/clavoris-mark.png">
-<link rel="stylesheet" href="app.css?v=20261013j">
+<link rel="stylesheet" href="app.css?v=20261014b">
 <script>document.documentElement.classList.add('clv-checking');</script>
 <style>
   .room-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 24px; margin-top: 28px; align-items: start; }
@@ -44,6 +44,12 @@
       <div id="headChips"></div>
     </div>
     <p class="msg err" id="err"></p>
+    <div id="accessBar" style="margin-top:14px;display:none;align-items:center;gap:12px;flex-wrap:wrap;font-size:13px"></div>
+    <section id="expiredBox" class="card" style="padding:18px 22px;margin-top:18px;border-left:3px solid #B83A3A" hidden>
+      <p class="eyebrow" data-i18n="room.eyebrow">Data room</p>
+      <h2 style="font-family:var(--font-display);font-size:20px;color:var(--clavis-navy);margin-top:4px" data-i18n="room.expired.title">Your access to this data room has ended</h2>
+      <p style="font-size:14px;color:var(--fg-2);line-height:1.6;margin-top:8px;max-width:680px" data-i18n="room.expired.body">You can still consult the list of documents and download your signed non-disclosure agreement, but no other documents. Ask the company for an extension if you need more time.</p>
+    </section>
 
     <!-- Step: KYC needed -->
     <section id="needKyc" class="card" style="padding:26px;margin-top:28px" hidden>
@@ -59,6 +65,7 @@
       <h2 style="font-family:var(--font-display);font-size:24px;color:var(--clavis-navy);margin-top:6px" data-i18n="room.nda.title">Sign before you see the documents</h2>
       <p style="font-size:14px;color:var(--fg-2);line-height:1.6;margin-top:8px;max-width:640px" data-i18n="room.nda.body">Read the agreement below. Your signature is recorded with your verified identity, the time, your IP address and a hash of the text; a signed copy is stored in the room for you.</p>
       <div class="nda-text" id="ndaText" style="margin-top:18px" data-i18n="common.loading">Loading…</div>
+      <div id="ndaPdfBox" style="margin-top:18px" hidden><p style="font-size:13.5px;color:var(--fg-2);line-height:1.6" data-i18n="room.nda.pdf">Read the agreement (PDF) before signing. It opens below; you can also download it.</p><iframe id="ndaPdf" title="NDA" style="width:100%;height:560px;border:1px solid var(--border);border-radius:6px;background:#fff;margin-top:10px"></iframe><p style="margin-top:8px"><button class="btn-text" type="button" id="ndaPdfDl" data-i18n="room.nda.pdf_dl">Download the agreement (PDF)</button></p></div>
       <form id="ndaForm" autocomplete="off" onsubmit="return false;" style="max-width:640px">
         <label class="check"><input type="checkbox" id="accept"><span data-i18n="room.nda.accept">I have read the non-disclosure agreement above and accept it on behalf of myself and the organisation I represent.</span></label>
         <div class="field"><label for="typed" data-i18n="room.nda.typed">Type your full name to sign</label><input id="typed" type="text" autocomplete="off"><span class="hint" id="typedHint"></span></div>
@@ -91,11 +98,11 @@
   <footer class="app-foot"><span data-i18n="footer.tag">Clavoris · Private Investment Enablement Platform</span><span class="loc" data-i18n="footer.loc">Antwerp · Luxembourg · Nordic · CSSF · FSMA · MiCA</span></footer>
 </div>
 
-<script src="config.js?v=20261013j"></script>
-<script src="i18n.js?v=20261013j"></script>
+<script src="config.js?v=20261014b"></script>
+<script src="i18n.js?v=20261014b"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="clavoris-access.js?v=20261013j"></script>
-<script src="shell.js?v=20261013j"></script>
+<script src="clavoris-access.js?v=20261014b"></script>
+<script src="shell.js?v=20261014b"></script>
 <script>
 (function () {
   'use strict';
@@ -121,12 +128,25 @@
     q('sub').textContent = [room.seller, room.project_type === 'ma' ? I.t('portal.type.ma') : room.project_type, room.description].filter(Boolean).join(' · ');
     q('headChips').innerHTML = '<span class="chip ' + (room.status === 'open' ? 'verified' : 'neutral') + '">' + esc(room.status === 'open' ? I.t('room.status.open') : room.status === 'closed' ? I.t('room.status.closed') : room.status) + '</span> '
       + (r.nda.required ? '<span class="chip ' + (r.nda.signed ? 'verified' : 'pending') + '">' + I.t(r.nda.signed ? 'room.chip.nda_signed' : 'room.chip.nda_required') + '</span>' : '');
+    if (room.company) q('sub').textContent = I.t('room.by', { company: room.company }) + (q('sub').textContent ? ' · ' + q('sub').textContent : '');
+    renderAccess();
     var gate = r.nda.required && !r.nda.signed && !r.me.staff;
     q('needKyc').hidden = !(gate && !r.me.verified);
     q('nda').hidden = !(gate && r.me.verified);
     q('roomGrid').hidden = gate;
     if (gate && r.me.verified) loadNda();
     if (!gate) { renderTree(); renderSide(); }
+  }
+
+  function renderAccess() {
+    var r = state, bar = q('accessBar');
+    if (r.me.staff || !r.me.expires_at) { bar.style.display = 'none'; q('expiredBox').hidden = true; return; }
+    var x = S.accessLeft(r.me.expires_at), cls = x.state === 'ended' ? 'rejected' : x.state === 'ok' ? 'verified' : 'pending';
+    bar.style.display = 'flex';
+    bar.innerHTML = '<span class="chip ' + cls + '">' + esc(S.accessText(r.me.expires_at)) + '</span>'
+      + (r.me.pending_request ? '<span style="color:var(--fg-2)">' + esc(I.t('access.requested', { date: S.fmtDate(r.me.pending_request.requested_until) })) + '</span>' : '<button class="btn-text" type="button" id="extBtn">' + esc(I.t('access.request')) + '</button>');
+    var b = q('extBtn'); if (b) b.addEventListener('click', function () { S.extensionDialog(roomId, r.room.name, r.me.expires_at, load); });
+    q('expiredBox').hidden = !r.me.expired;
   }
 
   function renderTree() {
@@ -147,7 +167,7 @@
         b.disabled = true; b.textContent = I.t('common.preparing');
         S.downloadFn('clv-room-file', { room_id: roomId, path: b.getAttribute('data-dl') }, b.getAttribute('data-dl').split('/').pop()).then(function (r) {
           b.disabled = false; b.textContent = I.t(r.ok ? 'common.download' : 'common.failed');
-          if (!r.ok) q('err').textContent = r.error === 'nda-required' ? I.t('room.dl.nda_required') : r.error === 'download-not-allowed' ? I.t('room.dl.not_allowed') : I.t('room.dl.failed', { err: r.error });
+          if (!r.ok) q('err').textContent = r.error === 'nda-required' ? I.t('room.dl.nda_required') : r.error === 'download-not-allowed' ? I.t('room.dl.not_allowed') : r.error === 'expired' ? I.t('room.expired.title') : I.t('room.dl.failed', { err: r.error });
         });
       });
     });
@@ -174,8 +194,18 @@
 
   function loadNda() {
     A.callFn('clv-room-nda', { action: 'text', room_id: roomId }).then(function (r) {
-      q('ndaText').textContent = r.text || I.t('room.nda.unavailable');
       q('typedHint').textContent = I.t('room.nda.sign_as', { name: A.displayName() });
+      if (r.pdf) {
+        q('ndaText').hidden = true; q('ndaPdfBox').hidden = false;
+        q('accept').nextElementSibling.textContent = I.t('room.nda.accept_pdf', { name: r.pdf_name || 'NDA.pdf' });
+        A.client().auth.getSession().then(function (sr) {
+          var CFG = window.CLAVORIS_SUPABASE || {}, token = sr && sr.data && sr.data.session ? sr.data.session.access_token : CFG.anonKey;
+          return fetch(CFG.url + '/functions/v1/clv-room-nda', { method: 'POST', headers: { 'content-type': 'application/json', 'apikey': CFG.anonKey, 'authorization': 'Bearer ' + token }, body: JSON.stringify({ action: 'pdf', room_id: roomId }) });
+        }).then(function (res) { if (!res.ok) throw new Error('pdf'); return res.blob(); }).then(function (blob) {
+          var url = URL.createObjectURL(blob); q('ndaPdf').src = url;
+          q('ndaPdfDl').addEventListener('click', function () { var a = document.createElement('a'); a.href = url; a.download = r.pdf_name || 'NDA.pdf'; document.body.appendChild(a); a.click(); a.remove(); });
+        }).catch(function () { q('ndaPdfBox').innerHTML = '<p class="msg err">' + esc(I.t('room.nda.unavailable')) + '</p>'; });
+      } else q('ndaText').textContent = r.text || I.t('room.nda.unavailable');
     });
   }
   function refreshSign() { q('signBtn').disabled = !(q('accept').checked && q('typed').value.trim().toLowerCase() === String(A.displayName()).trim().toLowerCase()); }
