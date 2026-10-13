@@ -2,7 +2,7 @@
 // Every category can be switched off by the user under Account › E-mail notifications;
 // preferences live in clv_profiles.notify (jsonb) and a missing key means ON.
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { APP_URL, sendMail } from "./clv.ts";
+import { APP_URL, fmtDay, sendMail } from "./clv.ts";
 import { mail, pickLang, word } from "./mail-i18n.ts";
 import { ncConfigured, ncTree } from "./nc.ts";
 
@@ -32,7 +32,7 @@ export async function scanRooms(admin: SupabaseClient): Promise<{ rooms: number;
     let tree: Awaited<ReturnType<typeof ncTree>>;
     try { tree = await ncTree(room.nextcloud_folder, 4); } catch (e) { console.error("clv-notify scan", room.name, (e as Error).message); continue; }
     const root = String(room.nextcloud_folder);
-    const files = tree.filter((e) => !e.dir && !e.path.slice(root.length + 1).startsWith("_users")).map((e) => ({ path: e.path.slice(root.length + 1), etag: e.etag || null, size: e.size, modified: e.modified || null }));
+    const files = tree.filter((e) => !e.dir && !e.path.slice(root.length + 1).startsWith("_users") && !e.path.slice(root.length + 1).startsWith("_nda")).map((e) => ({ path: e.path.slice(root.length + 1), etag: e.etag || null, size: e.size, modified: e.modified || null }));
     const { data: known } = await admin.from("clv_room_files").select("path, etag, size, modified").eq("room_id", room.id);
     const seen = new Map<string, Snap>(); for (const k of known || []) seen.set(k.path, k);
     const added: string[] = [], changed: string[] = [];
@@ -106,4 +106,25 @@ export async function notifyHolders(admin: SupabaseClient, product: { id: string
     if (await sendMail(u.email, m.subject, m.text, L).catch(() => false)) sent++;
   }
   return sent;
+}
+
+// ---- data-room access end: reminders 7 days and 24 hours before the end date ------------------
+export async function expiryReminders(admin: SupabaseClient): Promise<{ d7: number; h24: number }> {
+  const out = { d7: 0, h24: 0 };
+  const now = Date.now();
+  const { data: rows } = await admin.from("clv_room_assignments").select("id, user_id, expires_at, reminded_7d_at, reminded_24h_at, room:clv_rooms(id, name), profile:clv_profiles!clv_room_assignments_user_id_fkey(email, full_name, lang, status)").is("revoked_at", null).not("expires_at", "is", null).gt("expires_at", new Date(now).toISOString()).lte("expires_at", new Date(now + 7 * 86400000).toISOString());
+  for (const a of (rows || []) as any[]) {
+    const p = a.profile, room = a.room; if (!p || !room || p.status === "suspended" || p.status === "rejected") continue;
+    const left = new Date(a.expires_at).getTime() - now;
+    const L = pickLang(p.lang);
+    const vars = { name: p.full_name, room: room.name, date: fmtDay(a.expires_at, L), link: `${APP_URL}/room.html?id=${room.id}` };
+    if (left <= 24 * 3600000 && !a.reminded_24h_at) {
+      const m = mail(L, "access_24h", vars);
+      if (await sendMail(p.email, m.subject, m.text, L).catch(() => false)) { out.h24++; await admin.from("clv_room_assignments").update({ reminded_24h_at: new Date().toISOString(), reminded_7d_at: a.reminded_7d_at || new Date().toISOString() }).eq("id", a.id); }
+    } else if (left > 24 * 3600000 && !a.reminded_7d_at) {
+      const m = mail(L, "access_7d", vars);
+      if (await sendMail(p.email, m.subject, m.text, L).catch(() => false)) { out.d7++; await admin.from("clv_room_assignments").update({ reminded_7d_at: new Date().toISOString() }).eq("id", a.id); }
+    }
+  }
+  return out;
 }

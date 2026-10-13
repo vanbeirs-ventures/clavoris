@@ -11,7 +11,7 @@
 // Deploy: supabase functions deploy clv-room-nda --no-verify-jwt
 import { PDFDocument, StandardFonts, rgb } from "https://esm.sh/pdf-lib@1.17.1";
 import { adminClient, clientIp, cors, isStaff, json, requireUser } from "../_shared/clv.ts";
-import { ncConfigured, ncMkdirP, ncPut, sha256Hex } from "../_shared/nc.ts";
+import { ncConfigured, ncGet, ncMkdirP, ncPut, sha256Hex } from "../_shared/nc.ts";
 
 function wrap(text: string, max: number): string[] {
   const out: string[] = [];
@@ -61,6 +61,30 @@ async function renderNdaPdf(opts: { title: string; room: string; text: string; s
   return await pdf.save();
 }
 
+// Uploaded NDA (PDF chosen by the company admin): the signed copy is the original PDF with a
+// Clavoris signature page appended (the original pages are left untouched).
+async function appendSignaturePage(original: Uint8Array, opts: { room: string; company: string; sig: Record<string, string> }): Promise<Uint8Array> {
+  const pdf = await PDFDocument.load(original, { ignoreEncryption: true });
+  const font = await pdf.embedFont(StandardFonts.TimesRoman), bold = await pdf.embedFont(StandardFonts.TimesRomanBold), mono = await pdf.embedFont(StandardFonts.Courier);
+  const navy = rgb(0.10, 0.23, 0.36), gold = rgb(0.72, 0.53, 0.04), grey = rgb(0.35, 0.35, 0.35), ink = rgb(0.1, 0.1, 0.1);
+  const W = 595.28, H = 841.89, M = 56;
+  const page = pdf.addPage([W, H]); let y = H - M;
+  page.drawText("Clavoris", { x: M, y, size: 22, font: bold, color: navy });
+  page.drawText("Private investment, enabled", { x: M + 96, y: y + 4, size: 9, font, color: gold });
+  y -= 30; page.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: 1, color: gold }); y -= 24;
+  page.drawText("Electronic signature record", { x: M, y, size: 15, font: bold, color: navy }); y -= 18;
+  page.drawText(`Non-disclosure agreement of ${opts.company} · data room ${opts.room}`, { x: M, y, size: 10.5, font, color: grey }); y -= 24;
+  for (const [k, v] of Object.entries(opts.sig)) {
+    page.drawText(k.padEnd(22), { x: M, y, size: 8.5, font: mono, color: grey });
+    for (const l of wrap(v, 80)) { page.drawText(l, { x: M + 140, y, size: 9, font, color: ink }); y -= 12.5; }
+  }
+  y -= 10;
+  for (const l of wrap("The preceding pages are the non-disclosure agreement exactly as presented to the signatory on Clavoris; the SHA-256 above binds this record to that document. It was accepted electronically by an identity-verified user (Sumsub KYC) and Clavoris retains the access log of this acceptance.", 100)) { page.drawText(l, { x: M, y, size: 8.5, font, color: grey }); y -= 12; }
+  const pages = pdf.getPages();
+  pages[pages.length - 1].drawText(`Clavoris · ${opts.room} · NDA · signature page`, { x: M, y: 30, size: 8, font, color: grey });
+  return await pdf.save();
+}
+
 async function storeNda(room: { nextcloud_folder: string | null; slug: string }, email: string, version: string, at: Date, pdfBytes: Uint8Array): Promise<string | null> {
   if (!(await ncConfigured()) || !room.nextcloud_folder) return null;
   const safeMail = email.toLowerCase().replace(/[^a-z0-9@._-]/g, "_");
@@ -76,7 +100,7 @@ function sigBlock(me: { email: string; company: string | null; sumsub_applicant_
     "Signed at (UTC)": at.toISOString().replace("T", " ").slice(0, 19),
     "Identity verification": `Sumsub KYC · applicant ${me.sumsub_applicant_id || "n/a"} · reviewed ${me.kyc_reviewed_at ? String(me.kyc_reviewed_at).slice(0, 10) : "n/a"}`,
     "Signature method": "KYC-attested electronic acceptance (eIDAS simple e-signature)",
-    "IP address": ip || "n/a", "NDA version": version, "SHA-256 of text": shaUnsigned,
+    "IP address": ip || "n/a", "NDA version": version, "SHA-256 of NDA": shaUnsigned,
   };
 }
 
@@ -91,16 +115,37 @@ Deno.serve(async (req) => {
   const action = String(body.action || "text");
   if (!roomId) return json({ error: "room-required" }, 400);
 
-  const { data: room } = await admin.from("clv_rooms").select("id, slug, name, nextcloud_folder, qes_nda_required, annex_text, annex_version").eq("id", roomId).maybeSingle();
+  const { data: room } = await admin.from("clv_rooms").select("id, slug, name, nextcloud_folder, qes_nda_required, annex_text, annex_version, nda_pdf_path, nda_pdf_name, nda_pdf_sha256, company:clv_companies(name)").eq("id", roomId).maybeSingle();
   if (!room) return json({ error: "not-found" }, 404);
+  const companyName = (room as any).company?.name || "Clavoris";
   if (!isStaff(me)) {
     const { data: a } = await admin.from("clv_room_assignments").select("id, expires_at").eq("room_id", roomId).eq("user_id", me.id).is("revoked_at", null).maybeSingle();
-    if (!a || (a.expires_at && new Date(a.expires_at) < new Date())) return json({ error: "forbidden" }, 403);
+    if (!a) return json({ error: "forbidden" }, 403);
+    // After the access end date the member may still read / store their NDA, but not sign a new one.
+    if (a.expires_at && new Date(a.expires_at) < new Date() && action === "sign") return json({ error: "expired" }, 403);
   }
   const text = room.annex_text || "";
   const version = room.annex_version || "v1";
 
-  if (action === "text") return json({ ok: true, text, version, required: !!room.qes_nda_required });
+  if (action === "text") return json({ ok: true, text, version, required: !!room.qes_nda_required, pdf: !!room.nda_pdf_path, pdf_name: room.nda_pdf_name, company: companyName });
+
+  if (action === "pdf") {
+    // The room's NDA document (uploaded by the company admin) for reading before signing.
+    if (!room.nda_pdf_path) return json({ error: "no-pdf" }, 404);
+    let res: Response;
+    try { res = await ncGet(room.nda_pdf_path); } catch (e) { return json({ error: "file-unavailable", detail: (e as Error).message }, 404); }
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    return new Response(bytes, { headers: { ...cors, "content-type": "application/pdf", "content-disposition": `inline; filename="${String(room.nda_pdf_name || "NDA.pdf").replace(/"/g, "")}"`, "access-control-expose-headers": "content-disposition" } });
+  }
+
+  // Build the signed PDF: the uploaded NDA with a signature page, or the rendered text NDA.
+  async function signedPdf(sig: Record<string, string>): Promise<Uint8Array> {
+    if (room!.nda_pdf_path) {
+      try { const r = await ncGet(room!.nda_pdf_path); return await appendSignaturePage(new Uint8Array(await r.arrayBuffer()), { room: room!.name, company: companyName, sig }); }
+      catch (e) { console.error("clv-room-nda: nda pdf unavailable, falling back to text:", (e as Error).message); }
+    }
+    return await renderNdaPdf({ title: "Non-Disclosure Agreement", room: room!.name, text, sig });
+  }
 
   if (action === "store") {
     // Backfill: the signature exists but its PDF could not be stored at the time (storage down).
@@ -109,8 +154,8 @@ Deno.serve(async (req) => {
     if (rec.nextcloud_path) return json({ ok: true, stored: true, already: true });
     const v = (rec.validation || {}) as Record<string, string>;
     const at = new Date(rec.signed_at);
-    const shaUnsigned = await sha256Hex(text);
-    const pdfBytes = await renderNdaPdf({ title: "Non-Disclosure Agreement", room: room.name, text, sig: sigBlock(me, v.typed_name || me.full_name || "", at, v.ip || "", rec.doc_version, shaUnsigned) });
+    const shaUnsigned = room.nda_pdf_sha256 || await sha256Hex(text);
+    const pdfBytes = await signedPdf(sigBlock(me, v.typed_name || me.full_name || "", at, v.ip || "", rec.doc_version, shaUnsigned));
     const ncPath = await storeNda(room, me.email, rec.doc_version, at, pdfBytes);
     if (!ncPath) return json({ ok: true, stored: false });
     const shaSigned = await sha256Hex(pdfBytes);
@@ -130,8 +175,8 @@ Deno.serve(async (req) => {
 
   const now = new Date();
   const ip = clientIp(req), ua = req.headers.get("user-agent") || "";
-  const shaUnsigned = await sha256Hex(text);
-  const pdfBytes = await renderNdaPdf({ title: "Non-Disclosure Agreement", room: room.name, text, sig: sigBlock(me, typed, now, ip, version, shaUnsigned) });
+  const shaUnsigned = room.nda_pdf_sha256 || await sha256Hex(text);
+  const pdfBytes = await signedPdf(sigBlock(me, typed, now, ip, version, shaUnsigned));
   const shaSigned = await sha256Hex(pdfBytes);
   const ncPath = await storeNda(room, me.email, version, now, pdfBytes);
 
