@@ -38,7 +38,7 @@
   window.ClavorisI18n = { get lang() { return lang; }, t: t, apply: apply, set: set, add: add, langs: LANGS };
   set(detect(), false, true);
   // Dictionaries (same cache-bust version as this file), executed before the next script tag.
-  ['en', 'nl', 'fr', 'ext'].forEach(function (f) { document.write('<script src="i18n/' + f + '.js' + (V ? '?' + V : '') + '"><\/script>'); });
+  ['en', 'nl', 'fr', 'ext', 'access'].forEach(function (f) { document.write('<script src="i18n/' + f + '.js' + (V ? '?' + V : '') + '"><\/script>'); });
   // The signed-in user's profile language wins once the session is known.
   document.addEventListener('DOMContentLoaded', function () { apply(document); });
 })();
