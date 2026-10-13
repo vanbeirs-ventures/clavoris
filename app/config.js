@@ -12,5 +12,5 @@ window.CLAVORIS_SUPABASE = {
   url: "https://ojwvdfdkybutuflwbutd.supabase.co",
   anonKey: "sb_publishable_VkjdD10b7fj5OetHKCgxIw_JmOvH8DS",
   // Where this app is served from (used for auth redirect links).
-  appUrl: "https://vanbeirsventures.com/clavoris/app"
+  appUrl: "https://www.clavoris.com/app"
 };

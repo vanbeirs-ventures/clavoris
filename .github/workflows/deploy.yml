@@ -6,10 +6,9 @@ on:
   workflow_dispatch: {}
 
 env:
-  STORAGE_ZONE_ID: "1692144"
-  STORAGE_ZONE_NAME: "vanbeirsventures"
-  PULLZONE_ID: "6222553"
-  PREFIX: "clavoris"
+  STORAGE_ZONE_ID: "1987436"
+  STORAGE_ZONE_NAME: "clavoris"
+  PULLZONE_ID: "6793540"
 
 jobs:
   deploy:
@@ -30,12 +29,12 @@ jobs:
             case "$p" in
               .git/*|.github/*|README.md|supabase/*|design/*) continue ;;
             esac
-            echo "PUT $PREFIX/$p"
+            echo "PUT $p"
             curl -fsS -X PUT -H "AccessKey: $SK" --data-binary "@$f" \
-              "https://storage.bunnycdn.com/$STORAGE_ZONE_NAME/$PREFIX/$p" > /dev/null
+              "https://storage.bunnycdn.com/$STORAGE_ZONE_NAME/$p" > /dev/null
             COUNT=$((COUNT+1))
           done < <(find . -type f -print0)
-          echo "Uploaded $COUNT files under $PREFIX/"
+          echo "Uploaded $COUNT files"
 
       - name: Purge CDN cache
         env:

@@ -56,7 +56,7 @@ export const STATUSES = ["registered", "kyc_pending", "kyc_retry", "verified", "
 // optional CLAVORIS_MAIL_FROM (default noreply@clavoris.com), CLAVORIS_APP_URL.
 export const MAIL_FROM = Deno.env.get("CLAVORIS_MAIL_FROM") || "noreply@clavoris.com";
 export const MAIL_REPLY_TO = "access@clavoris.com";
-export const APP_URL = (Deno.env.get("CLAVORIS_APP_URL") || "https://vanbeirsventures.com/clavoris/app").replace(/\/$/, "");
+export const APP_URL = (Deno.env.get("CLAVORIS_APP_URL") || "https://www.clavoris.com/app").replace(/\/$/, "");
 export const MAIL_SIGNATURE = "Clavoris · Keys to institutional capital\nAntwerp · Luxembourg · Nordic\n\nThis mailbox is not monitored. For assistance write to access@clavoris.com.";
 
 export function mailConfigured(): boolean { return !!Deno.env.get("CLAVORIS_SMTP_HOST"); }
