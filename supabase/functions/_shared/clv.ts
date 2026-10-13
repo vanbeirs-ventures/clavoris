@@ -1,5 +1,6 @@
 // Shared helpers for the clv-admin-* functions (ported from the Minerva cloud).
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 
 export const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -34,3 +35,25 @@ export async function audit(admin: SupabaseClient, actor: Caller, event_type: st
 export const LANGS = ["en", "nl", "fr", "de", "es", "it"];
 export const ROLES = ["user", "admin", "super"];
 export const STATUSES = ["registered", "kyc_pending", "kyc_retry", "verified", "rejected", "suspended"];
+
+// ---- outbound mail: always from the Clavoris no-reply sender ----
+// Secrets: CLAVORIS_SMTP_HOST, CLAVORIS_SMTP_PORT (465), CLAVORIS_SMTP_USER, CLAVORIS_SMTP_PASS,
+// optional CLAVORIS_MAIL_FROM (default noreply@clavoris.com), CLAVORIS_APP_URL.
+export const MAIL_FROM = Deno.env.get("CLAVORIS_MAIL_FROM") || "noreply@clavoris.com";
+export const MAIL_REPLY_TO = "access@clavoris.com";
+export const APP_URL = (Deno.env.get("CLAVORIS_APP_URL") || "https://vanbeirsventures.com/clavoris/app").replace(/\/$/, "");
+export const MAIL_SIGNATURE = "Clavoris · Keys to institutional capital\nAntwerp · Luxembourg · Nordic\n\nThis mailbox is not monitored. For assistance write to access@clavoris.com.";
+
+export function mailConfigured(): boolean { return !!Deno.env.get("CLAVORIS_SMTP_HOST"); }
+
+export async function sendMail(to: string, subject: string, text: string): Promise<boolean> {
+  const host = Deno.env.get("CLAVORIS_SMTP_HOST"); if (!host) return false;
+  const port = Number(Deno.env.get("CLAVORIS_SMTP_PORT") || 465);
+  const user = Deno.env.get("CLAVORIS_SMTP_USER") || MAIL_FROM;
+  const pass = Deno.env.get("CLAVORIS_SMTP_PASS") || "";
+  const client = new SMTPClient({ connection: { hostname: host, port, tls: port === 465, auth: { username: user, password: pass } } });
+  try {
+    await client.send({ from: `Clavoris <${MAIL_FROM}>`, to, replyTo: MAIL_REPLY_TO, subject, content: text + "\n\n" + MAIL_SIGNATURE });
+    return true;
+  } finally { client.close().catch(() => {}); }
+}

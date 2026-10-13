@@ -33,6 +33,7 @@ get a `clv_profiles` row only; they never appear in Minerva's `profiles`.
 | `portal.html` | Investor home: KYC banner, tiles, assigned data rooms, holdings placeholder. |
 | `admin.html` | Users console: list, enrol, change role/status, send recovery link. |
 | `../supabase/functions/clv-admin-*` | Server-side admin operations (service role; caller role verified; audited). |
+| `../supabase/functions/clv-auth-mail` | Passphrase-recovery mail from noreply@clavoris.com (public, non-enumerating, throttled). |
 
 ## Page gating
 
@@ -50,8 +51,14 @@ fetched at runtime behind RLS, never shipped in the HTML.
 1. **Auth → URL configuration → Redirect URLs:** add
    `https://vanbeirsventures.com/clavoris/app/reset.html` (recovery links land there).
 2. **Edge functions:** deployed by `.github/workflows/deploy-functions.yml`
-   (needs the `SUPABASE_ACCESS_TOKEN` org secret, as for Minerva). The
-   invitation email reuses the project's `SMTP_*` secrets; set
-   `CLAVORIS_APP_URL` if the app moves.
-3. The first super-admin was created directly in the database; set its
+   (needs the `SUPABASE_ACCESS_TOKEN` org secret, as for Minerva).
+3. **Mail sender:** every Clavoris mail (enrolment invitations, passphrase
+   recovery) is sent by the edge functions from **noreply@clavoris.com**, never
+   by Supabase Auth's project-wide sender (which Minerva uses). Set the edge
+   function secrets `CLAVORIS_SMTP_HOST`, `CLAVORIS_SMTP_PORT` (465),
+   `CLAVORIS_SMTP_USER`, `CLAVORIS_SMTP_PASS` for that mailbox; optional
+   `CLAVORIS_MAIL_FROM` and `CLAVORIS_APP_URL`. Until they are set, recovery
+   mails cannot be sent and enrolment shows the one-time passphrase in the
+   console instead.
+4. The first super-admin was created directly in the database; set its
    passphrase via Login › "Forgotten your passphrase?".

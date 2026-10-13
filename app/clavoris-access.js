@@ -107,12 +107,11 @@
     return sb.auth.signOut().then(reset, reset);
   }
 
-  // Send a password-recovery email; the link lands on reset.html.
+  // Send a passphrase-recovery email from noreply@clavoris.com (edge function
+  // clv-auth-mail generates the one-time link; it lands on reset.html).
   function requestPasswordReset(email) {
-    if (!sb) return Promise.resolve({ ok: false });
-    var redirect = (CFG.appUrl || (location.origin + location.pathname.replace(/[^/]*$/, ''))).replace(/\/$/, '') + '/reset.html';
-    return sb.auth.resetPasswordForEmail(String(email || '').trim(), { redirectTo: redirect })
-      .then(function (res) { return { ok: !res.error, error: res.error && res.error.message }; });
+    return callFn('clv-auth-mail', { action: 'recovery', email: String(email || '').trim() })
+      .then(function (r) { return { ok: !!r.ok, error: r.error }; });
   }
   // Set a new password for the current session (after recovery link or from account page).
   function updatePassword(newPw) {

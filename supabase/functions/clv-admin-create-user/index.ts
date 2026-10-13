@@ -3,11 +3,10 @@
 //   - caller must be admin or super (verified server-side);
 //   - creating an admin requires the caller to be super;
 //   - status is fixed server-side ('registered': KYC still to run).
-// Generates a one-time passphrase and emails a sign-in invitation when SMTP
-// is configured (same SMTP_* secrets as the Minerva functions on this project).
+// Generates a one-time passphrase and emails a sign-in invitation from
+// noreply@clavoris.com (CLAVORIS_SMTP_* secrets; see _shared/clv.ts).
 // Deploy: supabase functions deploy clv-admin-create-user --no-verify-jwt
-import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
-import { adminClient, audit, cors, json, LANGS, requireAdmin } from "../_shared/clv.ts";
+import { adminClient, APP_URL, audit, cors, json, LANGS, requireAdmin, sendMail } from "../_shared/clv.ts";
 
 function genPassword(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
@@ -18,20 +17,10 @@ function genPassword(): string {
 }
 
 async function sendInvite(to: string, name: string, roleLabel: string, password: string): Promise<boolean> {
-  const host = Deno.env.get("SMTP_HOST"); if (!host) return false;
-  const port = Number(Deno.env.get("SMTP_PORT") || 465);
-  const user = Deno.env.get("SMTP_USER")!;
-  const pass = Deno.env.get("SMTP_PASS")!;
-  const site = (Deno.env.get("CLAVORIS_APP_URL") || "https://vanbeirsventures.com/clavoris/app").replace(/\/$/, "");
   const text = `Dear ${name || "investor"},\n\nClavoris has enrolled you as ${roleLabel}.\n\n`
-    + `Sign in at ${site}/login.html\nEmail: ${to}\nOne-time passphrase: ${password}\n\n`
-    + `Please set your own passphrase after first sign-in (Account › Passphrase).\n\n`
-    + `Clavoris · Keys to institutional capital\nAntwerp · Luxembourg · Nordic`;
-  const client = new SMTPClient({ connection: { hostname: host, port, tls: port === 465, auth: { username: user, password: pass } } });
-  try {
-    await client.send({ from: `Clavoris <${user}>`, to, replyTo: "access@clavoris.com", subject: "Your Clavoris access", content: text });
-    return true;
-  } finally { client.close().catch(() => {}); }
+    + `Sign in at ${APP_URL}/login.html\nEmail: ${to}\nOne-time passphrase: ${password}\n\n`
+    + `Please set your own passphrase after first sign-in (Account › Passphrase).`;
+  return sendMail(to, "Your Clavoris access", text);
 }
 
 Deno.serve(async (req) => {
