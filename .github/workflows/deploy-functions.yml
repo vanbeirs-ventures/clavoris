@@ -1,0 +1,32 @@
+name: Deploy Supabase Edge Functions
+
+# Deploys every clv-* function in supabase/functions/ to the shared Supabase
+# project (Minerva Website, ojwvdfdkybutuflwbutd) whenever a function changes
+# on main, with JWT verification OFF: each function verifies the caller's
+# Clavoris role itself. Needs the org secret SUPABASE_ACCESS_TOKEN.
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'supabase/functions/**'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PROJECT_REF: ojwvdfdkybutuflwbutd
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Deploy clv-* functions
+        run: |
+          for dir in supabase/functions/clv-*/; do
+            name=$(basename "$dir")
+            echo "Deploying $name ..."
+            supabase functions deploy "$name" --project-ref "$PROJECT_REF" --no-verify-jwt
+          done

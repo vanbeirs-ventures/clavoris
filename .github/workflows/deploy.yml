@@ -28,7 +28,7 @@ jobs:
           while IFS= read -r -d '' f; do
             p="${f#./}"
             case "$p" in
-              .git/*|.github/*|README.md) continue ;;
+              .git/*|.github/*|README.md|supabase/*|design/*) continue ;;
             esac
             echo "PUT $PREFIX/$p"
             curl -fsS -X PUT -H "AccessKey: $SK" --data-binary "@$f" \
