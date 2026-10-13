@@ -29,10 +29,13 @@ Deno.serve(async (req) => {
   const { data: link, error } = await admin.auth.admin.generateLink({
     type: "recovery", email, options: { redirectTo: APP_URL + "/reset.html" },
   });
-  if (error || !link?.properties?.action_link) { console.error("clv-auth-mail generateLink failed:", error?.message || "no action_link"); return json({ ok: true }); }
+  if (error || !link?.properties?.hashed_token) { console.error("clv-auth-mail generateLink failed:", error?.message || "no hashed_token"); return json({ ok: true }); }
+  // Link to our own page carrying the token hash: the token is only consumed when the
+  // user presses Continue there (verifyOtp), so link scanners cannot burn it.
+  const resetUrl = `${APP_URL}/reset.html?token_hash=${encodeURIComponent(link.properties.hashed_token)}&type=recovery`;
 
   const text = `Dear ${p.full_name || "investor"},\n\nA passphrase reset was requested for your Clavoris account.\n\n`
-    + `Set a new passphrase here (the link is valid once, for a limited time):\n${link.properties.action_link}\n\n`
+    + `Set a new passphrase here (the link is valid once, for a limited time):\n${resetUrl}\n\n`
     + `If you did not request this, you can ignore this message; your passphrase stays unchanged.`;
   try {
     const sent = await sendMail(email, "Reset your Clavoris passphrase", text);

@@ -33,6 +33,13 @@
         <p class="msg" id="msg" role="status"></p>
         <button class="btn btn-primary btn-block" type="submit" id="btn" disabled>Set passphrase</button>
       </form>
+      <div id="verify" hidden>
+        <p class="eyebrow">Recovery</p>
+        <h2>Confirm it is you</h2>
+        <p class="lead">Press continue to open the one-time recovery link for your Clavoris account.</p>
+        <p class="msg" id="vmsg" role="status"></p>
+        <button class="btn btn-primary btn-block" style="margin-top:24px" type="button" id="vbtn">Continue</button>
+      </div>
       <div id="noSession" hidden>
         <p class="eyebrow">Recovery</p>
         <h2>Link not valid</h2>
@@ -58,14 +65,28 @@
   function refresh() { q('btn').disabled = !(valid(q('pw1').value) && q('pw1').value === q('pw2').value); }
   q('pw1').addEventListener('input', refresh); q('pw2').addEventListener('input', refresh);
 
-  // supabase-js consumes the recovery token from the URL and establishes a session.
-  // Give it a moment, then check.
+  function show(id) { ['resetForm', 'verify', 'noSession'].forEach(function (k) { q(k).hidden = k !== id; }); }
+  function showForm() { show('resetForm'); q('who').textContent = 'Signed in as ' + (A.user().email || '') + '.'; }
+
+  // Clavoris recovery mails carry a token hash; it is only exchanged for a session
+  // when the user presses Continue, so mail link scanners cannot consume it.
+  var params = new URLSearchParams(location.search);
+  var tokenHash = params.get('token_hash');
   function start() {
     A.refresh().then(function () {
-      if (!A.isSignedIn()) { q('resetForm').hidden = true; q('noSession').hidden = false; return; }
-      q('who').textContent = 'Signed in as ' + (A.user().email || '') + '.';
+      if (A.isSignedIn()) { showForm(); return; }
+      if (tokenHash) { show('verify'); return; }
+      show('noSession');
     });
   }
+  q('vbtn').addEventListener('click', function () {
+    var m = q('vmsg'); m.className = 'msg'; m.textContent = ''; q('vbtn').disabled = true;
+    A.verifyRecovery(tokenHash).then(function (r) {
+      if (!r.ok) { show('noSession'); return; }
+      try { history.replaceState(null, '', location.pathname); } catch (e) {}
+      showForm();
+    });
+  });
   A.ready(function () { setTimeout(start, 400); });
   document.addEventListener('clv:recovery', start);
 

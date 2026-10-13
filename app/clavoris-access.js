@@ -113,6 +113,14 @@
     return callFn('clv-auth-mail', { action: 'recovery', email: String(email || '').trim() })
       .then(function (r) { return { ok: !!r.ok, error: r.error }; });
   }
+  // Exchange a recovery token hash (from a Clavoris recovery mail) for a session.
+  function verifyRecovery(tokenHash) {
+    if (!sb) return Promise.resolve({ ok: false, error: 'unavailable' });
+    return sb.auth.verifyOtp({ type: 'recovery', token_hash: tokenHash }).then(function (res) {
+      if (res.error) return { ok: false, error: res.error.message };
+      return refreshSession().then(function () { return { ok: isSignedIn() }; });
+    });
+  }
   // Set a new password for the current session (after recovery link or from account page).
   function updatePassword(newPw) {
     if (!sb) return Promise.resolve({ ok: false });
@@ -173,7 +181,7 @@
     user: user, profile: profile, role: role, status: status,
     isSignedIn: isSignedIn, isAdmin: isAdmin, isSuper: isSuper, isVerified: isVerified, isSuspended: isSuspended,
     clears: clears, displayName: displayName, initials: initials, homeFor: homeFor,
-    signIn: signIn, signOut: signOut, requestPasswordReset: requestPasswordReset, updatePassword: updatePassword,
+    signIn: signIn, signOut: signOut, requestPasswordReset: requestPasswordReset, verifyRecovery: verifyRecovery, updatePassword: updatePassword,
     verifyPassword: verifyPassword, updateProfile: updateProfile, callFn: callFn
   };
 
