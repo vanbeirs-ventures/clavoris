@@ -1,28 +1,38 @@
 /* Clavoris app shell — renders the top band for signed-in pages.
    Requires window.ClavorisAccess (session resolved).
-   Investors see Data rooms, Contracts and Account; staff also see Admin. */
+   Investors see Data rooms, Marketplace, Portfolio and Contracts (Account is behind the avatar);
+   staff also see Admin. Labels come from ClavorisI18n; the profile language wins once known. */
 (function () {
   'use strict';
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (m) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[m]; }); }
   function render(active) {
-    var A = window.ClavorisAccess; var nav = document.getElementById('nav'); if (!nav || !A) return;
+    var A = window.ClavorisAccess, I = window.ClavorisI18n; var nav = document.getElementById('nav'); if (!nav || !A) return;
+    var p = A.profile && A.profile();
+    if (I && p && p.lang && p.lang !== I.lang) I.set(p.lang);
+    var t = I ? I.t : function (k) { return k; };
     var links = [
-      { id: 'rooms', label: 'Data rooms', href: 'portal.html' },
-      { id: 'contracts', label: 'Contracts', href: 'contracts.html' },
-      { id: 'account', label: 'Account', href: 'account.html' }
+      { id: 'rooms', label: t('nav.rooms'), href: 'portal.html' },
+      { id: 'market', label: t('nav.market'), href: 'marketplace.html' },
+      { id: 'portfolio', label: t('nav.portfolio'), href: 'portfolio.html' },
+      { id: 'contracts', label: t('nav.contracts'), href: 'contracts.html' }
     ];
-    if (A.isAdmin()) links.push({ id: 'admin', label: 'Admin', href: 'admin.html' });
-    var status = A.status() || '';
-    var chip = status === 'verified' ? '<span class="chip verified"><span class="dot"></span>KYC verified</span>'
-      : '<a class="chip ' + esc(status) + '" href="kyc.html" title="Complete identity verification"><span class="dot"></span>' + esc(status.replace('_', ' ') || 'registered') + '</a>';
+    if (A.isAdmin()) links.push({ id: 'admin', label: t('nav.admin'), href: 'admin.html' });
+    var status = A.status() || 'registered';
+    var chip = status === 'verified' ? '<span class="chip verified"><span class="dot"></span>' + esc(t('nav.kyc_verified')) + '</span>'
+      : '<a class="chip ' + esc(status) + '" href="kyc.html" title="' + esc(t('nav.kyc_title')) + '"><span class="dot"></span>' + esc(t('status.' + status)) + '</a>';
     nav.innerHTML = '<a class="nav-brand" href="portal.html"><img src="../assets/clavoris-mark.png" alt=""><span class="nav-wm">Clavori<span class="g">s</span></span></a>'
-      + '<div class="nav-links">' + links.map(function (l) { return '<a class="nav-lk' + (l.id === active ? ' active' : '') + '" href="' + l.href + '">' + esc(l.label) + '</a>'; }).join('') + '</div>'
-      + '<div class="nav-right">' + chip + '<a class="nav-av" href="account.html" title="' + esc(A.displayName()) + '">' + esc(A.initials()) + '</a>'
-      + '<button class="btn-text" id="signOut" type="button">Sign out</button></div>';
+      + '<button class="nav-burger" id="navBurger" type="button" aria-label="Menu" aria-expanded="false"><span></span><span></span><span></span></button>'
+      + '<div class="nav-links" id="navLinks">' + links.map(function (l) { return '<a class="nav-lk' + (l.id === active ? ' active' : '') + '" href="' + l.href + '">' + esc(l.label) + '</a>'; }).join('') + '</div>'
+      + '<div class="nav-right">' + chip + '<a class="nav-av' + (active === 'account' ? ' active' : '') + '" href="account.html" title="' + esc(A.displayName()) + ' — ' + esc(t('nav.account')) + '">' + esc(A.initials()) + '</a>'
+      + '<button class="btn-text" id="signOut" type="button">' + esc(t('nav.signout')) + '</button></div>';
     var so = document.getElementById('signOut');
     if (so) so.addEventListener('click', function () { A.signOut().then(function () { location.href = 'login.html'; }); });
+    var bg = document.getElementById('navBurger');
+    if (bg) bg.addEventListener('click', function () { var open = nav.classList.toggle('open'); bg.setAttribute('aria-expanded', open ? 'true' : 'false'); });
+    if (I) I.apply(document);
   }
-  function fmtDate(ts) { if (!ts) return '—'; try { return new Date(ts).toLocaleDateString('en-GB', { year: 'numeric', month: 'short', day: 'numeric' }); } catch (e) { return String(ts).slice(0, 10); } }
+  function fmtMoney(n, ccy) { try { return new Intl.NumberFormat((window.ClavorisI18n && window.ClavorisI18n.lang) === 'en' ? 'en-GB' : (window.ClavorisI18n ? window.ClavorisI18n.lang + '-BE' : 'en-GB'), { style: 'currency', currency: ccy || 'EUR', maximumFractionDigits: 2 }).format(Number(n || 0)); } catch (e) { return (ccy || 'EUR') + ' ' + Number(n || 0).toFixed(2); } }
+  function fmtDate(ts) { if (!ts) return '—'; try { var l = window.ClavorisI18n ? window.ClavorisI18n.lang : 'en'; return new Date(ts).toLocaleDateString(l === 'en' ? 'en-GB' : l + '-BE', { year: 'numeric', month: 'short', day: 'numeric' }); } catch (e) { return String(ts).slice(0, 10); } }
   function fmtSize(n) { n = Number(n || 0); if (n < 1024) return n + ' B'; if (n < 1048576) return (n / 1024).toFixed(0) + ' KB'; return (n / 1048576).toFixed(1) + ' MB'; }
   // Download a file served by an edge function (binary response) and hand it to the browser.
   function downloadFn(name, body, fallbackName) {
@@ -40,5 +50,5 @@
       });
     });
   }
-  window.ClavorisShell = { render: render, esc: esc, fmtDate: fmtDate, fmtSize: fmtSize, downloadFn: downloadFn };
+  window.ClavorisShell = { render: render, esc: esc, fmtDate: fmtDate, fmtSize: fmtSize, fmtMoney: fmtMoney, downloadFn: downloadFn };
 })();
