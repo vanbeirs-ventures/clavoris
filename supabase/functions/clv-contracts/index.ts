@@ -4,7 +4,7 @@
 //   { action: "list" }                                        -> contracts the caller is party to (staff: all)
 //   { action: "get", id }                                     -> contract, parties, events, caller's rights
 //   { action: "create", title, description, file_name, pdf_base64 }   (staff; PDF only)
-//   { action: "add_party", id, email, name, company, role, lang, order_no } (staff; draft only)
+//   { action: "add_party", id, email, name, company, role, order_no } (staff; draft only)
 //   { action: "remove_party", id, party_id }                  (staff; draft only)
 //   { action: "launch", id }                                  (staff) -> invites the first signatory
 //   { action: "cancel", id }                                  (staff)
@@ -15,6 +15,7 @@
 // Secrets: SUMSUB_APP_TOKEN, SUMSUB_SECRET_KEY, SUMSUB_QES_LEVEL_NAME. Deploy with --no-verify-jwt.
 import { PDFDocument } from "https://esm.sh/pdf-lib@1.17.1";
 import { adminClient, APP_URL, audit, clientIp, cors, enrolUser, isStaff, json, requireUser, sendMail } from "../_shared/clv.ts";
+import { wants } from "../_shared/notify.ts";
 import { ncConfigured, ncGet, ncMkdirP, ncPut, sha256Hex } from "../_shared/nc.ts";
 import { sumsub, sumsubAccessToken, sumsubApplicantId, sumsubConfigured } from "../_shared/sumsub.ts";
 import { mail, pickLang, word } from "../_shared/mail-i18n.ts";
@@ -134,12 +135,12 @@ Deno.serve(async (req) => {
     const role = body.role === "auditor" ? "auditor" : "signatory";
     const name = String(body.name || "").trim().slice(0, 120), company = String(body.company || "").trim().slice(0, 160) || null;
     const lang = pickLang(body.lang);
-    let { data: prof } = await admin.from("clv_profiles").select("id, email, full_name, status").eq("email", email).maybeSingle();
+    let { data: prof } = await admin.from("clv_profiles").select("id, email, full_name, status, lang, notify").eq("email", email).maybeSingle();
     let created = false, linked = false, link = `${APP_URL}/login.html`;
     if (!prof) {
       const en = await enrolUser(admin, email, name, company, lang);
       if ("error" in en) return json({ error: en.error }, 400);
-      prof = { id: en.id, email, full_name: name, status: "registered" }; created = en.created; linked = en.linked; link = en.link;
+      prof = { id: en.id, email, full_name: name, status: "registered", lang, notify: {} }; created = en.created; linked = en.linked; link = en.link;
       await audit(admin, me, "user-created", email, { via: "contract-party", contract: c.id, linked });
     } else if (prof.status === "suspended" || prof.status === "rejected") return json({ error: "user-blocked" }, 400);
     if (parties.some((p) => p.user_id === prof!.id)) return json({ error: "already-party" }, 400);
@@ -150,6 +151,11 @@ Deno.serve(async (req) => {
     if (created || linked) {
       const m = mail(lang, linked ? "contract_added_linked" : "contract_added_new", { name, title: c.title, role: word(lang, role === "auditor" ? "role_auditor" : "role_signatory"), link: withLang(link, lang), login: `${APP_URL}/login.html?lang=${lang}`, tail: word(lang, role === "auditor" ? "tail_auditor" : "tail_signatory") });
       sendMail(email, m.subject, m.text, lang).catch((e) => console.error("contract party mail", e));
+    } else if (wants(prof.notify, "contract_new")) {
+      // Existing user: "a contract has been assigned to you" (switchable under Account).
+      const L = pickLang(prof.lang);
+      const m = mail(L, "contract_assigned", { name: prof.full_name, title: c.title, role: word(L, role === "auditor" ? "role_auditor" : "role_signatory"), link: `${APP_URL}/contract.html?id=${c.id}` });
+      sendMail(email, m.subject, m.text, L).catch((e) => console.error("contract assigned mail", e));
     }
     return json({ ok: true, created, linked });
   }
@@ -179,7 +185,7 @@ Deno.serve(async (req) => {
       if (!p.profile?.email) continue;
       const L = pickLang(p.profile.lang);
       if (p.role === "auditor") { const m = mail(L, "contract_launched_auditor", { name: p.profile.full_name, title: c.title, link }); sendMail(p.profile.email, m.subject, m.text, L).catch(() => {}); }
-      else if (p.status === "pending") { const m = mail(L, "contract_launched_wait", { name: p.profile.full_name, title: c.title, order: p.order_no, link }); sendMail(p.profile.email, m.subject, m.text, L).catch(() => {}); }
+      else if (p.status === "pending" && wants(p.profile.notify, "contract_new")) { const m = mail(L, "contract_launched_wait", { name: p.profile.full_name, title: c.title, order: p.order_no, link }); sendMail(p.profile.email, m.subject, m.text, L).catch(() => {}); }
     }
     return json({ ok: true });
   }
