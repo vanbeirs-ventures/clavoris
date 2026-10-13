@@ -14,6 +14,17 @@ import { adminClient, audit, cors, json, requireAdmin } from "../_shared/clv.ts"
 const NC_URL = (Deno.env.get("NC_URL") || "").replace(/\/$/, "");
 const polls = new Map<string, string>(); // token -> poll endpoint (per instance; endpoint also returned to the client)
 
+// Login Flow v2 returns the *login name* (may be an e-mail address); WebDAV paths need the
+// account id. Resolve it through OCS with the app password; fall back to the login name.
+async function resolveUid(url: string, loginName: string, pass: string): Promise<string> {
+  try {
+    const r = await fetch(`${url}/ocs/v2.php/cloud/user?format=json`, { headers: { authorization: "Basic " + btoa(`${loginName}:${pass}`), "ocs-apirequest": "true" } });
+    if (!r.ok) return loginName;
+    const d = await r.json();
+    return String(d?.ocs?.data?.id || loginName);
+  } catch { return loginName; }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "method" }, 405);
@@ -26,13 +37,28 @@ Deno.serve(async (req) => {
 
   if (action === "status") {
     const { data } = await admin.from("clv_settings").select("value, updated_at").eq("key", "nc").maybeSingle();
-    const v = (data?.value || {}) as { url?: string; user?: string; pass?: string };
+    const v = (data?.value || {}) as { url?: string; user?: string; pass?: string; login?: string };
     if (!v.user || !v.pass) return json({ ok: true, connected: false, url: NC_URL });
     // Live check: PROPFIND depth 0 on the user's root.
+    const check = async (user: string) => {
+      const r = await fetch(`${v.url}/remote.php/dav/files/${encodeURIComponent(user)}/`, { method: "PROPFIND", headers: { authorization: "Basic " + btoa(`${user}:${v.pass}`), depth: "0" } });
+      return r.status;
+    };
     let checked = false, error: string | null = null;
     try {
-      const r = await fetch(`${v.url}/remote.php/dav/files/${encodeURIComponent(v.user)}/`, { method: "PROPFIND", headers: { authorization: "Basic " + btoa(`${v.user}:${v.pass}`), depth: "0" } });
-      checked = r.ok; if (!r.ok) error = `nc ${r.status}`;
+      let st = await check(v.user);
+      if (st === 404 || st === 401) {
+        // Stored login name is not the account id (e.g. an e-mail): resolve and self-heal.
+        const uid = await resolveUid(v.url!, v.login || v.user, v.pass);
+        if (uid !== v.user) {
+          st = await check(uid);
+          if (st >= 200 && st < 300) {
+            await admin.from("clv_settings").update({ value: { ...v, user: uid, login: v.login || v.user }, updated_at: new Date().toISOString() }).eq("key", "nc");
+            v.user = uid;
+          }
+        }
+      }
+      checked = st >= 200 && st < 300; if (!checked) error = `nc ${st}`;
     } catch (e) { error = (e as Error).message; }
     return json({ ok: true, connected: true, user: v.user, url: v.url, since: data?.updated_at, checked, error });
   }
@@ -53,11 +79,13 @@ Deno.serve(async (req) => {
     if (r.status === 404) return json({ ok: true, pending: true });
     if (!r.ok) return json({ error: `nc-poll ${r.status}` }, 502);
     const d = await r.json() as { server: string; loginName: string; appPassword: string };
-    const { error } = await admin.from("clv_settings").upsert({ key: "nc", value: { url: (d.server || NC_URL).replace(/\/$/, ""), user: d.loginName, pass: d.appPassword }, updated_at: new Date().toISOString(), updated_by: me.id });
+    const url = (d.server || NC_URL).replace(/\/$/, "");
+    const uid = await resolveUid(url, d.loginName, d.appPassword);
+    const { error } = await admin.from("clv_settings").upsert({ key: "nc", value: { url, user: uid, login: d.loginName, pass: d.appPassword }, updated_at: new Date().toISOString(), updated_by: me.id });
     if (error) { console.error("clv-nc-connect: store failed", error.message); return json({ error: "store-failed: " + error.message }, 500); }
     polls.delete(token);
-    await audit(admin, me, "nextcloud-connected", d.loginName, { server: d.server });
-    return json({ ok: true, user: d.loginName });
+    await audit(admin, me, "nextcloud-connected", uid, { server: d.server, login: d.loginName });
+    return json({ ok: true, user: uid });
   }
 
   if (action === "disconnect") {
