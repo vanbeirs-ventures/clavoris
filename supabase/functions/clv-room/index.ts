@@ -90,7 +90,7 @@ Deno.serve(async (req) => {
       try {
         const root = room.nextcloud_folder || "";
         const all = await ncTree(root, 4);
-        tree = all.filter((e) => !e.path.slice(root.length + 1).startsWith("_users"))
+        tree = all.filter((e) => !/^_(users|nda)(\/|$)/.test(e.path.slice(root.length + 1)))
           .map((e) => ({ name: e.name, path: e.path.slice(root.length + 1), dir: e.dir, size: e.size, modified: e.modified, mime: e.mime }));
       } catch (e) { ncError = (e as Error).message; }
     }

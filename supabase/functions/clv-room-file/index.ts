@@ -66,7 +66,7 @@ Deno.serve(async (req) => {
     if (room.qes_nda_required && !nda && !isStaff(me)) return json({ error: "nda-required" }, 403);
     if (!canDownload) return json({ error: "download-not-allowed" }, 403);
     const rel = String(body.path || "").replace(/^\/+/, "");
-    if (!rel || rel.includes("..") || rel.startsWith("_users")) return json({ error: "bad-path" }, 400);
+    if (!rel || rel.includes("..") || /^_(users|nda)(\/|$)/.test(rel)) return json({ error: "bad-path" }, 400);
     target = `${room.nextcloud_folder}/${rel}`; fileName = rel.split("/").pop() || "file"; action = "download";
   }
 
