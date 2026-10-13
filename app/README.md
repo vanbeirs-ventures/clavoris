@@ -30,10 +30,27 @@ get a `clv_profiles` row only; they never appear in Minerva's `profiles`.
 | `login.html` | Sign in + "forgotten passphrase". Routes staff to `admin.html`, investors to `portal.html`. |
 | `reset.html` | Landing page for recovery links; sets a new passphrase. |
 | `account.html` | Profile, passphrase change, verification status. |
-| `portal.html` | Investor home: KYC banner, tiles, assigned data rooms, holdings placeholder. |
-| `admin.html` | Users console: list, enrol, change role/status, send recovery link. |
+| `portal.html` | Data rooms home: KYC banner and the rooms the user has been granted. |
+| `room.html` | One data room: NDA gate (KYC-verified users only), folder/file tree from Nextcloud, downloads, members with presence dots. |
+| `kyc.html` | Identity verification (Sumsub WebSDK). |
+| `admin.html` | Users console + data rooms: invite by email, members, NDA status, revoke. |
 | `../supabase/functions/clv-admin-*` | Server-side admin operations (service role; caller role verified; audited). |
-| `../supabase/functions/clv-auth-mail` | Passphrase-recovery mail from noreply@clavoris.com (public, non-enumerating, throttled). |
+| `../supabase/functions/clv-auth-mail` | Passphrase-recovery mail from the Clavoris sender (public, non-enumerating, throttled). |
+| `../supabase/functions/clv-room` | Room view: info, NDA status, members + presence, Nextcloud tree (after NDA). |
+| `../supabase/functions/clv-room-nda` | NDA text + KYC-attested signing → PDF in `<room>/_users/<email>/`, `clv_signed_documents`. |
+| `../supabase/functions/clv-room-file` | Gated download: unique code, PDF watermark, `clv_downloads` + `clv_access_log`, first-download mail. |
+| `../supabase/functions/clv-admin-rooms` | Rooms list, members, invite-by-email (enrol + invitation), revoke. |
+| `../supabase/functions/clv-kyc-token` / `clv-sumsub-webhook` | Sumsub access token for the WebSDK; webhook → verified / kyc_retry / rejected. |
+
+## Data rooms
+
+A room is a `clv_rooms` row whose `nextcloud_folder` points at a folder on the group
+Nextcloud (e.g. `clavoris/datarooms/Minerva Luxury Motors 1`). The folder tree is read
+live over WebDAV; `_users/` inside it holds each member's signed NDA and is never listed.
+Flow for an investor: invitation mail → set passphrase → profile → KYC (Sumsub) → sign the
+room NDA (text in `clv_rooms.annex_text`) → documents listed → downloads logged and
+watermarked. Member presence: green = active in the room in the last 3 minutes, orange =
+visited before, red = never.
 
 ## Page gating
 
@@ -62,3 +79,12 @@ fetched at runtime behind RLS, never shipped in the HTML.
    console instead.
 4. The first super-admin was created directly in the database; set its
    passphrase via Login › "Forgotten your passphrase?".
+5. **Nextcloud (data rooms):** secrets `NC_URL` (e.g. `https://drive.example.com`),
+   `NC_USER`, `NC_PASS` (an app password for that user). Without them rooms show
+   "storage not configured".
+6. **Sumsub (KYC):** secrets `SUMSUB_APP_TOKEN`, `SUMSUB_SECRET_KEY`, `SUMSUB_LEVEL_NAME`,
+   `SUMSUB_WEBHOOK_SECRET`; register the webhook
+   `https://<project>.supabase.co/functions/v1/clv-sumsub-webhook` in the Sumsub dashboard.
+   Until set, the KYC page shows "being set up" and status can be set by an admin.
+   The NDA signature is a KYC-attested electronic acceptance; a qualified (QES) signature
+   via Sumsub eSign can replace the signing step (`validation.method`).

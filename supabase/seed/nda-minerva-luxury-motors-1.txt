@@ -1,0 +1,40 @@
+NON-DISCLOSURE AGREEMENT — DATA ROOM ACCESS
+
+Between
+(1) Minerva Luxury Motors Holding BV (in incorporation), together with Minerva Luxury Motors BV and Minerva Luxury Motors IP BV (each in incorporation), represented by their founders (the "Disclosing Party"); and
+(2) the undersigned recipient, acting in a personal capacity and on behalf of the organisation stated on their Clavoris account (the "Recipient").
+
+The data room is operated by Clavoris (InstiToken BV), Antwerp, as technology provider to the Disclosing Party.
+
+1. Purpose
+The Disclosing Party makes available, through the Clavoris data room "Minerva Luxury Motors 1", draft incorporation deeds, articles of association and related corporate, financial, legal and commercial information (the "Confidential Information") solely to allow the Recipient to evaluate a possible participation in, investment in, or commercial relationship with the Minerva Luxury Motors group (the "Purpose").
+
+2. Confidential Information
+Confidential Information means all information, in whatever form, disclosed in or through the data room, including the existence and content of the documents, the identity of the parties and the fact that discussions are taking place. It does not include information that the Recipient can demonstrate (a) was lawfully in its possession before disclosure, (b) is or becomes public other than through a breach of this Agreement, or (c) was lawfully received from a third party free of any confidentiality obligation.
+
+3. Obligations of the Recipient
+The Recipient shall (a) keep the Confidential Information strictly confidential; (b) use it only for the Purpose; (c) not copy, forward, print, photograph or otherwise reproduce it except as strictly required for the Purpose; (d) disclose it only to its directors, employees and professional advisers who need to know it for the Purpose and who are bound by confidentiality obligations no less strict than these; (e) not share, lend or transfer its personal Clavoris access; and (f) notify the Disclosing Party without delay of any unauthorised use or disclosure.
+
+4. No licence, no commitment
+Nothing in this Agreement grants the Recipient any right in the Confidential Information or in any trademark, design, patent or other intellectual property of the Disclosing Party. Access to the data room does not constitute an offer, a commitment to negotiate or a commitment to conclude any transaction. No representation or warranty is given as to the accuracy or completeness of the Confidential Information; draft documents may change before execution.
+
+5. Logging and identification
+The Recipient acknowledges that Clavoris verifies the identity of each user (AMLD6 KYC), records this acceptance together with the Recipient's verified identity, time and network address, and logs every view and download, including a cryptographic fingerprint of each delivered document. Documents may be watermarked with the Recipient's identity.
+
+6. Return and destruction
+On request of the Disclosing Party, or when the Purpose ends, the Recipient shall cease all use and destroy or return all Confidential Information in its possession, subject to copies that must be retained under mandatory law or bona fide document-retention policies, which remain subject to this Agreement.
+
+7. Duration
+This Agreement applies from the moment of acceptance and remains in force for five (5) years, regardless of the end of the Recipient's data room access.
+
+8. Remedies
+The Recipient acknowledges that a breach may cause irreparable harm and that the Disclosing Party is entitled to seek injunctive relief in addition to any other remedy. The Recipient is liable for breaches by the persons to whom it discloses Confidential Information.
+
+9. Personal data
+Personal data of the Recipient is processed by Clavoris and the Disclosing Party for the Purpose, for identity verification and for the logging described in clause 5, in accordance with the Clavoris privacy notice.
+
+10. Governing law and jurisdiction
+This Agreement is governed by Belgian law. The courts of Antwerp, Antwerp division, have exclusive jurisdiction.
+
+11. Electronic acceptance
+The Recipient accepts this Agreement electronically in the Clavoris data room after identity verification, by confirming having read it and typing their full name. The parties agree that this acceptance constitutes a valid electronic signature and conclusive evidence of the Recipient's consent to these terms.

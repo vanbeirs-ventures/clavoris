@@ -28,6 +28,21 @@ export async function requireAdmin(admin: SupabaseClient, req: Request): Promise
   return { id: user.id, email: user.email || "", role: p.role };
 }
 
+// Resolve the caller from the JWT: any enrolled, non-suspended Clavoris user.
+export type Profile = { id: string; email: string; full_name: string | null; company: string | null; role: "user" | "admin" | "super"; status: string; sumsub_applicant_id: string | null; kyc_reviewed_at: string | null };
+export async function requireUser(admin: SupabaseClient, req: Request): Promise<Profile | Response> {
+  const jwt = (req.headers.get("authorization") || "").replace("Bearer ", "");
+  if (!jwt) return json({ error: "unauthorized" }, 401);
+  const { data } = await admin.auth.getUser(jwt);
+  const user = data?.user;
+  if (!user) return json({ error: "unauthorized" }, 401);
+  const { data: p } = await admin.from("clv_profiles").select("id, email, full_name, company, role, status, sumsub_applicant_id, kyc_reviewed_at").eq("id", user.id).single();
+  if (!p || p.status === "suspended" || p.status === "rejected") return json({ error: "forbidden" }, 403);
+  return p as Profile;
+}
+export function isStaff(p: { role: string }): boolean { return p.role === "admin" || p.role === "super"; }
+export function clientIp(req: Request): string { return (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || req.headers.get("cf-connecting-ip") || ""; }
+
 export async function audit(admin: SupabaseClient, actor: Caller, event_type: string, target: string, detail: Record<string, unknown> = {}) {
   await admin.from("clv_audit").insert({ actor: actor.id, actor_email: actor.email, event_type, target, detail }).then(() => {}, () => {});
 }
