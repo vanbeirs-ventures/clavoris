@@ -15,7 +15,7 @@ export function adminClient(): SupabaseClient {
   return createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 }
 
-export type Caller = { id: string; email: string; role: "user" | "admin" | "super" };
+export type Caller = { id: string; email: string; role: "user" | "admin" | "super"; company_id?: string | null };
 
 // Resolve the caller from the JWT and require a Clavoris admin or super role.
 export async function requireAdmin(admin: SupabaseClient, req: Request): Promise<Caller | Response> {
@@ -24,26 +24,31 @@ export async function requireAdmin(admin: SupabaseClient, req: Request): Promise
   const { data } = await admin.auth.getUser(jwt);
   const user = data?.user;
   if (!user) return json({ error: "unauthorized" }, 401);
-  const { data: p } = await admin.from("clv_profiles").select("role, status").eq("id", user.id).single();
+  const { data: p } = await admin.from("clv_profiles").select("role, status, company_id").eq("id", user.id).single();
   if (!p || !["admin", "super"].includes(p.role) || p.status === "suspended") return json({ error: "forbidden" }, 403);
-  return { id: user.id, email: user.email || "", role: p.role };
+  return { id: user.id, email: user.email || "", role: p.role, company_id: p.company_id || null };
 }
 
 // Resolve the caller from the JWT: any enrolled, non-suspended Clavoris user.
 export type Features = { market?: boolean; trading?: boolean; products?: string[] | null };
-export type Profile = { id: string; email: string; full_name: string | null; company: string | null; role: "user" | "admin" | "super"; status: string; lang: string | null; features: Features; sumsub_applicant_id: string | null; kyc_reviewed_at: string | null };
+export type Profile = { id: string; email: string; full_name: string | null; company: string | null; company_id: string | null; role: "user" | "admin" | "super"; status: string; lang: string | null; features: Features; sumsub_applicant_id: string | null; kyc_reviewed_at: string | null };
 export async function requireUser(admin: SupabaseClient, req: Request): Promise<Profile | Response> {
   const jwt = (req.headers.get("authorization") || "").replace("Bearer ", "");
   if (!jwt) return json({ error: "unauthorized" }, 401);
   const { data } = await admin.auth.getUser(jwt);
   const user = data?.user;
   if (!user) return json({ error: "unauthorized" }, 401);
-  const { data: p } = await admin.from("clv_profiles").select("id, email, full_name, company, role, status, lang, features, sumsub_applicant_id, kyc_reviewed_at").eq("id", user.id).single();
+  const { data: p } = await admin.from("clv_profiles").select("id, email, full_name, company, company_id, role, status, lang, features, sumsub_applicant_id, kyc_reviewed_at").eq("id", user.id).single();
   if (!p || p.status === "suspended" || p.status === "rejected") return json({ error: "forbidden" }, 403);
   if (!p.features || typeof p.features !== "object") p.features = {};
   return p as Profile;
 }
 export function isStaff(p: { role: string }): boolean { return p.role === "admin" || p.role === "super"; }
+// Company scoping: a super sees everything (null = no filter); an admin only their own company's
+// rooms, products and contracts. Returns the company id to filter on, or null for no filter.
+export function companyScope(p: { role: string; company_id?: string | null }): string | null { return p.role === "super" ? null : (p.company_id || "00000000-0000-0000-0000-000000000000"); }
+export function inScope(p: { role: string; company_id?: string | null }, companyId: string | null | undefined): boolean { const s = companyScope(p); return s === null || s === companyId; }
+export function fmtDay(d: string | Date | null | undefined, lang = "en"): string { if (!d) return "—"; try { return new Date(d).toLocaleDateString(lang === "en" ? "en-GB" : lang + "-BE", { year: "numeric", month: "long", day: "numeric" }); } catch { return String(d).slice(0, 10); } }
 // Normalise a feature object coming from the admin console.
 export function cleanFeatures(f: unknown): Features {
   const o = (f && typeof f === "object" ? f : {}) as Record<string, unknown>;

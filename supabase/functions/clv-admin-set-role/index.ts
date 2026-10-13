@@ -20,7 +20,9 @@ Deno.serve(async (req) => {
   const role = ROLES.includes(body.role) ? body.role : null;
   const status = STATUSES.includes(body.status) ? body.status : null;
   const features = body.features && typeof body.features === "object" ? cleanFeatures(body.features) : null;
-  if (!id || (!role && !status && !features)) return json({ error: "bad-input" }, 400);
+  const companyId = body.company_id === undefined ? undefined : (body.company_id ? String(body.company_id) : null); // super only
+  if (!id || (!role && !status && !features && companyId === undefined)) return json({ error: "bad-input" }, 400);
+  if (companyId !== undefined && me.role !== "super") return json({ error: "forbidden" }, 403);
   if (id === me.id && (role || status)) return json({ error: "self" }, 400);
 
   const { data: target } = await admin.from("clv_profiles").select("id, email, role, status, features").eq("id", id).single();
@@ -36,6 +38,7 @@ Deno.serve(async (req) => {
     patch.suspended_at = status === "suspended" ? new Date().toISOString() : null;
   }
   if (features) patch.features = features;
+  if (companyId !== undefined) patch.company_id = companyId;
   if (!Object.keys(patch).length) return json({ ok: true, unchanged: true });
 
   const { error } = await admin.from("clv_profiles").update(patch).eq("id", id);
