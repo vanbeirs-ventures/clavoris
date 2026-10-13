@@ -10,6 +10,7 @@
 // Deploy: supabase functions deploy clv-room-file --no-verify-jwt
 import { PDFDocument, StandardFonts, rgb } from "https://esm.sh/pdf-lib@1.17.1";
 import { adminClient, APP_URL, clientIp, cors, isStaff, json, requireUser, sendMail } from "../_shared/clv.ts";
+import { mail, pickLang } from "../_shared/mail-i18n.ts";
 import { ncConfigured, ncGet, sha256Hex } from "../_shared/nc.ts";
 
 function genCode(): string {
@@ -94,8 +95,9 @@ Deno.serve(async (req) => {
     }).then(() => {}, (e: unknown) => console.error("clv-room-file: download record failed", e));
 
     if ((count || 0) === 0) {
-      const text = `Dear ${me.full_name || "investor"},\n\nYou have started using the Clavoris data room "${room.name}" and downloaded your first document (${fileName}, download reference ${code}).\n\nPlease note:\n- Every download is registered in an audit trail with your identity, the time, your network address and a cryptographic fingerprint of the delivered file.\n- Each delivered file carries a unique watermark identifying the download event and you as the recipient.\n- The documents are confidential under the non-disclosure agreement you signed. They may be used only for the agreed purpose and may not be shared, forwarded or reproduced.\n\nYou can consult your own audit trail at any time under Account › Audit trail:\n${APP_URL}/account.html#audit`;
-      sendMail(me.email, "Clavoris: your first download and the audit trail", text).catch((e) => console.error("clv-room-file: first-download mail failed", e));
+      const L = pickLang(me.lang);
+      const m = mail(L, "first_download", { name: me.full_name, room: room.name, file: fileName, code, audit: `${APP_URL}/account.html#audit` });
+      sendMail(me.email, m.subject, m.text, L).catch((e) => console.error("clv-room-file: first-download mail failed", e));
     }
   }
   return new Response(delivered, { status: 200, headers: { ...cors, "content-type": res.headers.get("content-type") || "application/octet-stream", "content-disposition": `attachment; filename="${outName.replace(/"/g, "")}"`, "access-control-expose-headers": "content-disposition, x-clavoris-sha256", "x-clavoris-sha256": await sha256Hex(delivered) } });
