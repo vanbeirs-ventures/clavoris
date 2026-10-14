@@ -6,7 +6,7 @@
 <meta name="robots" content="noindex">
 <title>My account — Clavoris</title>
 <link rel="icon" href="../assets/clavoris-mark.png">
-<link rel="stylesheet" href="app.css?v=20261014c">
+<link rel="stylesheet" href="app.css?v=20261014e">
 <script>document.documentElement.classList.add('clv-checking');</script>
 </head>
 <body data-clv-restrict="full">
@@ -40,9 +40,9 @@
       <section class="card" style="padding:22px">
         <h2 style="font-family:var(--font-display);font-size:20px;color:var(--clavis-navy)" data-i18n="account.pass">Passphrase</h2>
         <form id="pwForm" autocomplete="off" onsubmit="return false;">
-          <div class="field"><label for="curPw" data-i18n="account.cur_pw">Current passphrase</label><input id="curPw" type="password" autocomplete="current-password" class="mono"></div>
-          <div class="field"><label for="newPw" data-i18n="account.new_pw">New passphrase</label><input id="newPw" type="password" autocomplete="new-password" class="mono"><span class="hint" data-i18n="account.pw_hint">At least 12 characters, with a letter and a number.</span></div>
-          <div class="field"><label for="newPw2" data-i18n="account.new_pw2">Repeat new passphrase</label><input id="newPw2" type="password" autocomplete="new-password" class="mono"></div>
+          <div class="field"><label for="curPw" data-i18n="account.cur_pw">Current passphrase</label><div class="pw-wrap"><input id="curPw" type="password" autocomplete="current-password" class="mono"><button type="button" class="pw-eye" data-eye="curPw" aria-label="Show password"><svg viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>
+          <div class="field"><label for="newPw" data-i18n="account.new_pw">New passphrase</label><div class="pw-wrap"><input id="newPw" type="password" autocomplete="new-password" class="mono"><button type="button" class="pw-eye" data-eye="newPw" aria-label="Show password"><svg viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></button></div><span class="hint" data-i18n="account.pw_hint">At least 12 characters, with a letter and a number.</span></div>
+          <div class="field"><label for="newPw2" data-i18n="account.new_pw2">Repeat new passphrase</label><div class="pw-wrap"><input id="newPw2" type="password" autocomplete="new-password" class="mono"><button type="button" class="pw-eye" data-eye="newPw2" aria-label="Show password"><svg viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>
           <p class="msg" id="pwMsg" role="status"></p>
           <button class="btn btn-primary" type="submit" id="pwBtn" disabled data-i18n="account.pw_btn">Set new passphrase</button>
         </form>
@@ -74,14 +74,15 @@
   <footer class="app-foot"><span data-i18n="footer.tag">Clavoris · Private Investment Enablement Platform</span><span class="loc" data-i18n="footer.loc">Antwerp · Luxembourg · Nordic · CSSF · FSMA · MiCA</span></footer>
 </div>
 
-<script src="config.js?v=20261014c"></script>
-<script src="i18n.js?v=20261014c"></script>
+<script src="config.js?v=20261014e"></script>
+<script src="i18n.js?v=20261014e"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="clavoris-access.js?v=20261014c"></script>
-<script src="shell.js?v=20261014c"></script>
+<script src="clavoris-access.js?v=20261014e"></script>
+<script src="shell.js?v=20261014e"></script>
 <script>
 (function () {
   'use strict';
+  [].forEach.call(document.querySelectorAll('[data-eye]'), function (b) { b.addEventListener('click', function () { var i = document.getElementById(b.getAttribute('data-eye')); i.type = i.type === 'password' ? 'text' : 'password'; }); });
   var A = window.ClavorisAccess, I = window.ClavorisI18n;
   function q(id) { return document.getElementById(id); }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (m) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[m]; }); }
