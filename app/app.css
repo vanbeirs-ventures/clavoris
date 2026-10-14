@@ -152,6 +152,8 @@ textarea { font-family: inherit; font-size: 14px; }
 .nav-burger { display: none; width: 40px; height: 40px; flex-direction: column; justify-content: center; align-items: center; gap: 5px; margin-left: auto; border-radius: var(--r-sm); }
 .nav-burger span { display: block; width: 20px; height: 2px; background: var(--clavis-navy); }
 @media (max-width: 860px) {
+  html, body { overflow-x: hidden; }   /* no sideways page scroll on phones; wide content scrolls inside its own card */
+  .screen-wrap, .card { min-width: 0; max-width: 100%; }
   .nav { flex-wrap: wrap; padding-top: 10px; padding-bottom: 10px; row-gap: 8px; }
   .nav-burger { display: flex; }
   .nav-links { display: none; flex-direction: column; gap: 0; width: 100%; order: 3; border-top: 1px solid var(--border); padding-top: 6px; }
@@ -180,4 +182,17 @@ textarea { font-family: inherit; font-size: 14px; }
 @media (max-width: 480px) {
   .tiles { grid-template-columns: 1fr 1fr; }
   .g3 { grid-template-columns: 1fr; }
+}
+/* Two-column page grids (data room, contract, product) collapse to ONE column that may not grow past the
+   viewport: a plain "1fr" track takes the width of its widest unbreakable content (long file names), which
+   made phones zoom out to a 700 px page. */
+@media (max-width: 900px) {
+  main .room-grid, main .grid { grid-template-columns: minmax(0, 1fr); }
+  main .room-grid > *, main .grid > * { min-width: 0; }
+}
+@media (max-width: 600px) { /* phones: file name on its own line, size/date and download below it */
+  main .tree .row { flex-wrap: wrap; row-gap: 4px; }
+  main .tree .row .nm { flex: 1 1 calc(100% - 30px); white-space: normal; overflow-wrap: anywhere; line-height: 1.35; }
+  main .tree .row .meta { margin-left: 30px; }
+  main .tree .row .dl { margin-left: auto; }
 }
