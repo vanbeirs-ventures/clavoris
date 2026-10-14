@@ -81,18 +81,38 @@
   A.ready(function () {
     if (param('denied')) q('loginError').textContent = I.t('login.err.denied');
     if (param('loop')) q('loginError').textContent = I.t('login.err.unavailable');
+    if (param('kicked')) q('loginError').textContent = I.t('login.err.kicked');
     if (A.isSignedIn() && A.profile() && !param('denied') && !param('loop')) { location.replace(param('next') || A.homeFor()); return; }
 
     function submit() {
       var err = q('loginError'); err.textContent = '';
       var email = q('email').value.trim(), pw = q('pw').value;
       if (!email || !pw) { err.textContent = I.t('login.err.enter'); return; }
-      q('loginBtn').disabled = true;
-      A.signIn(email, pw).then(function (r) {
-        if (r.ok) { location.href = param('next') || A.homeFor(r.profile); return; }
-        q('loginBtn').disabled = false; err.textContent = reason(r.reason);
-      });
+      // One signed-in user per computer: a different user still active in another tab must be signed out
+      // first, and only after confirmation that names them.
+      var other = A.activeUser();
+      if (other && other.email.toLowerCase() !== email.toLowerCase()) { confirmSwitch(other, function () { A.kickOthers(email); go(); }); return; }
+      go();
+      function go() {
+        q('loginBtn').disabled = true;
+        A.signIn(email, pw).then(function (r) {
+          if (r.ok) { location.href = param('next') || A.homeFor(r.profile); return; }
+          q('loginBtn').disabled = false; err.textContent = reason(r.reason);
+        });
+      }
     }
+    function confirmSwitch(other, proceed) {
+      var old = q('switchScrim'); if (old) old.remove();
+      var d = document.createElement('div'); d.className = 'scrim'; d.id = 'switchScrim';
+      d.innerHTML = '<div class="modal" role="dialog" aria-modal="true"><div class="modal-head"><div><div class="e">' + esc(I.t('login.switch.eyebrow')) + '</div><div class="t">' + esc(I.t('login.switch.title')) + '</div></div><button type="button" id="swClose" aria-label="Close">×</button></div>'
+        + '<div class="modal-body"><p style="font-size:14px;line-height:1.6">' + esc(I.t('login.switch.body', { name: other.name, email: other.email })) + '</p>'
+        + '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:18px;flex-wrap:wrap"><button class="btn btn-ghost" type="button" id="swCancel">' + esc(I.t('login.switch.cancel')) + '</button><button class="btn btn-primary" type="button" id="swGo">' + esc(I.t('login.switch.proceed', { name: other.name })) + '</button></div></div></div>';
+      document.body.appendChild(d);
+      function close() { d.remove(); }
+      q('swClose').addEventListener('click', close); q('swCancel').addEventListener('click', close);
+      q('swGo').addEventListener('click', function () { close(); proceed(); });
+    }
+    function esc(x) { return String(x == null ? '' : x).replace(/[&<>"]/g, function (m) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[m]; }); }
     q('loginForm').addEventListener('submit', submit);
     q('loginBtn').addEventListener('click', submit);
 

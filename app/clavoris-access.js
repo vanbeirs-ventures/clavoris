@@ -28,8 +28,11 @@
   var sb = null;
   try {
     if (window.supabase && CFG.url && CFG.anonKey) {
+      // The session lives in sessionStorage: it ends when the browser page is closed, not only on sign-out
+      // (compliance requirement). A legacy session left in localStorage by earlier versions is discarded.
+      try { for (var i = localStorage.length - 1; i >= 0; i--) { var lk = localStorage.key(i); if (/^sb-.*-auth-token/.test(lk)) localStorage.removeItem(lk); } } catch (e) {}
       sb = window.supabase.createClient(CFG.url, CFG.anonKey, {
-        auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
+        auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, storage: window.sessionStorage }
       });
     }
   } catch (e) { sb = null; }
@@ -65,6 +68,7 @@
         return sb.from('clv_profiles').select(PROFILE_SEL).eq('id', session.user.id).maybeSingle().then(function (pr) {
           if (pr && pr.error) { if (!_profile) throw pr.error; return; } // keep the cached profile on a transient error
           _profile = pr && pr.data ? pr.data : null;
+          writePresence();
         });
       }).catch(function (e) {
         _lastErr = (e && e.message) || String(e);
@@ -76,11 +80,42 @@
     _inflight = once().then(function () { _inflight = null; }, function () { _inflight = null; });
     return _inflight;
   }
-  // A session persisted by the auth library on this device (the page may simply not have read it yet).
+  // A session persisted by the auth library in this page's storage (it may simply not have been read yet).
   function hasStoredSession() {
-    try { for (var i = 0; i < localStorage.length; i++) { var k = localStorage.key(i); if (/^sb-.*-auth-token$/.test(k) && localStorage.getItem(k)) return true; } } catch (e) {}
+    try { for (var i = 0; i < sessionStorage.length; i++) { var k = sessionStorage.key(i); if (/^sb-.*-auth-token$/.test(k) && sessionStorage.getItem(k)) return true; } } catch (e) {}
     return false;
   }
+
+  /* ---------------- one signed-in user per computer ----------------
+     Every signed-in page writes a heartbeat (who, when) to localStorage, shared by all tabs of this
+     browser. The sign-in page reads it: if a different user is still active here, it asks for
+     confirmation and then broadcasts a sign-out order (clv_kick) that every open tab obeys. */
+  var ACTIVE_KEY = 'clv_active', KICK_KEY = 'clv_kick', ACTIVE_TTL = 90000;
+  function writePresence() {
+    if (!_user) return;
+    try { localStorage.setItem(ACTIVE_KEY, JSON.stringify({ email: _user.email, name: displayName(), t: Date.now() })); } catch (e) {}
+  }
+  function clearPresence() {
+    try { var a = JSON.parse(localStorage.getItem(ACTIVE_KEY) || 'null'); if (!a || !_user || String(a.email).toLowerCase() === String(_user.email).toLowerCase()) localStorage.removeItem(ACTIVE_KEY); } catch (e) {}
+  }
+  // The user currently active on this computer (any tab), or null if none within the last 90 s.
+  function activeUser() {
+    try { var a = JSON.parse(localStorage.getItem(ACTIVE_KEY) || 'null'); if (a && a.email && Date.now() - (a.t || 0) < ACTIVE_TTL) return { email: a.email, name: a.name || a.email }; } catch (e) {}
+    return null;
+  }
+  // Sign out every other tab on this computer (they redirect to the sign-in page with an explanation).
+  function kickOthers(byEmail) {
+    try { localStorage.setItem(KICK_KEY, JSON.stringify({ by: byEmail || '', t: Date.now() })); localStorage.removeItem(ACTIVE_KEY); } catch (e) {}
+  }
+  function onStorage(ev) {
+    if (ev.key !== KICK_KEY || !ev.newValue || !_user) return;
+    var k = null; try { k = JSON.parse(ev.newValue); } catch (e) {}
+    if (k && k.by && String(k.by).toLowerCase() === String(_user.email).toLowerCase()) return; // same person, another tab
+    var next = encodeURIComponent(location.pathname.split('/').pop() + location.search);
+    signOut().then(function () { location.replace('login.html?next=' + next + '&kicked=1'); });
+  }
+  try { window.addEventListener('storage', onStorage); } catch (e) {}
+  setInterval(writePresence, 30000);
 
   /* ---------------- getters (sync, read the cache) ---------------- */
   function user() { return _user; }
@@ -143,6 +178,7 @@
   }
 
   function signOut() {
+    clearPresence();
     if (!sb) { reset(); return Promise.resolve(); }
     return sb.auth.signOut().then(reset, reset);
   }
@@ -236,7 +272,8 @@
     isSignedIn: isSignedIn, isAdmin: isAdmin, isSuper: isSuper, isVerified: isVerified, isSuspended: isSuspended,
     clears: clears, displayName: displayName, profileComplete: profileComplete, sameName: sameName, initials: initials, homeFor: homeFor,
     signIn: signIn, signOut: signOut, requestPasswordReset: requestPasswordReset, verifyRecovery: verifyRecovery, updatePassword: updatePassword,
-    verifyPassword: verifyPassword, updateProfile: updateProfile, callFn: callFn
+    verifyPassword: verifyPassword, updateProfile: updateProfile, callFn: callFn,
+    activeUser: activeUser, kickOthers: kickOthers
   };
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
