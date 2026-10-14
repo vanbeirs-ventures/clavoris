@@ -147,7 +147,10 @@ export function ctaLabel(lang: Lang | string, key: "activate" | "reset" | "fallb
 const FONT_UI = "Poppins,'Helvetica Neue',Helvetica,Arial,sans-serif";
 const FONT_DISPLAY = "'EB Garamond',Garamond,Georgia,'Times New Roman',serif";
 const FROM_CAPTION: Record<string, string> = { en: "Message from", nl: "Bericht van", fr: "Message de" };
-export function textToHtml(text: string, cta?: Cta, lang: Lang = "en"): string {
+export function textToHtml(text: string, cta?: Cta | Cta[], lang: Lang = "en"): string {
+  // One call to action gets the button plus the copyable address; several (e.g. Accept / Decline) get buttons only.
+  const ctas: Cta[] = !cta ? [] : Array.isArray(cta) ? cta : [cta];
+  const single = ctas.length === 1;
   const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   const link = (href: string, label: string) => `<a href="${esc(href)}" style="color:#1A3A5C;text-decoration:underline">${esc(label)}</a>`;
   // The plain-text lead-in ("Click here to activate your account:") is replaced by the button itself.
@@ -162,13 +165,16 @@ export function textToHtml(text: string, cta?: Cta, lang: Lang = "en"): string {
   const flush = () => { if (para.length) { blocks.push(`<p style="margin:0 0 20px;font-family:${FONT_UI};font-size:15px;line-height:1.7;color:#1F2933">${para.join("<br>")}</p>`); para = []; } };
   src.forEach((line, i) => {
     const t = line.trim();
-    if (cta && src[i + 1] !== undefined && src[i + 1].trim() === cta.url && norm(t) === norm(cta.label)) return;
-    if (cta && t === cta.url) {
+    const nextCta = src[i + 1] !== undefined ? ctas.find((c) => c.url === src[i + 1].trim()) : undefined;
+    if (nextCta && norm(t) === norm(nextCta.label)) return;
+    const c = ctas.find((x) => x.url === t);
+    if (c) {
+      const cta = c;
       flush();
       blocks.push(`<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 14px"><tr><td bgcolor="#1A3A5C" style="background:#1A3A5C;border-radius:4px">`
         + `<a href="${esc(cta.url)}" target="_blank" style="display:inline-block;padding:15px 30px;font-family:${FONT_UI};font-size:15px;font-weight:600;letter-spacing:.02em;color:#F7F3EC;text-decoration:none;border-radius:4px"><span style="color:#F7F3EC">${esc(cta.label)}</span></a>`
         + `</td></tr></table>`
-        + `<p style="margin:0 0 26px;font-family:${FONT_UI};font-size:12px;line-height:1.6;color:#6E83A0">${esc(ctaLabel(lang, "fallback"))}<br><a href="${esc(cta.url)}" style="color:#6E83A0;word-break:break-all">${esc(cta.url)}</a></p>`);
+        + (!single ? "" : `<p style="margin:0 0 26px;font-family:${FONT_UI};font-size:12px;line-height:1.6;color:#6E83A0">${esc(ctaLabel(lang, "fallback"))}<br><a href="${esc(cta.url)}" style="color:#6E83A0;word-break:break-all">${esc(cta.url)}</a></p>`));
       return;
     }
     if (!t) { flush(); return; }
@@ -196,7 +202,7 @@ export function textToHtml(text: string, cta?: Cta, lang: Lang = "en"): string {
     + `</td></tr></table></td></tr></table></body></html>`;
 }
 
-export async function sendMail(to: string, subject: string, text: string, lang: Lang | string = "en", cta?: Cta): Promise<boolean> {
+export async function sendMail(to: string, subject: string, text: string, lang: Lang | string = "en", cta?: Cta | Cta[]): Promise<boolean> {
   const host = Deno.env.get("CLAVORIS_SMTP_HOST"); if (!host || !to) return false;
   const port = Number(Deno.env.get("CLAVORIS_SMTP_PORT") || 465);
   const user = Deno.env.get("CLAVORIS_SMTP_USER") || MAIL_FROM;
@@ -207,7 +213,7 @@ export async function sendMail(to: string, subject: string, text: string, lang: 
     // encoded byte straddles a line break (e.g. the "." of "clavoris.com" vanished in a footer link).
     const L = pickLang(lang);
     // The invitation's lead-in "Start here:" reads as "Click here to activate your account:" above the link.
-    if (cta) text = text.replace(/\n(Start here:|Begin hier:|Commencez ici :)\n/, "\n" + cta.label + (L === "fr" ? " :" : ":") + "\n");
+    if (cta && !Array.isArray(cta)) text = text.replace(/\n(Start here:|Begin hier:|Commencez ici :)\n/, "\n" + cta.label + (L === "fr" ? " :" : ":") + "\n");
     const body = text + "\n\n" + mailFooter(L);
     await client.send({ from: `Clavoris <${MAIL_FROM}>`, to, replyTo: MAIL_REPLY_TO, subject: encodeSubject(subject), mimeContent: [
       { mimeType: 'text/plain; charset="utf-8"', content: base64Lines(body), transferEncoding: "base64" },
