@@ -25,13 +25,40 @@
       + '<div class="nav-links" id="navLinks">' + links.map(function (l) { return '<a class="nav-lk' + (l.id === active ? ' active' : '') + '" href="' + l.href + '">' + esc(l.label) + '</a>'; }).join('') + '</div>'
       + '<div class="nav-right">' + chip + '<a class="nav-av' + (active === 'account' ? ' active' : '') + '" href="account.html" title="' + esc(A.displayName()) + ' — ' + esc(t('nav.account')) + '">' + esc(A.initials()) + '</a>'
       + '<button class="btn-text" id="signOut" type="button">' + esc(t('nav.signout')) + '</button></div>';
+    try { sessionStorage.setItem('clv_nav', JSON.stringify({ role: p && p.role, status: status, name: A.displayName(), initials: A.initials(), lang: I && I.lang })); } catch (e) {}
+    // The current page's own item does not reload the page.
+    [].forEach.call(nav.querySelectorAll('.nav-lk.active'), function (a) { a.addEventListener('click', function (ev) { ev.preventDefault(); }); });
     var so = document.getElementById('signOut');
-    if (so) so.addEventListener('click', function () { A.signOut().then(function () { location.href = 'login.html'; }); });
+    if (so) so.addEventListener('click', function () { try { sessionStorage.removeItem('clv_nav'); } catch (e) {} A.signOut().then(function () { location.href = 'login.html'; }); });
     var bg = document.getElementById('navBurger');
     if (bg) bg.addEventListener('click', function () { var open = nav.classList.toggle('open'); bg.setAttribute('aria-expanded', open ? 'true' : 'false'); });
     if (I) I.apply(document);
     unsubscribePrompt();
   }
+  // Instant top band from the last known session (cached per tab), replaced by the real one as soon as
+  // the session is resolved — avoids the empty band / flicker on every page change.
+  function prerender() {
+    var nav = document.getElementById('nav'), I = window.ClavorisI18n; if (!nav || nav.children.length) return;
+    var c = null; try { c = JSON.parse(sessionStorage.getItem('clv_nav') || 'null'); } catch (e) {}
+    if (!c || !c.role) return;
+    if (I && c.lang && c.lang !== I.lang) I.set(c.lang);
+    var t = I ? I.t : function (k) { return k; };
+    var page = location.pathname.split('/').pop();
+    var active = { 'portal.html': 'rooms', 'room.html': 'rooms', 'marketplace.html': 'market', 'product.html': 'market', 'portfolio.html': 'portfolio', 'contracts.html': 'contracts', 'contract.html': 'contracts', 'admin.html': 'admin', 'account.html': 'account', 'kyc.html': 'account' }[page] || '';
+    var links = [
+      { id: 'rooms', label: t('nav.rooms'), href: 'portal.html' },
+      { id: 'market', label: t('nav.market'), href: 'marketplace.html' },
+      { id: 'portfolio', label: t('nav.portfolio'), href: 'portfolio.html' },
+      { id: 'contracts', label: t('nav.contracts'), href: 'contracts.html' }
+    ];
+    if (c.role === 'admin' || c.role === 'super') links.push({ id: 'admin', label: t('nav.admin'), href: 'admin.html' });
+    var st = c.status || 'registered';
+    var chip = st === 'verified' ? '<span class="chip verified"><span class="dot"></span>' + esc(t('nav.kyc_verified')) + '</span>' : '<a class="chip ' + esc(st) + '" href="kyc.html"><span class="dot"></span>' + esc(t('status.' + st)) + '</a>';
+    nav.innerHTML = '<a class="nav-brand" href="portal.html"><img src="../assets/clavoris-mark.png" alt=""><span class="nav-wm">Clavori<span class="g">s</span></span></a>'
+      + '<div class="nav-links">' + links.map(function (l) { return '<a class="nav-lk' + (l.id === active ? ' active' : '') + '" href="' + l.href + '">' + esc(l.label) + '</a>'; }).join('') + '</div>'
+      + '<div class="nav-right">' + chip + '<a class="nav-av' + (active === 'account' ? ' active' : '') + '" href="account.html">' + esc(c.initials || 'C') + '</a><button class="btn-text" type="button" disabled>' + esc(t('nav.signout')) + '</button></div>';
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', prerender); else prerender();
   // After following the "unsubscribe / manage notifications" link in a mail: offer the settings once signed in.
   var UNSUB = {
     en: { t: 'E-mail notifications', b: 'You followed the unsubscribe link in a Clavoris e-mail. Choose which automated messages you receive under Account › E-mail notifications. Messages about your own actions (invitations, signatures, settlements) are always sent.', o: 'Open notification settings', l: 'Later' },

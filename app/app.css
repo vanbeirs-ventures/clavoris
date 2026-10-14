@@ -154,15 +154,13 @@ textarea { font-family: inherit; font-size: 14px; }
 @media (max-width: 860px) {
   html, body { overflow-x: hidden; }   /* no sideways page scroll on phones; wide content scrolls inside its own card */
   .screen-wrap, .card { min-width: 0; max-width: 100%; }
-  .nav { flex-wrap: wrap; padding-top: 10px; padding-bottom: 10px; row-gap: 8px; }
-  .nav-burger { display: flex; }
-  .nav-links { display: none; flex-direction: column; gap: 0; width: 100%; order: 3; border-top: 1px solid var(--border); padding-top: 6px; }
-  .nav.open .nav-links { display: flex; }
-  .nav-lk { padding: 12px 0; font-size: 15px; }
-  .nav-lk.active::after { display: none; }
-  .nav-lk.active { color: var(--seal-gold); }
-  .nav-right { width: 100%; order: 4; justify-content: space-between; display: none; }
-  .nav.open .nav-right { display: flex; }
+  /* Phones: the full menu stays visible as a scrollable row under the brand line; no collapsed menu. */
+  .nav { flex-wrap: wrap; padding-top: 8px; padding-bottom: 0; row-gap: 0; }
+  .nav-burger { display: none; }
+  .nav-right { order: 2; margin-left: auto; gap: 10px; }
+  .nav-links { display: flex; order: 3; width: 100%; gap: 22px; overflow-x: auto; white-space: nowrap; -webkit-overflow-scrolling: touch; scrollbar-width: none; margin-top: 6px; border-top: 1px solid var(--border); }
+  .nav-links::-webkit-scrollbar { display: none; }
+  .nav-lk { padding: 12px 0; font-size: 14.5px; flex: none; }
   .page-title { font-size: 26px; }
   .app-foot { flex-direction: column; gap: 6px; padding: 16px; text-align: center; }
   .btn { min-height: 44px; }
