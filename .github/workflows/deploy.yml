@@ -39,14 +39,30 @@ jobs:
       - name: Edge rule — browsers must revalidate HTML pages
         # The pull zone sends Cache-Control max-age=30d on everything; fine for app.css/js (versioned
         # ?v= tags) but HTML pages would then survive a deploy for a month in the visitor's browser.
-        # Fixed Guid => addOrUpdate is idempotent. ActionType 16 = OverrideBrowserCacheTime (0 s).
+        # Looked up by description so re-runs update the same rule. ActionType 16 = OverrideBrowserCacheTime (0 s).
         env:
           BUNNY_API_KEY: ${{ secrets.BUNNY_API_KEY }}
         run: |
-          BODY='{"Guid":"7c1e6b6e-5e1a-4c0f-9d2a-0c1a7015c001","ActionType":16,"ActionParameter1":"0","ActionParameter2":"","Enabled":true,"Description":"HTML: no browser cache (deploys visible immediately)","TriggerMatchingType":0,"Triggers":[{"Type":0,"PatternMatchingType":0,"PatternMatches":["*.html","*/","https://www.clavoris.com","https://www.clavoris.com/app","https://clavoris.com"],"Parameter1":""}]}'
-          OUT=$(curl -sS -o /tmp/er.json -w '%{http_code}' -X POST -H "AccessKey: $BUNNY_API_KEY" -H "content-type: application/json" "https://api.bunny.net/pullzone/$PULLZONE_ID/edgerules/addOrUpdate" -d "$BODY" || true)
-          echo "Edge rule: HTTP $OUT $(tr -d '\n' < /tmp/er.json | cut -c1-600)"
-          if [ "$OUT" != "201" ] && [ "$OUT" != "200" ] && [ "$OUT" != "204" ]; then echo "::warning::edge rule not applied: HTTP $OUT $(tr -d '\n' < /tmp/er.json | cut -c1-600)"; fi
+          python3 - <<'PY'
+          import json, os, urllib.request
+          key, zone = os.environ["BUNNY_API_KEY"], os.environ["PULLZONE_ID"]
+          desc = "HTML: no browser cache (deploys visible immediately)"
+          def call(method, path, body=None):
+              req = urllib.request.Request("https://api.bunny.net" + path, method=method, data=json.dumps(body).encode() if body is not None else None,
+                                           headers={"AccessKey": key, "content-type": "application/json", "accept": "application/json"})
+              try:
+                  with urllib.request.urlopen(req) as r: return r.status, r.read().decode()
+              except urllib.error.HTTPError as e: return e.code, e.read().decode()
+          st, txt = call("GET", f"/pullzone/{zone}")
+          rules = json.loads(txt).get("EdgeRules", []) if st == 200 else []
+          guid = next((r.get("Guid") for r in rules if r.get("Description") == desc), None)
+          rule = {"ActionType": 16, "ActionParameter1": "0", "ActionParameter2": "", "Enabled": True, "Description": desc, "TriggerMatchingType": 0,
+                  "Triggers": [{"Type": 0, "PatternMatchingType": 0, "PatternMatches": ["*.html", "*/", "https://www.clavoris.com", "https://www.clavoris.com/app", "https://clavoris.com"], "Parameter1": ""}]}
+          if guid: rule["Guid"] = guid
+          st, txt = call("POST", f"/pullzone/{zone}/edgerules/addOrUpdate", rule)
+          print("Edge rule:", "updated" if guid else "created", st, txt[:300])
+          if st not in (200, 201, 204): print(f"::warning::edge rule not applied: HTTP {st} {txt[:400]}")
+          PY
 
       - name: Purge CDN cache
         env:
