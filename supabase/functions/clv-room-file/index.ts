@@ -10,7 +10,7 @@
 // Deploy: supabase functions deploy clv-room-file --no-verify-jwt
 import { PDFDocument, StandardFonts, rgb } from "https://esm.sh/pdf-lib@1.17.1";
 import { adminClient, APP_URL, clientIp, cors, isStaff, json, requireUser, sendMail } from "../_shared/clv.ts";
-import { mail, pickLang } from "../_shared/mail-i18n.ts";
+import { mail, pickLang } from "../_shared/room-mail.ts";
 import { ncConfigured, ncGet, sha256Hex } from "../_shared/nc.ts";
 
 function genCode(): string {
@@ -43,7 +43,7 @@ Deno.serve(async (req) => {
   if (!roomId) return json({ error: "room-required" }, 400);
   if (!(await ncConfigured())) return json({ error: "storage-not-configured" }, 503);
 
-  const { data: room } = await admin.from("clv_rooms").select("id, name, nextcloud_folder, qes_nda_required, downloads_allowed, watermark").eq("id", roomId).maybeSingle();
+  const { data: room } = await admin.from("clv_rooms").select("id, name, nextcloud_folder, qes_nda_required, downloads_allowed, watermark, company:clv_companies(name)").eq("id", roomId).maybeSingle();
   if (!room || !room.nextcloud_folder) return json({ error: "not-found" }, 404);
 
   let canDownload = true;
@@ -101,7 +101,7 @@ Deno.serve(async (req) => {
 
     if ((count || 0) === 0) {
       const L = pickLang(me.lang);
-      const m = mail(L, "first_download", { name: me.full_name, room: room.name, file: fileName, code, audit: `${APP_URL}/account.html#audit` });
+      const m = mail(L, "first_download", { name: me.full_name, room: room.name, owner: (room as any).company?.name || "", file: fileName, code, audit: `${APP_URL}/account.html#audit` });
       sendMail(me.email, m.subject, m.text, L).catch((e) => console.error("clv-room-file: first-download mail failed", e));
     }
   }

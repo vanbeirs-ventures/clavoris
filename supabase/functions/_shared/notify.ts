@@ -3,7 +3,7 @@
 // preferences live in clv_profiles.notify (jsonb) and a missing key means ON.
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { APP_URL, fmtDay, sendMail } from "./clv.ts";
-import { mail, pickLang, word } from "./mail-i18n.ts";
+import { mail, pickLang, word } from "./room-mail.ts";
 import { ncConfigured, ncTree } from "./nc.ts";
 
 export type NotifyKey = "room_new" | "room_updated" | "contract_new" | "market_new" | "portfolio_events";
@@ -26,7 +26,7 @@ type Snap = { path: string; etag: string | null; size: number | null; modified: 
 export async function scanRooms(admin: SupabaseClient): Promise<{ rooms: number; mails: number; new_files: number; updated_files: number }> {
   const out = { rooms: 0, mails: 0, new_files: 0, updated_files: 0 };
   if (!(await ncConfigured())) return out;
-  const { data: rooms } = await admin.from("clv_rooms").select("id, name, nextcloud_folder, status").not("nextcloud_folder", "is", null).neq("status", "closed");
+  const { data: rooms } = await admin.from("clv_rooms").select("id, name, nextcloud_folder, status, company:clv_companies(name)").not("nextcloud_folder", "is", null).neq("status", "closed");
   for (const room of rooms || []) {
     out.rooms++;
     let tree: Awaited<ReturnType<typeof ncTree>>;
@@ -57,7 +57,7 @@ export async function scanRooms(admin: SupabaseClient): Promise<{ rooms: number;
       const L = pickLang(p.lang);
       const list = (n.length ? "\n" + word(L, "files_new_h") + "\n" + n.map((x) => "  • " + x).join("\n") + "\n" : "") + (u.length ? "\n" + word(L, "files_updated_h") + "\n" + u.map((x) => "  • " + x).join("\n") + "\n" : "");
       const what = [n.length ? `${n.length} ${word(L, "files_new")}` : "", u.length ? `${u.length} ${word(L, "files_updated")}` : ""].filter(Boolean).join(", ");
-      const m = mail(L, "room_files", { name: p.full_name, room: room.name, what, list, link: `${APP_URL}/room.html?id=${room.id}` });
+      const m = mail(L, "room_files", { name: p.full_name, room: room.name, owner: (room as any).company?.name || "", what, list, link: `${APP_URL}/room.html?id=${room.id}` });
       if (await sendMail(p.email, m.subject, m.text, L).catch(() => false)) out.mails++;
     }
   }
@@ -112,12 +112,12 @@ export async function notifyHolders(admin: SupabaseClient, product: { id: string
 export async function expiryReminders(admin: SupabaseClient): Promise<{ d7: number; h24: number }> {
   const out = { d7: 0, h24: 0 };
   const now = Date.now();
-  const { data: rows } = await admin.from("clv_room_assignments").select("id, user_id, expires_at, reminded_7d_at, reminded_24h_at, room:clv_rooms(id, name), profile:clv_profiles!clv_room_assignments_user_id_fkey(email, full_name, lang, status)").is("revoked_at", null).not("expires_at", "is", null).gt("expires_at", new Date(now).toISOString()).lte("expires_at", new Date(now + 7 * 86400000).toISOString());
+  const { data: rows } = await admin.from("clv_room_assignments").select("id, user_id, expires_at, reminded_7d_at, reminded_24h_at, room:clv_rooms(id, name, company:clv_companies(name)), profile:clv_profiles!clv_room_assignments_user_id_fkey(email, full_name, lang, status)").is("revoked_at", null).not("expires_at", "is", null).gt("expires_at", new Date(now).toISOString()).lte("expires_at", new Date(now + 7 * 86400000).toISOString());
   for (const a of (rows || []) as any[]) {
     const p = a.profile, room = a.room; if (!p || !room || p.status === "suspended" || p.status === "rejected") continue;
     const left = new Date(a.expires_at).getTime() - now;
     const L = pickLang(p.lang);
-    const vars = { name: p.full_name, room: room.name, date: fmtDay(a.expires_at, L), link: `${APP_URL}/room.html?id=${room.id}` };
+    const vars = { name: p.full_name, room: room.name, owner: room.company?.name || "", date: fmtDay(a.expires_at, L), link: `${APP_URL}/room.html?id=${room.id}` };
     if (left <= 24 * 3600000 && !a.reminded_24h_at) {
       const m = mail(L, "access_24h", vars);
       if (await sendMail(p.email, m.subject, m.text, L).catch(() => false)) { out.h24++; await admin.from("clv_room_assignments").update({ reminded_24h_at: new Date().toISOString(), reminded_7d_at: a.reminded_7d_at || new Date().toISOString() }).eq("id", a.id); }
