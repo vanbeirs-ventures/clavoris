@@ -120,10 +120,11 @@
       return Promise.all([
         sb.from('clv_rooms').select('id, name, company_id').eq('id', rq.room_id).maybeSingle(),
         sb.from('clv_profiles').select('full_name, email, company').eq('id', rq.user_id).maybeSingle(),
-        sb.from('clv_room_assignments').select('expires_at').eq('room_id', rq.room_id).eq('user_id', rq.user_id).maybeSingle()
+        sb.from('clv_room_assignments').select('expires_at').eq('room_id', rq.room_id).eq('user_id', rq.user_id).maybeSingle(),
+        sb.from('clv_profiles').select('company_id').eq('id', p.id).maybeSingle()
       ]).then(function (res) {
-        var room = res[0].data, who = res[1].data || {}, asg = res[2].data || {};
-        if (!room || (p.role !== 'super' && room.company_id !== p.company_id)) return notFound();
+        var room = res[0].data, who = res[1].data || {}, asg = res[2].data || {}, mine = (res[3].data || {}).company_id;
+        if (!room || (p.role !== 'super' && room.company_id !== mine)) return notFound();
         q('loading').style.display = 'none'; q('reqBody').style.display = 'block';
         q('facts').innerHTML = [[t.member, who.full_name || t.none], [t.email, who.email], [t.org, who.company || t.none], [t.room, room.name], [t.current, fmt(asg.expires_at)], [t.requested, fmt(rq.requested_until)], [t.sent, fmt(rq.created_at)]]
           .map(function (x) { return '<dt>' + esc(x[0]) + '</dt><dd>' + esc(x[1]) + '</dd>'; }).join('');
