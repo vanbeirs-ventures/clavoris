@@ -1,6 +1,12 @@
 /* Clavoris interface strings — profile capacity (private person / organisation, role, legal representative)
    and the NDA signing step (en/nl/fr). Loaded by app/i18n.js after the base dictionaries; overrides a few base keys. */
 window.ClavorisI18n.add('en', {
+    'login.err.idle': 'You were signed out after 10 minutes of inactivity.',
+    'idle.title': 'Still there?', 'idle.body': 'For your security you will be signed out in {s} seconds because of inactivity. Choose "Stay signed in" to continue for another 10 minutes.', 'idle.stay': 'Stay signed in', 'idle.out': 'Sign out now',
+    'login.err.kicked': 'You were signed out because another user signed in on this computer.',
+    'login.switch.eyebrow': 'One user per computer', 'login.switch.title': 'Another user is signed in here',
+    'login.switch.body': '{name} ({email}) is currently signed in to Clavoris on this computer. Clavoris allows one signed-in user per computer: if you proceed, {name} will be signed out in every open tab before you are signed in.',
+    'login.switch.cancel': 'Cancel', 'login.switch.proceed': 'Sign out {name} and continue',
     'room.nda.typed': 'To sign, type your name exactly as shown:',
     'room.nda.name_mismatch': 'Type your name as in your profile ({name}).',
     'account.company': 'Organisation',
@@ -40,6 +46,12 @@ window.ClavorisI18n.add('en', {
     'room.nda.match_no': 'Does not match yet — type the name exactly as shown (capitals and accents do not matter).',
 });
 window.ClavorisI18n.add('nl', {
+    'login.err.idle': 'U werd afgemeld na 10 minuten inactiviteit.',
+    'idle.title': 'Bent u er nog?', 'idle.body': 'Voor uw veiligheid wordt u over {s} seconden afgemeld wegens inactiviteit. Kies "Aangemeld blijven" om nog 10 minuten door te gaan.', 'idle.stay': 'Aangemeld blijven', 'idle.out': 'Nu afmelden',
+    'login.err.kicked': 'U werd afgemeld omdat een andere gebruiker zich op deze computer heeft aangemeld.',
+    'login.switch.eyebrow': 'Eén gebruiker per computer', 'login.switch.title': 'Er is hier al een andere gebruiker aangemeld',
+    'login.switch.body': '{name} ({email}) is momenteel aangemeld bij Clavoris op deze computer. Clavoris laat één aangemelde gebruiker per computer toe: als u doorgaat, wordt {name} in elk open tabblad afgemeld voordat u wordt aangemeld.',
+    'login.switch.cancel': 'Annuleren', 'login.switch.proceed': '{name} afmelden en doorgaan',
     'account.company': 'Organisatie',
     'account.job_title': 'Uw functie binnen de organisatie',
     'common.yes': 'Ja',
@@ -79,6 +91,12 @@ window.ClavorisI18n.add('nl', {
     'room.nda.name_mismatch': 'Typ uw naam zoals in uw profiel ({name}).',
 });
 window.ClavorisI18n.add('fr', {
+    'login.err.idle': 'Vous avez été déconnecté après 10 minutes d\'inactivité.',
+    'idle.title': 'Toujours là ?', 'idle.body': 'Pour votre sécurité, vous serez déconnecté dans {s} secondes pour cause d\'inactivité. Choisissez « Rester connecté » pour continuer encore 10 minutes.', 'idle.stay': 'Rester connecté', 'idle.out': 'Me déconnecter',
+    'login.err.kicked': 'Vous avez été déconnecté parce qu\'un autre utilisateur s\'est connecté sur cet ordinateur.',
+    'login.switch.eyebrow': 'Un utilisateur par ordinateur', 'login.switch.title': 'Un autre utilisateur est connecté ici',
+    'login.switch.body': '{name} ({email}) est actuellement connecté à Clavoris sur cet ordinateur. Clavoris n\'autorise qu\'un utilisateur connecté par ordinateur : si vous continuez, {name} sera déconnecté dans tous les onglets ouverts avant votre connexion.',
+    'login.switch.cancel': 'Annuler', 'login.switch.proceed': 'Déconnecter {name} et continuer',
     'account.company': 'Organisation',
     'account.job_title': 'Votre fonction dans l\'organisation',
     'common.yes': 'Oui',

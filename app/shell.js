@@ -33,7 +33,7 @@
     var bg = document.getElementById('navBurger');
     if (bg) bg.addEventListener('click', function () { var open = nav.classList.toggle('open'); bg.setAttribute('aria-expanded', open ? 'true' : 'false'); });
     if (I) I.apply(document);
-    unsubscribePrompt();
+    unsubscribePrompt(); idleGuard();
   }
   // Instant top band from the last known session (cached per tab), replaced by the real one as soon as
   // the session is resolved — avoids the empty band / flicker on every page change.
@@ -77,6 +77,40 @@
     document.body.appendChild(el);
     function close() { el.remove(); }
     el.querySelector('#unsubClose').addEventListener('click', close); el.querySelector('#unsubLater').addEventListener('click', close);
+  }
+  /* ---- inactivity sign-out (compliance): 10 min without activity -> 60 s countdown dialog -> sign out ---- */
+  var IDLE_MS = 10 * 60 * 1000, WARN_MS = 60 * 1000, _lastAct = Date.now(), _warnEl = null, _idleOn = false;
+  function idleGuard() {
+    if (_idleOn) return; _idleOn = true;
+    var mark = function () { if (!_warnEl) _lastAct = Date.now(); };
+    ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart', 'pointerdown'].forEach(function (ev) { window.addEventListener(ev, mark, { passive: true }); });
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) tick(); });
+    setInterval(tick, 1000);
+  }
+  function tick() {
+    var A = window.ClavorisAccess, I = window.ClavorisI18n;
+    if (!A || !A.isSignedIn()) return;
+    var idle = Date.now() - _lastAct, left = Math.ceil((IDLE_MS - idle) / 1000);
+    if (idle < IDLE_MS - WARN_MS) { if (_warnEl) { _warnEl.remove(); _warnEl = null; } return; }
+    if (left <= 0) { idleSignOut(); return; }
+    if (!_warnEl) {
+      _warnEl = document.createElement('div'); _warnEl.className = 'scrim'; _warnEl.id = 'idleScrim';
+      _warnEl.innerHTML = '<div class="modal" role="alertdialog" aria-labelledby="idleTitle"><div class="modal-head"><div><div class="e">Clavoris</div><div class="t" id="idleTitle">' + esc(I.t('idle.title')) + '</div></div></div>'
+        + '<div class="modal-body"><p style="font-size:14px;line-height:1.6" id="idleBody"></p><p class="mono" style="font-size:34px;color:var(--clavis-navy);margin-top:12px;text-align:center" id="idleCount"></p>'
+        + '<div style="display:flex;gap:10px;margin-top:18px"><button class="btn btn-ghost" type="button" id="idleOut" style="flex:1">' + esc(I.t('idle.out')) + '</button><button class="btn btn-primary" type="button" id="idleStay" style="flex:1.4">' + esc(I.t('idle.stay')) + '</button></div></div></div>';
+      document.body.appendChild(_warnEl);
+      _warnEl.querySelector('#idleStay').addEventListener('click', function () { _lastAct = Date.now(); _warnEl.remove(); _warnEl = null; });
+      _warnEl.querySelector('#idleOut').addEventListener('click', idleSignOut);
+      try { _warnEl.querySelector('#idleStay').focus(); } catch (e) {}
+    }
+    _warnEl.querySelector('#idleBody').textContent = I.t('idle.body', { s: left });
+    _warnEl.querySelector('#idleCount').textContent = left;
+  }
+  function idleSignOut() {
+    var A = window.ClavorisAccess, next = encodeURIComponent(location.pathname.split('/').pop() + location.search);
+    if (_warnEl) { _warnEl.remove(); _warnEl = null; }
+    _lastAct = Date.now() + 86400000; // no second dialog while signing out
+    A.signOut().then(function () { location.replace('login.html?next=' + next + '&idle=1'); });
   }
   function fmtMoney(n, ccy) { try { return new Intl.NumberFormat((window.ClavorisI18n && window.ClavorisI18n.lang) === 'en' ? 'en-GB' : (window.ClavorisI18n ? window.ClavorisI18n.lang + '-BE' : 'en-GB'), { style: 'currency', currency: ccy || 'EUR', maximumFractionDigits: 2 }).format(Number(n || 0)); } catch (e) { return (ccy || 'EUR') + ' ' + Number(n || 0).toFixed(2); } }
   function fmtDate(ts) { if (!ts) return '—'; try { var l = window.ClavorisI18n ? window.ClavorisI18n.lang : 'en'; return new Date(ts).toLocaleDateString(l === 'en' ? 'en-GB' : l + '-BE', { year: 'numeric', month: 'short', day: 'numeric' }); } catch (e) { return String(ts).slice(0, 10); } }
