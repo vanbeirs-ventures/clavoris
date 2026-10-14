@@ -34,7 +34,10 @@
       // user is not bounced between a page that sees it and one that does not.
       try { for (var i = localStorage.length - 1; i >= 0; i--) { var lk = localStorage.key(i); if (/^sb-.*-auth-token/.test(lk)) { if (!sessionStorage.getItem(lk)) sessionStorage.setItem(lk, localStorage.getItem(lk)); localStorage.removeItem(lk); } } } catch (e) {}
       sb = window.supabase.createClient(CFG.url, CFG.anonKey, {
-        auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, storage: window.sessionStorage }
+        auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, storage: window.sessionStorage,
+          // Sessions are per tab (sessionStorage), so no cross-tab lock is needed; the default browser-wide
+          // auth lock let one tab block every other tab's session reads and saves.
+          lock: function (name, acquireTimeout, fn) { return fn(); } }
       });
     }
   } catch (e) { sb = null; }
@@ -147,7 +150,7 @@
   }
   // Typed-name comparison for signatures: case, accents and extra spaces do not count.
   function sameName(a, b) {
-    function n(s) { return String(s || '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/\s+/g, ' ').trim(); }
+    function n(s) { return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim(); }
     return n(a) !== '' && n(a) === n(b);
   }
   function initials() {
@@ -213,10 +216,15 @@
   function updateProfile(fields) {
     if (!sb || !_user) return Promise.resolve({ ok: false });
     var allowed = {}; ['full_name', 'company', 'job_title', 'legal_rep', 'mobile', 'lang', 'notify'].forEach(function (k) { if (k in fields) allowed[k] = fields[k]; });
-    return sb.from('clv_profiles').update(allowed).eq('id', _user.id).then(function (res) {
+    // The saved row comes back with the update, so the cache is refreshed without another session read;
+    // a hard 15 s limit guarantees the caller always gets an answer (the button never stays disabled).
+    var save = sb.from('clv_profiles').update(allowed).eq('id', _user.id).select(PROFILE_SEL).maybeSingle().then(function (res) {
       if (res.error) return { ok: false, error: res.error.message };
-      return refreshSession().then(function () { return { ok: true }; });
-    });
+      if (res.data) _profile = res.data;
+      return { ok: true };
+    }, function (e) { return { ok: false, error: (e && e.message) || 'save-failed' }; });
+    var limit = new Promise(function (r) { setTimeout(function () { r({ ok: false, error: 'timeout' }); }, 15000); });
+    return Promise.race([save, limit]);
   }
   // Call an edge function with the caller's JWT.
   function callFn(name, body) {

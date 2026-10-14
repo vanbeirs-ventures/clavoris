@@ -32,18 +32,19 @@
       <section class="card" style="padding:22px">
         <h2 style="font-family:var(--font-display);font-size:20px;color:var(--clavis-navy)" data-i18n="account.profile">Profile</h2>
         <form id="profileForm" autocomplete="off" onsubmit="return false;">
-          <div class="field"><label for="full_name" data-i18n="account.full_name">Full name</label><input id="full_name" type="text" autocomplete="name" required><span class="hint" data-i18n="account.full_name_hint">As on your identity document. This is the name that signs the NDA.</span></div>
-          <div class="field"><label data-i18n="account.kind">I register as</label>
+          <p class="req-legend"><b>*</b> <span data-i18n="account.req_legend">mandatory field</span></p>
+          <div class="field"><label class="req" for="full_name" data-i18n="account.full_name">Full name</label><input id="full_name" type="text" autocomplete="name" required><span class="hint" data-i18n="account.full_name_hint">As on your identity document. This is the name that signs the NDA.</span></div>
+          <div class="field"><label class="req" data-i18n="account.kind">I register as</label>
             <div class="seg" role="radiogroup"><label class="seg-opt"><input type="radio" name="kind" value="private" id="kindPrivate"><span data-i18n="account.kind.private">A private person</span></label><label class="seg-opt"><input type="radio" name="kind" value="org" id="kindOrg"><span data-i18n="account.kind.org">On behalf of an organisation</span></label></div></div>
           <div id="orgBlock" hidden>
-            <div class="field"><label for="company" data-i18n="account.company">Organisation</label><input id="company" type="text" autocomplete="organization"></div>
-            <div class="field"><label for="job_title" data-i18n="account.job_title">Your role in the organisation</label><input id="job_title" type="text" autocomplete="organization-title"><span class="hint" data-i18n="account.job_title_hint">Free text, e.g. Managing Director, CFO, Investment Manager, Legal Counsel.</span></div>
-            <div class="field"><label data-i18n="account.legal_rep">Are you a legal representative authorised to sign on behalf of this organisation?</label>
+            <div class="field"><label class="req" for="company" data-i18n="account.company">Organisation</label><input id="company" type="text" autocomplete="organization"></div>
+            <div class="field"><label class="req" for="job_title" data-i18n="account.job_title">Your role in the organisation</label><input id="job_title" type="text" autocomplete="organization-title"><span class="hint" data-i18n="account.job_title_hint">Free text, e.g. Managing Director, CFO, Investment Manager, Legal Counsel.</span></div>
+            <div class="field"><label class="req" data-i18n="account.legal_rep">Are you a legal representative authorised to sign on behalf of this organisation?</label>
               <div class="seg" role="radiogroup"><label class="seg-opt"><input type="radio" name="legal_rep" value="yes" id="repYes"><span data-i18n="common.yes">Yes</span></label><label class="seg-opt"><input type="radio" name="legal_rep" value="no" id="repNo"><span data-i18n="common.no">No</span></label></div>
               <span class="hint" data-i18n="account.legal_rep_hint">Yes: you bind the organisation when you sign (e.g. director, managing partner, authorised proxy). No: you sign documents in your personal capacity only.</span></div>
           </div>
           <div class="field"><label for="mobile" data-i18n="account.mobile">Mobile</label><input id="mobile" type="tel" autocomplete="tel" class="mono"></div>
-          <div class="field"><label for="lang" data-i18n="account.lang">Language</label>
+          <div class="field"><label class="req" for="lang" data-i18n="account.lang">Language</label>
             <select id="lang"><option value="en">English</option><option value="nl">Nederlands</option><option value="fr">Français</option></select></div>
           <p class="msg" id="profileMsg" role="status"></p>
           <button class="btn btn-primary" type="submit" id="profileBtn" data-i18n="account.save">Save profile</button>
@@ -148,7 +149,7 @@
       if (err) { m.className = 'msg err'; m.textContent = I.t(err); return; }
       q('profileBtn').disabled = true;
       A.updateProfile(fields)
-        .then(function (r) { q('profileBtn').disabled = false; m.className = r.ok ? 'msg ok' : 'msg err'; m.textContent = r.ok ? I.t('account.saved') : (r.error || I.t('account.save_failed')); if (r.ok) { q('name').textContent = A.displayName(); welcomeGate(); if (q('lang').value !== I.lang) { location.reload(); return; } if (nextUrl && A.profileComplete()) setTimeout(function () { location.href = nextUrl; }, 700); } });
+        .then(function (r) { q('profileBtn').disabled = false; m.className = r.ok ? 'msg ok' : 'msg err'; m.textContent = r.ok ? I.t('account.saved') : r.error === 'timeout' ? I.t('account.err.timeout') : (r.error || I.t('account.save_failed')); if (r.ok) { q('name').textContent = A.displayName(); welcomeGate(); if (q('lang').value !== I.lang) { location.reload(); return; } if (nextUrl && A.profileComplete()) setTimeout(function () { location.href = nextUrl; }, 700); } });
     });
 
     var NKEYS = ['room_new', 'room_updated', 'contract_new', 'market_new', 'portfolio_events'];
