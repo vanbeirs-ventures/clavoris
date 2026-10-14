@@ -8,6 +8,7 @@
 <link rel="icon" href="../assets/clavoris-mark.png">
 <link rel="stylesheet" href="app.css?v=20261014e">
 <script>document.documentElement.classList.add('clv-checking');</script>
+<style>.pw-mm{display:block;margin-top:6px;font-size:12.5px;color:var(--status-alert)}.pw-bad input{border-color:var(--status-alert)!important;box-shadow:0 0 0 3px rgba(179,38,30,.12)}</style>
 </head>
 <body data-clv-restrict="full">
 <div class="app">
@@ -56,14 +57,18 @@
         <form id="pwForm" autocomplete="off" onsubmit="return false;">
           <div class="field"><label for="curPw" data-i18n="account.cur_pw">Current password</label><div class="pw-wrap"><input id="curPw" type="password" autocomplete="current-password" class="mono"><button type="button" class="pw-eye" data-eye="curPw" aria-label="Show password"><svg viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>
           <div class="field"><label for="newPw" data-i18n="account.new_pw">New password</label><div class="pw-wrap"><input id="newPw" type="password" autocomplete="new-password" class="mono"><button type="button" class="pw-eye" data-eye="newPw" aria-label="Show password"><svg viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></button></div><span class="hint" data-i18n="account.pw_hint">At least 12 characters, with a letter and a number.</span></div>
-          <div class="field"><label for="newPw2" data-i18n="account.new_pw2">Repeat new password</label><div class="pw-wrap"><input id="newPw2" type="password" autocomplete="new-password" class="mono"><button type="button" class="pw-eye" data-eye="newPw2" aria-label="Show password"><svg viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>
+          <div class="field" id="pw2Field"><label for="newPw2" data-i18n="account.new_pw2">Repeat new password</label><input id="newPw2" type="password" autocomplete="new-password" class="mono"><span class="pw-mm" id="pwMm" role="alert" hidden data-i18n="pw.mismatch">The passwords do not match.</span></div>
           <p class="msg" id="pwMsg" role="status"></p>
           <button class="btn btn-primary" type="submit" id="pwBtn" disabled data-i18n="account.pw_btn">Set new password</button>
         </form>
-        <h2 style="font-family:var(--font-display);font-size:20px;color:var(--clavis-navy);margin-top:32px" data-i18n="account.verification">Verification</h2>
-        <div id="kyc" style="margin-top:12px;font-size:13px;color:var(--fg-2);line-height:1.6"></div>
       </section>
     </div>
+    <section class="card" id="idv" style="padding:22px;margin-top:24px">
+      <h2 style="font-family:var(--font-display);font-size:20px;color:var(--clavis-navy)" data-i18n="account.idv.title">Identity verification</h2>
+      <div id="kyc" style="margin-top:12px;font-size:13px;color:var(--fg-2);line-height:1.6"></div>
+      <p style="font-size:12.5px;color:var(--fg-3);margin-top:10px;line-height:1.6" data-i18n="account.idv.by">Carried out by Didit, an independent certified identity-verification provider. Your identity document and photos are processed by Didit; Clavoris receives the result.</p>
+      <div id="idvAct" style="margin-top:14px"></div>
+    </section>
     <section class="card" id="notif" style="padding:22px;margin-top:24px">
       <h2 style="font-family:var(--font-display);font-size:20px;color:var(--clavis-navy)" data-i18n="notif.title">E-mail notifications</h2>
       <p style="font-size:13px;color:var(--fg-2);margin-top:6px;line-height:1.6" data-i18n="notif.sub">Choose which automated messages Clavoris sends you. Transactional messages about your own actions (invitations, signatures, settlements) are always sent.</p>
@@ -125,6 +130,14 @@
     q('lang').value = I.langs.indexOf(p.lang) >= 0 ? p.lang : I.lang;
     q('kyc').innerHTML = '<span class="chip ' + esc(p.status) + '"><span class="dot"></span>' + esc(tk('status.', p.status)) + '</span><p style="margin-top:8px">' + esc(tk('account.kyc.', p.status)) + '</p>'
       + (p.kyc_level ? '<p class="mono" style="font-size:12px;margin-top:6px;color:var(--fg-3)">' + esc(I.t('account.kyc.level', { level: p.kyc_level })) + (p.kyc_reviewed_at ? ' · ' + esc(String(p.kyc_reviewed_at).slice(0, 10)) : '') + '</p>' : '');
+    // Start / continue / restart the identity verification; a verified user can verify again (new address,
+    // new identity document) — access stays active while the new check runs.
+    (function () {
+      var st = p.status, act = { registered: ['start', ''], kyc_pending: ['continue', ''], kyc_retry: ['restart', ''], verified: ['renew', '&renew=1'] }[st];
+      if (!act) { q('idvAct').innerHTML = ''; return; }
+      q('idvAct').innerHTML = '<a class="btn ' + (st === 'verified' ? '' : 'btn-primary') + '" href="kyc.html?next=account.html' + act[1] + '">' + esc(I.t('account.idv.' + act[0])) + '</a>'
+        + (st === 'verified' ? '<p class="hint" style="margin-top:8px;font-size:12.5px;color:var(--fg-3);line-height:1.6">' + esc(I.t('account.idv.renew_hint')) + '</p>' : '');
+    })();
 
     var KIND = { login: 'neutral', kyc: 'verified', nda: 'info', download: 'pending' };
     A.callFn('clv-audit', { action: 'list' }).then(function (r) {
@@ -160,7 +173,11 @@
       A.updateProfile({ notify: n }).then(function (r) { q('notifBtn').disabled = false; m.className = r.ok ? 'msg ok' : 'msg err'; m.textContent = r.ok ? I.t('notif.saved') : (r.error || I.t('account.save_failed')); });
     });
 
-    function refreshPw() { q('pwBtn').disabled = !(q('curPw').value && valid(q('newPw').value) && q('newPw').value === q('newPw2').value); }
+    function refreshPw() {
+      var a = q('newPw').value, b = q('newPw2').value, mm = !!b && a !== b;
+      q('pwMm').hidden = !mm; q('pw2Field').classList.toggle('pw-bad', mm); q('newPw2').setAttribute('aria-invalid', mm ? 'true' : 'false');
+      q('pwBtn').disabled = !(q('curPw').value && valid(a) && a === b);
+    }
     ['curPw', 'newPw', 'newPw2'].forEach(function (id) { q(id).addEventListener('input', refreshPw); });
     q('pwForm').addEventListener('submit', function () {
       var m = q('pwMsg'); m.className = 'msg'; m.textContent = ''; q('pwBtn').disabled = true;

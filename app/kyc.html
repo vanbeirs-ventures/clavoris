@@ -47,15 +47,16 @@ if (window.top !== window.self) { try { window.top.location.replace(location.hre
   var params = new URLSearchParams(location.search);
   var next = params.get('next') || 'portal.html';
   if (!/^[a-z0-9_./?=&-]+$/i.test(next) || next.indexOf('//') >= 0 || next.charAt(0) === '/') next = 'portal.html';
+  var renew = params.get('renew') === '1';   // verified user verifying again (new address, new document)
   var returned = params.get('verificationSessionId');   // Didit sends the user back here with ?verificationSessionId=&status=
   function showStatus() {
     var st = A.status();
     q('statusBox').innerHTML = '<span class="chip ' + esc(st) + '"><span class="dot"></span>' + esc(I.t('status.' + st)) + '</span><p style="margin-top:10px">' + esc(['verified', 'kyc_pending', 'kyc_retry', 'registered'].indexOf(st) >= 0 ? I.t('kyc.' + st) : '') + '</p>';
     q('actions').innerHTML = st === 'verified' ? '<a class="btn btn-primary" href="' + esc(next) + '">' + I.t('kyc.continue') + '</a>' : '';
-    if (st === 'verified') { q('kycFrame').className = ''; q('kycFrame').src = 'about:blank'; }
+    if (st === 'verified' && !renew) { q('kycFrame').className = ''; q('kycFrame').src = 'about:blank'; }
   }
   function launch() {
-    A.callFn('clv-kyc-token', { next: next }).then(function (r) {
+    A.callFn('clv-kyc-token', { next: next, renew: renew }).then(function (r) {
       if (r.verified) { A.refresh().then(showStatus); return; }
       if (r.error === 'kyc-not-configured') { q('msg').className = 'msg'; q('msg').textContent = I.t('kyc.setting_up'); return; }
       if (r.error) { q('msg').className = 'msg err'; q('msg').textContent = I.t('kyc.start_failed', { err: r.error }); return; }
@@ -72,7 +73,8 @@ if (window.top !== window.self) { try { window.top.location.replace(location.hre
     if (!A.clears('full')) return;
     S.render('account'); showStatus();
     var st = A.status();
-    if (st === 'verified' || st === 'rejected') return;
+    if ((st === 'verified' && !renew) || st === 'rejected') return;
+    if (renew && returned) { q('msg').className = 'msg ok'; q('msg').textContent = I.t('kyc.submitted'); sync().then(function () { return A.refresh(); }).then(showStatus); return; }
     if (returned && /^(Approved|In Review|In Progress)$/.test(params.get('status') || '')) { q('msg').className = 'msg ok'; q('msg').textContent = I.t('kyc.submitted'); sync().then(function () { return A.refresh(); }).then(showStatus); poll(); return; }
     if (st === 'kyc_pending') { sync().then(function () { return A.refresh(); }).then(function () { showStatus(); if (A.status() !== 'verified') launch(); }); return; }
     launch();   // first visit, or came back without finishing: Didit resumes the same session
