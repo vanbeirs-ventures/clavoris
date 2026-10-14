@@ -75,6 +75,23 @@ export const MAIL_SIGNATURE = "Clavoris · Private investment, enabled\nAntwerp 
 
 export function mailConfigured(): boolean { return !!Deno.env.get("CLAVORIS_SMTP_HOST"); }
 
+// RFC 2047 encoded words (base64, short chunks on one line) for non-ASCII subjects. The mail
+// library's own quoted-printable encoding folds long subjects with soft line breaks, which some
+// receivers treat as the end of the header block (the rest of the headers then show up in the body).
+export function encodeSubject(s: string): string {
+  const str = String(s || "").replace(/[\r\n]+/g, " ").trim();
+  if (/^[\x20-\x7e]*$/.test(str)) return str;
+  const bytes = new TextEncoder().encode(str);
+  const words: string[] = [];
+  for (let i = 0; i < bytes.length;) {
+    let end = Math.min(bytes.length, i + 33);
+    while (end < bytes.length && (bytes[end] & 0xc0) === 0x80) end--; // do not split a UTF-8 sequence
+    words.push("=?utf-8?B?" + btoa(String.fromCharCode(...bytes.subarray(i, end))) + "?=");
+    i = end;
+  }
+  return words.join(" ");
+}
+
 export async function sendMail(to: string, subject: string, text: string, lang: Lang | string = "en"): Promise<boolean> {
   const host = Deno.env.get("CLAVORIS_SMTP_HOST"); if (!host || !to) return false;
   const port = Number(Deno.env.get("CLAVORIS_SMTP_PORT") || 465);
@@ -82,7 +99,7 @@ export async function sendMail(to: string, subject: string, text: string, lang: 
   const pass = Deno.env.get("CLAVORIS_SMTP_PASS") || "";
   const client = new SMTPClient({ connection: { hostname: host, port, tls: port === 465, auth: { username: user, password: pass } } });
   try {
-    await client.send({ from: `Clavoris <${MAIL_FROM}>`, to, replyTo: MAIL_REPLY_TO, subject, content: text + "\n\n" + SIGNATURE[pickLang(lang)] });
+    await client.send({ from: `Clavoris <${MAIL_FROM}>`, to, replyTo: MAIL_REPLY_TO, subject: encodeSubject(subject), content: text + "\n\n" + SIGNATURE[pickLang(lang)] });
     return true;
   } finally { try { await client.close(); } catch { /* ignore */ } }
 }

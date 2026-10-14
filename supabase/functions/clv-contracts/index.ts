@@ -212,9 +212,10 @@ Deno.serve(async (req) => {
     await logEvent(admin, c.id, me.id, "contract-launched", { signatories: sigs.length, auditors: parties.filter((p) => p.role === "auditor").length, esign_id_sign: idSign, methods: ESIGN_METHODS() }, ip);
     parties = await loadParties(admin, c.id);
     const c2 = { ...c, status: "in_progress", esign_id_sign: idSign };
-    await inviteNext(admin, c2, parties);
+    const first = await inviteNext(admin, c2, parties);
     const link = `${APP_URL}/contract.html?id=${c.id}`;
     for (const p of parties) {
+      if (first && p.id === first.id) continue; // already received "your signature is requested"
       if (!p.profile?.email) continue;
       const L = pickLang(p.profile.lang);
       if (p.role === "auditor") { const m = mail(L, "contract_launched_auditor", { name: p.profile.full_name, title: c.title, link }); sendMail(p.profile.email, m.subject, m.text, L).catch(() => {}); }
