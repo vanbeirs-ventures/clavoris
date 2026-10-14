@@ -8,10 +8,11 @@
 //   { action: "start" }                   -> { login, token }  (open `login` in a new tab)
 //   { action: "poll", token }             -> { pending: true } | { ok: true, user }
 //   { action: "disconnect" }              -> removes the stored connection
-// Secrets: NC_URL (base URL of the Nextcloud). Deploy with --no-verify-jwt.
+// Secrets: NC_URL (base URL of the Nextcloud; only needed to make a NEW connection — an existing stored
+// connection carries its own url). Deploy with --no-verify-jwt.
 import { adminClient, audit, cors, json, requireAdmin } from "../_shared/clv.ts";
 
-const NC_URL = (Deno.env.get("NC_URL") || "").replace(/\/$/, "");
+const NC_URL_ENV = (Deno.env.get("NC_URL") || "").replace(/\/$/, "");
 const polls = new Map<string, string>(); // token -> poll endpoint (per instance; endpoint also returned to the client)
 
 // Login Flow v2 returns the *login name* (may be an e-mail address); WebDAV paths need the
@@ -33,11 +34,14 @@ Deno.serve(async (req) => {
   if (me instanceof Response) return me;
   const body = await req.json().catch(() => ({}));
   const action = String(body.action || "status");
+  const { data: stored } = await admin.from("clv_settings").select("value, updated_at").eq("key", "nc").maybeSingle();
+  const storedV = (stored?.value || {}) as { url?: string; user?: string; pass?: string; login?: string };
+  const NC_URL = NC_URL_ENV || (storedV.url || "").replace(/\/$/, "");
   if (!NC_URL) return json({ error: "nc-url-not-configured" }, 503);
 
   if (action === "status") {
-    const { data } = await admin.from("clv_settings").select("value, updated_at").eq("key", "nc").maybeSingle();
-    const v = (data?.value || {}) as { url?: string; user?: string; pass?: string; login?: string };
+    const data = stored;
+    const v = storedV;
     if (!v.user || !v.pass) return json({ ok: true, connected: false, url: NC_URL });
     // Live check: PROPFIND depth 0 on the user's root.
     const check = async (user: string) => {
