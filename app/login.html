@@ -82,6 +82,7 @@
     if (param('denied')) q('loginError').textContent = I.t('login.err.denied');
     if (param('loop')) q('loginError').textContent = I.t('login.err.unavailable');
     if (param('kicked')) q('loginError').textContent = I.t('login.err.kicked');
+    if (param('idle')) q('loginError').textContent = I.t('login.err.idle');
     if (A.isSignedIn() && A.profile() && !param('denied') && !param('loop')) { location.replace(param('next') || A.homeFor()); return; }
 
     function submit() {
