@@ -102,6 +102,9 @@ export function mailFooter(lang: Lang): string {
 export const MAIL_SIGNATURE = mailFooter("en");
 
 export function mailConfigured(): boolean { return !!Deno.env.get("CLAVORIS_SMTP_HOST"); }
+// Plain text only until mailbox.org's outgoing filter stops tagging the branded HTML version as spam
+// (since 14 Oct 2026, 22:00). The HTML layout is kept; set the secret CLAVORIS_MAIL_HTML=1 to send it again.
+const MAIL_HTML = Deno.env.get("CLAVORIS_MAIL_HTML") === "1";
 
 // HTML alternative of a plain-text mail: paragraphs kept, bare URLs made clickable, and — when a call to
 // action is given — its URL rendered as a button with a label ("Click here to activate your account")
@@ -187,7 +190,7 @@ export async function sendMail(to: string, subject: string, text: string, lang: 
     // Own SMTP submission (_shared/smtp.ts): standard headers (Message-ID, Date), one multipart/alternative.
     const r = await smtpSend({ host, port, user, pass, helo: "clavoris.com" }, {
       fromName: "Clavoris", from: MAIL_FROM, to: to.trim(), replyTo: MAIL_REPLY_TO, subject,
-      text: body, html: textToHtml(text, cta, L),
+      text: body, html: MAIL_HTML ? textToHtml(text, cta, L) : undefined,
       // Standard unsubscribe header (shown by Gmail and Outlook as "Unsubscribe"); expected on automated mail.
       headers: { "List-Unsubscribe": `<mailto:${MAIL_REPLY_TO}?subject=unsubscribe>, <${UNSUB_URL()}>` },
     });
