@@ -31,14 +31,14 @@ export async function requireAdmin(admin: SupabaseClient, req: Request): Promise
 
 // Resolve the caller from the JWT: any enrolled, non-suspended Clavoris user.
 export type Features = { market?: boolean; trading?: boolean; products?: string[] | null };
-export type Profile = { id: string; email: string; full_name: string | null; company: string | null; company_id: string | null; role: "user" | "admin" | "super"; status: string; lang: string | null; features: Features; sumsub_applicant_id: string | null; kyc_reviewed_at: string | null };
+export type Profile = { id: string; email: string; full_name: string | null; company: string | null; company_id: string | null; role: "user" | "admin" | "super"; status: string; lang: string | null; features: Features; sumsub_applicant_id: string | null; kyc_provider: string | null; kyc_session_id: string | null; kyc_reviewed_at: string | null };
 export async function requireUser(admin: SupabaseClient, req: Request): Promise<Profile | Response> {
   const jwt = (req.headers.get("authorization") || "").replace("Bearer ", "");
   if (!jwt) return json({ error: "unauthorized" }, 401);
   const { data } = await admin.auth.getUser(jwt);
   const user = data?.user;
   if (!user) return json({ error: "unauthorized" }, 401);
-  const { data: p } = await admin.from("clv_profiles").select("id, email, full_name, company, company_id, role, status, lang, features, sumsub_applicant_id, kyc_reviewed_at").eq("id", user.id).single();
+  const { data: p } = await admin.from("clv_profiles").select("id, email, full_name, company, company_id, role, status, lang, features, sumsub_applicant_id, kyc_provider, kyc_session_id, kyc_reviewed_at").eq("id", user.id).single();
   if (!p || p.status === "suspended" || p.status === "rejected") return json({ error: "forbidden" }, 403);
   if (!p.features || typeof p.features !== "object") p.features = {};
   return p as Profile;

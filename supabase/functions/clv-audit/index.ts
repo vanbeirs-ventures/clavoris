@@ -2,8 +2,9 @@
 // Personal audit trail of the signed-in user.
 //   { action: "login" }  -> records a successful sign-in (called by the app right after login;
 //                           the IP address and user agent are taken server-side)
-//   { action: "list" }   -> the user's timeline, newest first: sign-ins, KYC start and Sumsub
-//                           results, NDA signatures, every download (type, fingerprint, watermark)
+//   { action: "list" }   -> the user's timeline, newest first: sign-ins, identity verification
+//                           (Didit sessions and results; historical Sumsub results), NDA
+//                           signatures, every download (type, fingerprint, watermark)
 // Deploy: supabase functions deploy clv-audit --no-verify-jwt
 import { adminClient, clientIp, cors, json, requireUser } from "../_shared/clv.ts";
 
@@ -29,10 +30,11 @@ Deno.serve(async (req) => {
 
   if (action !== "list") return json({ error: "bad-action" }, 400);
   const limit = Math.min(Number(body.limit || 300), 1000);
-  const [logs, dls, kyc, rooms] = await Promise.all([
+  const [logs, dls, kyc, didit, rooms] = await Promise.all([
     admin.from("clv_access_log").select("ts, action, file_path, room_id, ip").eq("user_id", me.id).in("action", ["login", "kyc-start", "nda-signed", "download-nda"]).order("ts", { ascending: false }).limit(limit),
     admin.from("clv_downloads").select("created_at, code, file_name, delivered_as, sha256_delivered, sha256_source, watermark, room_id, contract_id, contract:clv_contracts(title), ip").eq("user_id", me.id).order("created_at", { ascending: false }).limit(limit),
     admin.from("clv_sumsub_events").select("received_at, type, review_answer, payload").eq("external_user_id", me.id).order("received_at", { ascending: false }).limit(limit),
+    admin.from("clv_kyc_events").select("received_at, webhook_type, status, session_id, payload").eq("user_id", me.id).order("received_at", { ascending: false }).limit(limit),
     admin.from("clv_rooms").select("id, name"),
   ]);
   const roomName = new Map<string, string>((rooms.data || []).map((r: { id: string; name: string }) => [r.id, r.name]));
@@ -41,7 +43,7 @@ Deno.serve(async (req) => {
   for (const l of logs.data || []) {
     const room = l.room_id ? roomName.get(l.room_id) || null : null;
     if (l.action === "login") out.push({ ts: l.ts, kind: "login", title: "Signed in", detail: "Password sign-in to the Clavoris portal", ip: l.ip });
-    else if (l.action === "kyc-start") out.push({ ts: l.ts, kind: "kyc", title: "Identity verification started", detail: "Sumsub verification session opened", ip: l.ip });
+    else if (l.action === "kyc-start") out.push({ ts: l.ts, kind: "kyc", title: "Identity verification started", detail: "Verification session opened", ip: l.ip });
     else if (l.action === "nda-signed") out.push({ ts: l.ts, kind: "nda", title: "NDA signed", detail: "KYC-attested electronic signature" + (l.file_path ? " · signed copy stored as PDF" : ""), room, ip: l.ip });
     else if (l.action === "download-nda") out.push({ ts: l.ts, kind: "download", title: "Downloaded your signed NDA", detail: "PDF · signed copy", room, ip: l.ip });
   }
@@ -58,6 +60,18 @@ Deno.serve(async (req) => {
       out.push({ ts: k.received_at, kind: "kyc", title: `Identity verification ${ans}`, detail: `Sumsub review (AMLD6)${p.levelName ? " · level " + p.levelName : ""}${p.reviewResult?.moderationComment ? " · " + p.reviewResult.moderationComment : ""}` });
     } else if (k.type === "applicantPending") out.push({ ts: k.received_at, kind: "kyc", title: "Identity documents submitted", detail: "Sumsub review pending" });
     else if (k.type === "applicantCreated") out.push({ ts: k.received_at, kind: "kyc", title: "Identity verification applicant created", detail: "Sumsub" });
+  }
+  const seen = new Set<string>();
+  for (const k of didit.data || []) {
+    const p = (k.payload || {}) as { ip?: string; decision?: { reviews?: Array<{ comment?: string }>; id_verifications?: Array<{ document_type?: string; issuing_state?: string }> } };
+    const st = String(k.status || "");
+    const ref = k.session_id ? "Didit session " + String(k.session_id).slice(0, 8) : "Didit";
+    if (k.webhook_type === "session.created") out.push({ ts: k.received_at, kind: "kyc", title: "Identity verification started", detail: `${ref} opened`, ip: p.ip || null });
+    else if (st === "Approved") out.push({ ts: k.received_at, kind: "kyc", title: "Identity verification approved", detail: `Didit review (AMLD6)${p.decision?.id_verifications?.[0]?.document_type ? " · " + p.decision.id_verifications[0].document_type + (p.decision.id_verifications[0].issuing_state ? " (" + p.decision.id_verifications[0].issuing_state + ")" : "") : ""}` });
+    else if (st === "Declined") out.push({ ts: k.received_at, kind: "kyc", title: "Identity verification not successful", detail: `Didit review · another attempt is possible${p.decision?.reviews?.[0]?.comment ? " · " + p.decision.reviews[0].comment : ""}` });
+    else if (st === "Abandoned" || st === "Expired") out.push({ ts: k.received_at, kind: "kyc", title: "Identity verification not completed", detail: `${ref} ${st.toLowerCase()} · can be restarted` });
+    else if (st === "Kyc Expired") out.push({ ts: k.received_at, kind: "kyc", title: "Identity verification expired", detail: "Verification validity lapsed · a new verification is required" });
+    else if (st === "In Review") { const key = "ir:" + k.session_id; if (!seen.has(key)) { seen.add(key); out.push({ ts: k.received_at, kind: "kyc", title: "Identity documents submitted", detail: "Didit review pending" }); } }
   }
   out.sort((a, b) => (a.ts < b.ts ? 1 : a.ts > b.ts ? -1 : 0));
   return json({ ok: true, events: out.slice(0, limit) });
