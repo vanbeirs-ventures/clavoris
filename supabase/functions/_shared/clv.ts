@@ -102,9 +102,9 @@ export function mailFooter(lang: Lang): string {
 export const MAIL_SIGNATURE = mailFooter("en");
 
 export function mailConfigured(): boolean { return !!Deno.env.get("CLAVORIS_SMTP_HOST"); }
-// Plain text only until mailbox.org's outgoing filter stops tagging the branded HTML version as spam
-// (since 14 Oct 2026, 22:00). The HTML layout is kept; set the secret CLAVORIS_MAIL_HTML=1 to send it again.
-const MAIL_HTML = Deno.env.get("CLAVORIS_MAIL_HTML") === "1";
+// Branded HTML + plain text (multipart/alternative). App mail goes out through Brevo (smtp-relay.brevo.com),
+// not mailbox.org, whose outgoing filter silently dropped it. Set CLAVORIS_MAIL_HTML=0 for plain text only.
+const MAIL_HTML = Deno.env.get("CLAVORIS_MAIL_HTML") !== "0";
 
 // HTML alternative of a plain-text mail: paragraphs kept, bare URLs made clickable, and — when a call to
 // action is given — its URL rendered as a button with a label ("Click here to activate your account")
