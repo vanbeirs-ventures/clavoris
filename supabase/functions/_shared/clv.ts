@@ -1,6 +1,6 @@
 // Shared helpers for the clv-admin-* functions (ported from the Minerva cloud).
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
+import { smtpSend } from "./smtp.ts";
 import { type Lang, pickLang } from "./mail-i18n.ts";
 
 export const cors = {
@@ -103,36 +103,6 @@ export const MAIL_SIGNATURE = mailFooter("en");
 
 export function mailConfigured(): boolean { return !!Deno.env.get("CLAVORIS_SMTP_HOST"); }
 
-// Subject header. The mail library re-encodes any subject that contains non-ASCII characters or starts
-// with "=?" as one long quoted-printable word folded with soft line breaks, which breaks the header block
-// in most receivers (the remaining headers then show up in the body). So: keep the leading ASCII part as
-// plain text and encode only the rest as RFC 2047 base64 words; the result is pure ASCII and never starts
-// with "=?", so the library passes it through untouched.
-export function encodeSubject(s: string): string {
-  const str = String(s || "").replace(/[\r\n]+/g, " ").trim();
-  if (/^[\x20-\x7e]*$/.test(str)) return str;
-  const ascii = /^[\x20-\x7e]*/.exec(str)![0];
-  let head = ascii.slice(0, ascii.lastIndexOf(" ") + 1).replace(/\s+$/, ""); // cut at a word boundary
-  let rest = str.slice(head.length).replace(/^\s+/, "");
-  if (!head) { head = "Clavoris:"; rest = rest.replace(/^Clavoris\s*:?\s*/i, ""); }
-  const bytes = new TextEncoder().encode(rest);
-  const words: string[] = [];
-  for (let i = 0; i < bytes.length;) {
-    let end = Math.min(bytes.length, i + 33);
-    while (end < bytes.length && (bytes[end] & 0xc0) === 0x80) end--; // do not split a UTF-8 sequence
-    words.push("=?utf-8?B?" + btoa(String.fromCharCode(...bytes.subarray(i, end))) + "?=");
-    i = end;
-  }
-  return head + " " + words.join(" ");
-}
-
-// Base64 of a UTF-8 string, folded into 76-character lines (RFC 2045).
-export function base64Lines(s: string): string {
-  const bytes = new TextEncoder().encode(s);
-  let bin = ""; for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-  return (btoa(bin).match(/.{1,76}/g) || []).join("\r\n");
-}
-
 // HTML alternative of a plain-text mail: paragraphs kept, bare URLs made clickable, and — when a call to
 // action is given — its URL rendered as a button with a label ("Click here to activate your account")
 // plus the address underneath for clients that strip buttons. Mail clients such as Outlook do not always
@@ -207,22 +177,19 @@ export async function sendMail(to: string, subject: string, text: string, lang: 
   const port = Number(Deno.env.get("CLAVORIS_SMTP_PORT") || 465);
   const user = Deno.env.get("CLAVORIS_SMTP_USER") || MAIL_FROM;
   const pass = Deno.env.get("CLAVORIS_SMTP_PASS") || "";
-  const client = new SMTPClient({ connection: { hostname: host, port, tls: port === 465, auth: { username: user, password: pass } } });
+  const L = pickLang(lang);
+  // The invitation's lead-in "Start here:" reads as "Click here to activate your account:" above the link.
+  if (cta && !Array.isArray(cta)) text = text.replace(/\n(Start here:|Begin hier:|Commencez ici :)\n/, "\n" + cta.label + (L === "fr" ? " :" : ":") + "\n");
+  const body = text + "\n\n" + mailFooter(L);
   try {
-    // The body goes out base64-encoded: the library's own quoted-printable folding drops characters when an
-    // encoded byte straddles a line break (e.g. the "." of "clavoris.com" vanished in a footer link).
-    const L = pickLang(lang);
-    // The invitation's lead-in "Start here:" reads as "Click here to activate your account:" above the link.
-    if (cta && !Array.isArray(cta)) text = text.replace(/\n(Start here:|Begin hier:|Commencez ici :)\n/, "\n" + cta.label + (L === "fr" ? " :" : ":") + "\n");
-    const body = text + "\n\n" + mailFooter(L);
-    await client.send({ from: `Clavoris <${MAIL_FROM}>`, to, replyTo: MAIL_REPLY_TO, subject: encodeSubject(subject), mimeContent: [
-      { mimeType: 'text/plain; charset="utf-8"', content: base64Lines(body), transferEncoding: "base64" },
-      { mimeType: 'text/html; charset="utf-8"', content: base64Lines(textToHtml(text, cta, L)), transferEncoding: "base64" },
-    ] });
-    console.log("mail sent:", to, "|", subject);
+    // Own SMTP submission (_shared/smtp.ts): standard headers (Message-ID, Date), one multipart/alternative.
+    const r = await smtpSend({ host, port, user, pass, helo: "clavoris.com" }, {
+      fromName: "Clavoris", from: MAIL_FROM, to: to.trim(), replyTo: MAIL_REPLY_TO, subject,
+      text: body, html: textToHtml(text, cta, L),
+    });
+    console.log("mail sent:", to, "|", subject, "|", r.messageId, "|", r.reply.replace(/\s+/g, " ").slice(0, 120));
     return true;
   } catch (e) { console.error("mail failed:", to, "|", subject, "|", (e as Error).message); throw e; }
-  finally { try { await client.close(); } catch { /* ignore */ } }
 }
 
 // ---- enrolment on the shared user directory ----
