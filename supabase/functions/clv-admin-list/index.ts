@@ -11,7 +11,7 @@ Deno.serve(async (req) => {
 
   const { data, error } = await admin
     .from("clv_profiles")
-    .select("id, email, full_name, company, job_title, lang, role, status, features, company_id, kyc_level, kyc_review_answer, kyc_reviewed_at, suspended_at, last_login_at, created_at, account:clv_companies(name)")
+    .select("id, email, full_name, company, job_title, lang, role, status, features, company_id, kyc_level, kyc_review_answer, kyc_reviewed_at, suspended_at, last_login_at, created_at, account:clv_companies!clv_profiles_company_id_fkey(name)")
     .order("created_at", { ascending: true });
   if (error) return json({ error: error.message }, 400);
   let users = (data || []).map((u: any) => ({ ...u, company_name: u.account?.name || null, account: undefined }));
