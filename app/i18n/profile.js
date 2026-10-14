@@ -1,6 +1,7 @@
 /* Clavoris interface strings — profile capacity (private person / organisation, role, legal representative)
    and the NDA signing step (en/nl/fr). Loaded by app/i18n.js after the base dictionaries; overrides a few base keys. */
 window.ClavorisI18n.add('en', {
+    'account.req_legend': 'mandatory field', 'account.err.timeout': 'The connection is slow; your profile may not have been saved. Reload the page and try again.',
     'login.err.idle': 'You were signed out after 10 minutes of inactivity.',
     'idle.title': 'Still there?', 'idle.body': 'For your security you will be signed out in {s} seconds because of inactivity. Choose "Stay signed in" to continue for another 10 minutes.', 'idle.stay': 'Stay signed in', 'idle.out': 'Sign out now',
     'login.err.kicked': 'You were signed out because another user signed in on this computer.',
@@ -46,6 +47,7 @@ window.ClavorisI18n.add('en', {
     'room.nda.match_no': 'Does not match yet — type the name exactly as shown (capitals and accents do not matter).',
 });
 window.ClavorisI18n.add('nl', {
+    'account.req_legend': 'verplicht veld', 'account.err.timeout': 'De verbinding is traag; uw profiel is mogelijk niet opgeslagen. Herlaad de pagina en probeer opnieuw.',
     'login.err.idle': 'U werd afgemeld na 10 minuten inactiviteit.',
     'idle.title': 'Bent u er nog?', 'idle.body': 'Voor uw veiligheid wordt u over {s} seconden afgemeld wegens inactiviteit. Kies "Aangemeld blijven" om nog 10 minuten door te gaan.', 'idle.stay': 'Aangemeld blijven', 'idle.out': 'Nu afmelden',
     'login.err.kicked': 'U werd afgemeld omdat een andere gebruiker zich op deze computer heeft aangemeld.',
@@ -91,6 +93,7 @@ window.ClavorisI18n.add('nl', {
     'room.nda.name_mismatch': 'Typ uw naam zoals in uw profiel ({name}).',
 });
 window.ClavorisI18n.add('fr', {
+    'account.req_legend': 'champ obligatoire', 'account.err.timeout': 'La connexion est lente ; votre profil n\'a peut-être pas été enregistré. Rechargez la page et réessayez.',
     'login.err.idle': 'Vous avez été déconnecté après 10 minutes d\'inactivité.',
     'idle.title': 'Toujours là ?', 'idle.body': 'Pour votre sécurité, vous serez déconnecté dans {s} secondes pour cause d\'inactivité. Choisissez « Rester connecté » pour continuer encore 10 minutes.', 'idle.stay': 'Rester connecté', 'idle.out': 'Me déconnecter',
     'login.err.kicked': 'Vous avez été déconnecté parce qu\'un autre utilisateur s\'est connecté sur cet ordinateur.',
