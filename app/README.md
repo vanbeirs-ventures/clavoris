@@ -40,7 +40,8 @@ Clavoris lives in the `clv_*` tables (`clv_profiles`, `clv_rooms`,
 | `../supabase/functions/clv-room-nda` | NDA text + KYC-attested signing → PDF in `<room>/_users/<email>/`, `clv_signed_documents`. |
 | `../supabase/functions/clv-room-file` | Gated download: unique code, PDF watermark, `clv_downloads` + `clv_access_log`, first-download mail. |
 | `../supabase/functions/clv-admin-rooms` | Rooms list, members, invite-by-email (enrol + invitation), revoke. |
-| `../supabase/functions/clv-kyc-token` / `clv-didit-webhook` | Creates/resumes the Didit session; signed webhook → verified / kyc_pending / kyc_retry. `clv-sumsub-webhook` remains only for the contracts module until e-Signature.eu replaces it. |
+| `../supabase/functions/clv-kyc-token` / `clv-didit-webhook` | Creates/resumes the Didit session; signed webhook → verified / kyc_pending / kyc_retry. |
+| `../supabase/functions/clv-contracts` / `clv-esign-webhook` | Contracts with qualified signatures via e-Signature.eu (one request per contract, embedded signing links handed out in signing order; callback re-verified against the provider API). `clv-sumsub-webhook` is legacy and can be deleted. |
 
 ## Data rooms
 
@@ -86,5 +87,9 @@ fetched at runtime behind RLS, never shipped in the HTML.
    register the webhook `https://<project>.supabase.co/functions/v1/clv-didit-webhook`
    (v3, signature `X-Signature-V2`) in the Didit console. Until set, the KYC page shows
    "being set up" and status can be set by an admin.
-   The NDA signature is a KYC-attested electronic acceptance; a qualified (QES) signature
-   via e-Signature.eu will replace the signing step of contracts (`validation.method`).
+   The NDA signature is a KYC-attested electronic acceptance.
+7. **e-Signature.eu (contracts, QES):** secrets `ESIGN_API_KEY`, `ESIGN_USER_ID` (optional
+   `ESIGN_METHODS`, default `itsme-qes-signature,evrotrust-signature`); set the Callback URL
+   `https://<project>.supabase.co/functions/v1/clv-esign-webhook` under My account › Signatures API.
+   Credits are consumed per completed signature (itsme/Evrotrust 1 each), not per request; every
+   signatory needs a full name and mobile number in the profile.

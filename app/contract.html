@@ -6,7 +6,7 @@
 <meta name="robots" content="noindex">
 <title>Contract — Clavoris</title>
 <link rel="icon" href="../assets/clavoris-mark.png">
-<link rel="stylesheet" href="app.css?v=20261013j">
+<link rel="stylesheet" href="app.css?v=20261014d">
 <script>document.documentElement.classList.add('clv-checking');</script>
 <style>
   .grid { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 24px; margin-top: 28px; align-items: start; }
@@ -27,7 +27,9 @@
   .newp .field { margin: 0; }
   @media (max-width: 800px) { .newp { grid-template-columns: 1fr 1fr; } }
   @media (max-width: 480px) { .newp { grid-template-columns: 1fr; } .events li { grid-template-columns: 1fr; gap: 2px; } }
-  #sumsub-websdk-container { min-height: 560px; margin-top: 16px; }
+  #signBox { margin-top: 16px; }
+  #signFrame { width: 100%; min-height: 720px; border: 1px solid var(--border); border-radius: 8px; background: #fff; }
+  #signOpen { display: inline-block; margin-top: 8px; font-size: 12.5px; }
   .dl { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
 </style>
 </head>
@@ -48,10 +50,10 @@
         <section class="card" id="signCard" style="padding:22px" hidden>
           <p class="eyebrow" data-i18n="contract.sign.eyebrow">Your signature</p>
           <h2 style="font-family:var(--font-display);font-size:22px;color:var(--clavis-navy);margin-top:6px" data-i18n="contract.sign.title">Sign with a qualified electronic signature</h2>
-          <p style="font-size:14px;color:var(--fg-2);line-height:1.6;margin-top:8px;max-width:640px" data-i18n="contract.sign.body">Read the contract first (download below). The signature is created through Sumsub after verification of your identity document, liveness, e-mail and phone; it is a qualified electronic signature under eIDAS, embedded in the PDF with a qualified timestamp. A visible signature block is placed on the last page.</p>
+          <p style="font-size:14px;color:var(--fg-2);line-height:1.6;margin-top:8px;max-width:640px" data-i18n="contract.sign.body">Read the contract first (download below). The signature is created through the qualified trust service provider of Clavoris with itsme® or Evrotrust; it is a qualified electronic signature under eIDAS, embedded in the PDF with a qualified timestamp. A visible signature block is placed on the last page.</p>
           <p class="msg" id="signMsg" role="status"></p>
           <button class="btn btn-primary" type="button" id="signBtn" style="margin-top:12px" data-i18n="contract.sign.btn">Start qualified signature</button>
-          <div id="sumsub-websdk-container" hidden></div>
+          <div id="signBox" hidden><iframe id="signFrame" title="Signature" allow="camera; microphone; clipboard-write" referrerpolicy="no-referrer-when-downgrade"></iframe><a id="signOpen" href="#" target="_blank" rel="noopener" data-i18n="contract.sign.open_full">Open the signing page in a full window</a></div>
         </section>
 
         <!-- Document & downloads -->
@@ -96,18 +98,17 @@
   <footer class="app-foot"><span data-i18n="footer.tag">Clavoris · Private Investment Enablement Platform</span><span class="loc" data-i18n="footer.loc">Antwerp · Luxembourg · Nordic · CSSF · FSMA · MiCA</span></footer>
 </div>
 
-<script src="config.js?v=20261013j"></script>
-<script src="i18n.js?v=20261013j"></script>
+<script src="config.js?v=20261014d"></script>
+<script src="i18n.js?v=20261014d"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="clavoris-access.js?v=20261013j"></script>
-<script src="shell.js?v=20261013j"></script>
-<script src="https://static.sumsub.com/idensic/static/sns-websdk-builder.js"></script>
+<script src="clavoris-access.js?v=20261014d"></script>
+<script src="shell.js?v=20261014d"></script>
 <script>
 (function () {
   'use strict';
   var A = window.ClavorisAccess, S = window.ClavorisShell, I = window.ClavorisI18n, esc = S.esc;
   function q(id) { return document.getElementById(id); }
-  var id = new URLSearchParams(location.search).get('id');
+  var qs = new URLSearchParams(location.search), id = qs.get('id'), returned = qs.get('signed') === '1';
   var state = null, opened = false;
   var STATUS = { draft: 'neutral', in_progress: 'pending', executed: 'verified', declined: 'rejected', cancelled: 'neutral' };
   function tk(prefix, k) { var s = I.t(prefix + k); return s === prefix + k ? k : s; }
@@ -139,7 +140,7 @@
       + (c.status === 'executed' ? '<div style="margin-top:6px">' + esc(I.t('contract.executed_at', { date: fmt(c.executed_at) })) + (r.me.can_download_executed ? '' : esc(I.t('contract.auditor_note'))) + '</div>' : '')
       + (r.me.role === 'signatory' && c.status === 'in_progress' && !r.me.my_turn && r.me.status !== 'signed' ? '<div style="margin-top:6px;color:var(--fg-2)">' + esc(I.t('contract.waiting_for', { who: r.me.next_signatory || I.t('contract.prev_signatory') })) + '</div>' : '');
     var dl = '<button class="btn-text" type="button" data-dl="original">' + I.t('contract.dl.original') + '</button>';
-    if (r.me.can_download_executed) dl += '<button class="btn-text" type="button" data-dl="executed">' + I.t('contract.dl.executed') + '</button><button class="btn-text" type="button" data-dl="certificate">' + I.t('contract.dl.certificate') + '</button>';
+    if (r.me.can_download_executed) dl += '<button class="btn-text" type="button" data-dl="executed">' + I.t('contract.dl.executed') + '</button><button class="btn-text" type="button" data-dl="certificate">' + I.t('contract.dl.certificate') + '</button>' + (c.has_audit_trail ? '<button class="btn-text" type="button" data-dl="audit">' + I.t('contract.dl.audit') + '</button>' : '');
     q('dl').innerHTML = dl;
     [].forEach.call(q('dl').querySelectorAll('[data-dl]'), function (b) {
       b.addEventListener('click', function () { b.disabled = true; S.downloadFn('clv-contracts', { action: 'download', id: id, which: b.getAttribute('data-dl') }, c.original_name).then(function (x) { b.disabled = false; if (!x.ok) q('err').textContent = I.t('contract.dl.failed', { err: x.error }); }); });
@@ -167,11 +168,12 @@
     q('manageCard').hidden = !r.me.can_manage;
     if (r.me.can_manage) {
       q('partyForm').hidden = c.status !== 'draft';
-      q('manageBox').textContent = c.status === 'draft' ? I.t('contract.manage.draft') : c.status === 'in_progress' ? I.t('contract.manage.running') : '';
+      q('manageBox').textContent = (c.status === 'draft' ? I.t('contract.manage.draft') : c.status === 'in_progress' ? I.t('contract.manage.running') : '') + (c.esign_id_sign ? ' · e-Signature.eu #' + c.esign_id_sign + (c.esign_status ? ' (' + c.esign_status + ')' : '') : '');
+      if (c.status === 'draft' || c.status === 'in_progress') A.callFn('clv-contracts', { action: 'balance' }).then(function (b) { if (b && b.configured && b.balance != null) { var el = document.createElement('div'); el.style.cssText = 'margin-top:6px;font-size:12.5px;color:' + (b.balance < sigs.length ? 'var(--seal-red,#B23A3A)' : 'var(--fg-3)'); el.textContent = I.t('contract.manage.credits', { n: b.balance }); q('manageBox').appendChild(el); } }).catch(function () {});
       q('pOrder').value = sigs.length + 1; if (!q('pLang').dataset.touched) q('pLang').value = I.lang;
       q('manageBtns').innerHTML = (c.status === 'draft' ? '<button class="btn btn-primary" type="button" id="launchBtn"' + (sigs.length ? '' : ' disabled') + '>' + I.t('contract.launch') + '</button>' : '')
         + (c.status === 'draft' || c.status === 'in_progress' ? '<button class="btn" type="button" id="cancelBtn">' + I.t('contract.cancel') + '</button>' : '');
-      var lb = q('launchBtn'); if (lb) lb.addEventListener('click', function () { lb.disabled = true; A.callFn('clv-contracts', { action: 'launch', id: id }).then(function (x) { if (x.error) { q('pMsg').className = 'msg err'; q('pMsg').textContent = x.error === 'qes-not-configured' ? I.t('contract.launch.not_configured') : x.error; lb.disabled = false; } load(); }); });
+      var lb = q('launchBtn'); if (lb) lb.addEventListener('click', function () { lb.disabled = true; A.callFn('clv-contracts', { action: 'launch', id: id }).then(function (x) { if (x.error) { q('pMsg').className = 'msg err'; q('pMsg').textContent = x.error === 'qes-not-configured' ? I.t('contract.launch.not_configured') : x.error === 'party-profile-incomplete' ? I.t('contract.launch.incomplete', { who: (x.parties || []).join(', ') }) : x.error + (x.detail ? ' — ' + x.detail : ''); lb.disabled = false; } load(); }); });
       var cb = q('cancelBtn'); if (cb) cb.addEventListener('click', function () { if (!confirm(I.t('contract.cancel_confirm'))) return; A.callFn('clv-contracts', { action: 'cancel', id: id }).then(load); });
     }
 
@@ -196,31 +198,31 @@
     });
   });
 
-  // Sign (Sumsub QES WebSDK)
-  var polls = 0;
+  // Sign (e-Signature.eu, embedded signing link). The provider calls Clavoris back when the
+  // signature is made; the page also checks gently every 10 s and when the signer returns.
+  var polls = 0, polling = false;
   function pollSigned() {
-    if (polls++ > 90) return;
+    if (polling || polls++ > 90) return;
+    polling = true;
     setTimeout(function () {
+      polling = false;
       A.callFn('clv-contracts', { action: 'sign_check', id: id }).then(function (r) {
-        if (r.state === 'signed' || r.state === 'executed') { q('signMsg').className = 'msg ok'; q('signMsg').textContent = I.t(r.state === 'executed' ? 'contract.sign.done_executed' : 'contract.sign.done_next'); q('sumsub-websdk-container').hidden = true; load(); return; }
+        if (r.state === 'signed' || r.state === 'executed') { q('signMsg').className = 'msg ok'; q('signMsg').textContent = I.t(r.state === 'executed' ? 'contract.sign.done_executed' : 'contract.sign.done_next'); q('signBox').hidden = true; load(); return; }
+        if (r.state === 'cancelled') { load(); return; }
         pollSigned();
-      });
-    }, 5000);
+      }).catch(pollSigned);
+    }, 10000);
   }
   q('signBtn').addEventListener('click', function () {
     var m = q('signMsg'); m.className = 'msg'; m.textContent = I.t('contract.sign.preparing'); q('signBtn').disabled = true;
     A.callFn('clv-contracts', { action: 'sign_start', id: id }).then(function (r) {
       if (r.error) { q('signBtn').disabled = false; m.className = 'msg err'; m.textContent = r.error === 'not-your-turn' ? I.t('contract.sign.not_turn', { who: r.waiting_for || I.t('contract.prev_signatory') }) : r.error === 'qes-not-configured' ? I.t('contract.sign.unavailable') : I.t('contract.sign.start_failed', { err: r.error }); return; }
+      if (r.already) { load(); return; }
       m.textContent = I.t('contract.sign.complete');
-      q('sumsub-websdk-container').hidden = false;
-      var sdk = window.snsWebSdk.init(r.token, function () { return A.callFn('clv-contracts', { action: 'sign_start', id: id }).then(function (x) { return x.token; }); })
-        .withConf({ lang: I.lang, email: r.email, theme: 'light' })
-        .withOptions({ addViewportTag: false, adaptIframeHeight: true })
-        .on('idCheck.onApplicantSubmitted', function () { m.className = 'msg ok'; m.textContent = I.t('contract.sign.submitted'); pollSigned(); })
-        .on('idCheck.onApplicantStatusChanged', function () { pollSigned(); })
-        .onMessage(function () {})
-        .build();
-      sdk.launch('#sumsub-websdk-container');
+      q('signOpen').href = r.url;
+      q('signFrame').src = r.url;
+      q('signBox').hidden = false;
+      q('signFrame').scrollIntoView({ behavior: 'smooth', block: 'start' });
       pollSigned();
     });
   });
@@ -229,7 +231,7 @@
     if (!A.clears('full')) return;
     S.render('contracts');
     if (!id) { q('err').textContent = I.t('contract.err.none'); return; }
-    load();
+    if (returned) { history.replaceState(null, '', location.pathname + '?id=' + encodeURIComponent(id)); A.callFn('clv-contracts', { action: 'sign_check', id: id }).catch(function () {}).then(load); } else load();
     setInterval(function () { if (!document.hidden && state && state.contract.status === 'in_progress') load(); }, 60000);
   });
 })();
