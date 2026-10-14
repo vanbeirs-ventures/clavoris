@@ -4,10 +4,10 @@
 //   { action: "sign", room_id, typed_name, accept }   -> signs it (identity-verified users only)
 //   { action: "store", room_id }                      -> stores the PDF of an existing signature whose
 //                                                        copy could not be stored at signing time
-// Signing: the user must be KYC-verified (Sumsub). The NDA is rendered to a PDF with a
+// Signing: the user must be KYC-verified (Didit; historical users via Sumsub). The NDA is rendered to a PDF with a
 // signature block (name, email, organisation, time, IP, KYC reference, hashes), stored in
 // Nextcloud under <room>/_users/<email>/ and recorded in clv_signed_documents. The record
-// carries validation.method so an eIDAS QES signature (Sumsub eSign) can replace it later.
+// carries validation.method so an eIDAS QES signature (e-Signature.eu) can replace it later.
 // Deploy: supabase functions deploy clv-room-nda --no-verify-jwt
 import { PDFDocument, StandardFonts, rgb } from "https://esm.sh/pdf-lib@1.17.1";
 import { adminClient, clientIp, cors, isStaff, json, requireUser } from "../_shared/clv.ts";
@@ -55,7 +55,7 @@ async function renderNdaPdf(opts: { title: string; room: string; text: string; s
     if (y < M) newPage();
   }
   y -= 8;
-  for (const l of wrap("This document was accepted electronically by an identity-verified user of the Clavoris data room. The signatory's identity was verified through the Clavoris KYC procedure (Sumsub) before signature. The hashes above bind this record to the exact text accepted. Clavoris retains the access log of this acceptance.", 100)) line(l, font, 8.5, grey);
+  for (const l of wrap("This document was accepted electronically by an identity-verified user of the Clavoris data room. The signatory's identity was verified through the Clavoris KYC procedure (AMLD6 identity verification) before signature. The hashes above bind this record to the exact text accepted. Clavoris retains the access log of this acceptance.", 100)) line(l, font, 8.5, grey);
   const pages = pdf.getPages();
   pages.forEach((p, i) => p.drawText(`Clavoris · ${opts.room} · NDA · page ${i + 1} / ${pages.length}`, { x: M, y: 30, size: 8, font, color: grey }));
   return await pdf.save();
@@ -79,7 +79,7 @@ async function appendSignaturePage(original: Uint8Array, opts: { room: string; c
     for (const l of wrap(v, 80)) { page.drawText(l, { x: M + 140, y, size: 9, font, color: ink }); y -= 12.5; }
   }
   y -= 10;
-  for (const l of wrap("The preceding pages are the non-disclosure agreement exactly as presented to the signatory on Clavoris; the SHA-256 above binds this record to that document. It was accepted electronically by an identity-verified user (Sumsub KYC) and Clavoris retains the access log of this acceptance.", 100)) { page.drawText(l, { x: M, y, size: 8.5, font, color: grey }); y -= 12; }
+  for (const l of wrap("The preceding pages are the non-disclosure agreement exactly as presented to the signatory on Clavoris; the SHA-256 above binds this record to that document. It was accepted electronically by an identity-verified user (AMLD6 KYC) and Clavoris retains the access log of this acceptance.", 100)) { page.drawText(l, { x: M, y, size: 8.5, font, color: grey }); y -= 12; }
   const pages = pdf.getPages();
   pages[pages.length - 1].drawText(`Clavoris · ${opts.room} · NDA · signature page`, { x: M, y: 30, size: 8, font, color: grey });
   return await pdf.save();
@@ -94,11 +94,11 @@ async function storeNda(room: { nextcloud_folder: string | null; slug: string },
   catch (e) { console.error("clv-room-nda: nextcloud store failed:", (e as Error).message); return null; }
 }
 
-function sigBlock(me: { email: string; company: string | null; sumsub_applicant_id: string | null; kyc_reviewed_at: string | null }, typed: string, at: Date, ip: string, version: string, shaUnsigned: string): Record<string, string> {
+function sigBlock(me: { email: string; company: string | null; sumsub_applicant_id: string | null; kyc_provider?: string | null; kyc_session_id?: string | null; kyc_reviewed_at: string | null }, typed: string, at: Date, ip: string, version: string, shaUnsigned: string): Record<string, string> {
   return {
     "Signatory": typed, "Email": me.email, "Organisation": me.company || "—",
     "Signed at (UTC)": at.toISOString().replace("T", " ").slice(0, 19),
-    "Identity verification": `Sumsub KYC · applicant ${me.sumsub_applicant_id || "n/a"} · reviewed ${me.kyc_reviewed_at ? String(me.kyc_reviewed_at).slice(0, 10) : "n/a"}`,
+    "Identity verification": `${me.kyc_provider === "didit" || (!me.sumsub_applicant_id && me.kyc_session_id) ? `Didit KYC · session ${me.kyc_session_id || "n/a"}` : `Sumsub KYC · applicant ${me.sumsub_applicant_id || "n/a"}`} · reviewed ${me.kyc_reviewed_at ? String(me.kyc_reviewed_at).slice(0, 10) : "n/a"}`,
     "Signature method": "KYC-attested electronic acceptance (eIDAS simple e-signature)",
     "IP address": ip || "n/a", "NDA version": version, "SHA-256 of NDA": shaUnsigned,
   };
@@ -183,7 +183,7 @@ Deno.serve(async (req) => {
   const { error } = await admin.from("clv_signed_documents").insert({
     user_id: me.id, room_id: roomId, doc_type: "nda", doc_version: version,
     sha256_unsigned: shaUnsigned, sha256_signed: shaSigned, nextcloud_path: ncPath, signed_at: now.toISOString(),
-    validation: { method: "kyc-attested-click", typed_name: typed, ip, user_agent: ua, sumsub_applicant_id: me.sumsub_applicant_id, kyc_reviewed_at: me.kyc_reviewed_at, stored: !!ncPath },
+    validation: { method: "kyc-attested-click", typed_name: typed, ip, user_agent: ua, sumsub_applicant_id: me.sumsub_applicant_id, kyc_provider: me.kyc_provider || (me.sumsub_applicant_id ? "sumsub" : null), kyc_session_id: me.kyc_session_id, kyc_reviewed_at: me.kyc_reviewed_at, stored: !!ncPath },
   });
   if (error) return json({ error: error.message }, 400);
   await admin.from("clv_access_log").insert({ user_id: me.id, room_id: roomId, file_path: ncPath, action: "nda-signed", ip, user_agent: ua }).then(() => {}, () => {});
