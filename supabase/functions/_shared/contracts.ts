@@ -15,7 +15,7 @@ import { b64ToBytes, esignAuditTrail, esignGetRequest, type EsignRequest, signer
 export const CONTRACTS_ROOT = "Documents/Clavoris/Contracts";
 
 export type Party = { id: string; contract_id: string; user_id: string; role: string; order_no: number; status: string; signed_at: string | null; signed_path: string | null; sha256_signed: string | null; esign_signer_no: number | null; esign_signature_link: string | null; esign_method: string | null; evidence: Record<string, unknown>; ip: string | null; invited_at: string | null; opened_at: string | null; signing_started_at: string | null; declined_at: string | null; profile?: { full_name: string | null; email: string; company: string | null; lang?: string | null; mobile?: string | null; notify?: Record<string, unknown> | null } };
-export type Contract = { id: string; title: string; description: string | null; status: string; folder: string; original_name: string; original_path: string; sha256_original: string; current_path: string | null; executed_path: string | null; sha256_executed: string | null; certificate_path: string | null; audit_trail_path: string | null; esign_id_sign: string | null; esign_status: string | null; esign_doc_name: string | null; esign_synced_at: string | null; pages: number | null; created_at: string; launched_at: string | null; executed_at: string | null };
+export type Contract = { id: string; title: string; description: string | null; status: string; folder: string; original_name: string; original_path: string; sha256_original: string; current_path: string | null; executed_path: string | null; sha256_executed: string | null; certificate_path: string | null; audit_trail_path: string | null; esign_id_sign: string | null; esign_status: string | null; esign_doc_name: string | null; esign_synced_at: string | null; pages: number | null; created_at: string; launched_at: string | null; executed_at: string | null; created_by?: string | null; company_id?: string | null };
 
 export async function logEvent(admin: SupabaseClient, contractId: string, userId: string | null, event: string, detail: Record<string, unknown> = {}, ip = "") {
   await admin.from("clv_contract_events").insert({ contract_id: contractId, user_id: userId, event, detail, ip }).then(() => {}, (e: unknown) => console.error("contract event", e));
@@ -24,6 +24,15 @@ export async function logEvent(admin: SupabaseClient, contractId: string, userId
 export async function loadParties(admin: SupabaseClient, contractId: string): Promise<Party[]> {
   const { data } = await admin.from("clv_contract_parties").select("*, profile:clv_profiles!clv_contract_parties_user_id_fkey(full_name, email, company, lang, mobile, notify)").eq("contract_id", contractId).order("role").order("order_no").order("added_at");
   return (data || []) as Party[];
+}
+
+// Who the contract comes from, for the mails: "Jane Doe (Acme BV)" — the staff member who created it and the
+// company account it belongs to (falls back to the creator's own company field, then to "Clavoris").
+export async function contractFrom(admin: SupabaseClient, c: Contract): Promise<string> {
+  let by = "", company = "";
+  if (c.created_by) { const { data: p } = await admin.from("clv_profiles").select("full_name, company").eq("id", c.created_by).maybeSingle(); by = p?.full_name || ""; company = p?.company || ""; }
+  if (c.company_id) { const { data: co } = await admin.from("clv_companies").select("name").eq("id", c.company_id).maybeSingle(); if (co?.name) company = co.name; }
+  return by && company ? `${by} (${company})` : by || company || "Clavoris";
 }
 
 export function signatoriesInOrder(parties: Party[]): Party[] { return parties.filter((p) => p.role === "signatory").sort((a, b) => a.order_no - b.order_no || a.invited_at?.localeCompare(b.invited_at || "") || 0); }
@@ -35,7 +44,7 @@ export async function inviteNext(admin: SupabaseClient, c: Contract, parties: Pa
   if (!nxt || nxt.status !== "pending") return nxt;
   await admin.from("clv_contract_parties").update({ status: "invited", invited_at: new Date().toISOString() }).eq("id", nxt.id);
   const link = `${APP_URL}/contract.html?id=${c.id}`;
-  const L = pickLang(nxt.profile?.lang); const m = mail(L, "contract_your_turn", { name: nxt.profile?.full_name, title: c.title, link });
+  const L = pickLang(nxt.profile?.lang); const m = mail(L, "contract_your_turn", { name: nxt.profile?.full_name, title: c.title, link, from: await contractFrom(admin, c) });
   sendMail(nxt.profile?.email || "", m.subject, m.text, L).catch((e) => console.error("contract invite mail", e));
   await logEvent(admin, c.id, nxt.user_id, "party-invited", { party_id: nxt.id, order: nxt.order_no });
   return nxt;

@@ -22,7 +22,7 @@ import { ncConfigured, ncGet, ncMkdirP, ncPut, sha256Hex } from "../_shared/nc.t
 import { bytesToB64, esign, esignBalance, esignConfigured, esignGetRequest, ESIGN_METHODS, type EsignRequest, esignResult, normalizePhone, splitName } from "../_shared/esign.ts";
 import { mail, pickLang, word } from "../_shared/mail-i18n.ts";
 const withLang = (u: string, l: string) => u + (u.includes("?") ? "&" : "?") + "lang=" + l;
-import { CONTRACTS_ROOT, type Contract, inviteNext, loadParties, logEvent, nextSignatory, type Party, signatoriesInOrder, syncContract } from "../_shared/contracts.ts";
+import { CONTRACTS_ROOT, type Contract, contractFrom, inviteNext, loadParties, logEvent, nextSignatory, type Party, signatoriesInOrder, syncContract } from "../_shared/contracts.ts";
 
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 48) || "contract";
 
@@ -157,13 +157,14 @@ Deno.serve(async (req) => {
     const { error } = await admin.from("clv_contract_parties").insert({ contract_id: c.id, user_id: prof.id, role, order_no: role === "signatory" ? order : 0, status: "pending", added_by: me.id });
     if (error) return json({ error: error.message }, 400);
     await logEvent(admin, c.id, me.id, "party-added", { email, role, order: role === "signatory" ? order : null, created }, ip);
+    const from = await contractFrom(admin, c);
     if (created || linked) {
-      const m = mail(lang, linked ? "contract_added_linked" : "contract_added_new", { name, title: c.title, role: word(lang, role === "auditor" ? "role_auditor" : "role_signatory"), link: withLang(link, lang), login: `${APP_URL}/login.html?lang=${lang}`, tail: word(lang, role === "auditor" ? "tail_auditor" : "tail_signatory") });
+      const m = mail(lang, linked ? "contract_added_linked" : "contract_added_new", { name, from, title: c.title, role: word(lang, role === "auditor" ? "role_auditor" : "role_signatory"), link: withLang(link, lang), login: `${APP_URL}/login.html?lang=${lang}`, tail: word(lang, role === "auditor" ? "tail_auditor" : "tail_signatory") });
       sendMail(email, m.subject, m.text, lang).catch((e) => console.error("contract party mail", e));
     } else if (wants(prof.notify, "contract_new")) {
       // Existing user: "a contract has been assigned to you" (switchable under Account).
       const L = pickLang(prof.lang);
-      const m = mail(L, "contract_assigned", { name: prof.full_name, title: c.title, role: word(L, role === "auditor" ? "role_auditor" : "role_signatory"), link: `${APP_URL}/contract.html?id=${c.id}` });
+      const m = mail(L, "contract_assigned", { name: prof.full_name, from, title: c.title, role: word(L, role === "auditor" ? "role_auditor" : "role_signatory"), link: `${APP_URL}/contract.html?id=${c.id}` });
       sendMail(email, m.subject, m.text, L).catch((e) => console.error("contract assigned mail", e));
     }
     return json({ ok: true, created, linked });
@@ -214,13 +215,13 @@ Deno.serve(async (req) => {
     parties = await loadParties(admin, c.id);
     const c2 = { ...c, status: "in_progress", esign_id_sign: idSign };
     const first = await inviteNext(admin, c2, parties);
-    const link = `${APP_URL}/contract.html?id=${c.id}`;
+    const link = `${APP_URL}/contract.html?id=${c.id}`, from = await contractFrom(admin, c);
     for (const p of parties) {
       if (first && p.id === first.id) continue; // already received "your signature is requested"
       if (!p.profile?.email) continue;
       const L = pickLang(p.profile.lang);
-      if (p.role === "auditor") { const m = mail(L, "contract_launched_auditor", { name: p.profile.full_name, title: c.title, link }); sendMail(p.profile.email, m.subject, m.text, L).catch(() => {}); }
-      else if (p.status === "pending" && wants(p.profile.notify, "contract_new")) { const m = mail(L, "contract_launched_wait", { name: p.profile.full_name, title: c.title, order: p.order_no, link }); sendMail(p.profile.email, m.subject, m.text, L).catch(() => {}); }
+      if (p.role === "auditor") { const m = mail(L, "contract_launched_auditor", { name: p.profile.full_name, from, title: c.title, link }); sendMail(p.profile.email, m.subject, m.text, L).catch(() => {}); }
+      else if (p.status === "pending" && wants(p.profile.notify, "contract_new")) { const m = mail(L, "contract_launched_wait", { name: p.profile.full_name, from, title: c.title, order: p.order_no, link }); sendMail(p.profile.email, m.subject, m.text, L).catch(() => {}); }
     }
     return json({ ok: true });
   }
@@ -234,7 +235,7 @@ Deno.serve(async (req) => {
     const nxt = nextSignatory(parties);
     if (!nxt || !nxt.profile?.email) return json({ error: "no-signatory" }, 400);
     const L = pickLang(nxt.profile.lang);
-    const m = mail(L, "contract_your_turn", { name: nxt.profile.full_name, title: c.title, link: `${APP_URL}/contract.html?id=${c.id}` });
+    const m = mail(L, "contract_your_turn", { name: nxt.profile.full_name, from: await contractFrom(admin, c), title: c.title, link: `${APP_URL}/contract.html?id=${c.id}` });
     const sent = await sendMail(nxt.profile.email, m.subject, m.text, L).catch((e) => { console.error("contract remind mail", e); return false; });
     await logEvent(admin, c.id, me.id, "party-reminded", { party_id: nxt.id, sent }, ip);
     return json({ ok: true, sent, to: nxt.profile.email });
@@ -319,7 +320,7 @@ Deno.serve(async (req) => {
     const code = "C" + crypto.randomUUID().replace(/-/g, "").slice(0, 9).toUpperCase();
     await logEvent(admin, c.id, me.id, "download", { which, sha256: sha, code }, ip);
     await admin.from("clv_downloads").insert({ code, user_id: me.id, room_id: null, contract_id: c.id, file_path: path, file_name: name, sha256_source: sha, sha256_delivered: sha, delivered_as: which === "original" ? "original" : "qes-signed", watermark: { code, contract: c.id, which, stamped: false }, ip, user_agent: ua }).then(() => {}, (e: unknown) => console.error("contract download record", e));
-    return new Response(bytes, { status: 200, headers: { ...cors, "content-type": "application/pdf", "content-disposition": `attachment; filename="${name.replace(/"/g, "")}"`, "access-control-expose-headers": "content-disposition" } });
+    return new Response(bytes, { status: 200, headers: { ...cors, "content-type": "application/pdf", "content-disposition": `attachment; filename="${name.replace(/\"/g, "")}"`, "access-control-expose-headers": "content-disposition" } });
   }
 
   return json({ error: "bad-action" }, 400);
