@@ -65,13 +65,16 @@ if (window.top !== window.self) { try { window.top.location.replace(location.hre
     });
   }
   var polls = 0;
-  function poll() { if (polls++ > 120) return; setTimeout(function () { A.refresh().then(function () { showStatus(); if (A.status() !== 'verified' && A.status() !== 'rejected') poll(); }); }, 5000); }
+  // Every 30 s the provider's decision is pulled directly (covers a missed webhook).
+  function sync() { return A.callFn('clv-kyc-token', { sync: true }).catch(function () { return null; }); }
+  function poll() { if (polls++ > 120) return; setTimeout(function () { (polls % 6 === 0 ? sync() : Promise.resolve()).then(function () { return A.refresh(); }).then(function () { showStatus(); if (A.status() !== 'verified' && A.status() !== 'rejected') poll(); }); }, 5000); }
   A.ready(function () {
     if (!A.clears('full')) return;
     S.render('account'); showStatus();
     var st = A.status();
     if (st === 'verified' || st === 'rejected') return;
-    if (returned && /^(Approved|In Review|In Progress)$/.test(params.get('status') || '')) { q('msg').className = 'msg ok'; q('msg').textContent = I.t('kyc.submitted'); poll(); return; }
+    if (returned && /^(Approved|In Review|In Progress)$/.test(params.get('status') || '')) { q('msg').className = 'msg ok'; q('msg').textContent = I.t('kyc.submitted'); sync().then(function () { return A.refresh(); }).then(showStatus); poll(); return; }
+    if (st === 'kyc_pending') { sync().then(function () { return A.refresh(); }).then(function () { showStatus(); if (A.status() !== 'verified') launch(); }); return; }
     launch();   // first visit, or came back without finishing: Didit resumes the same session
   });
 })();
