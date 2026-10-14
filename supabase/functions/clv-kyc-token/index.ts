@@ -29,11 +29,14 @@ Deno.serve(async (req) => {
     const r = await syncKycSession(admin, t.id, t.kyc_session_id);
     return "error" in r ? json(r, 502) : json({ ok: true, ...r });
   }
-  if (me.status === "verified") return json({ ok: true, verified: true });
+  // A verified user may verify again (new address, new identity document): a new Didit session is created
+  // and the status stays "verified" while it runs; an approved result refreshes the summary.
+  const renew = body.renew === true && me.status === "verified";
+  if (me.status === "verified" && !renew) return json({ ok: true, verified: true });
   if (me.status === "rejected" || me.status === "suspended") return json({ error: "kyc-closed" }, 403);
   const next = typeof body.next === "string" && /^[a-z0-9_./?=&-]{1,200}$/i.test(body.next) && !body.next.startsWith("/") && !body.next.includes("//") ? body.next : "portal.html";
   const lang = LANGS.has(String(me.lang || "")) ? String(me.lang) : "en";
-  const callback = `${APP_URL}/kyc.html?next=${encodeURIComponent(next)}`;
+  const callback = `${APP_URL}/kyc.html?next=${encodeURIComponent(next)}${renew ? "&renew=1" : ""}`;
 
   const res = await fetch(`${DIDIT_URL}/v3/session/`, {
     method: "POST",

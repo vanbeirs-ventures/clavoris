@@ -7,6 +7,7 @@
 <title>Set password — Clavoris</title>
 <link rel="icon" href="../assets/clavoris-mark.png">
 <link rel="stylesheet" href="app.css?v=20261014d">
+<style>.pw-mm{display:block;margin-top:6px;font-size:12.5px;color:var(--status-alert)}.pw-bad input{border-color:var(--status-alert)!important;box-shadow:0 0 0 3px rgba(179,38,30,.12)}</style>
 </head>
 <body>
 <main class="auth" data-screen-label="Set password" data-i18n-doctitle="reset.btn">
@@ -31,7 +32,7 @@
           <div class="pw-wrap"><input id="pw1" type="password" autocomplete="new-password" class="mono">
             <button type="button" class="pw-eye" data-eye="pw1" aria-label="Show password"><svg viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></button></div>
           <span class="hint" data-i18n="reset.hint">At least 12 characters, with a letter and a number.</span></div>
-        <div class="field"><label for="pw2" data-i18n="reset.repeat">Repeat password</label><div class="pw-wrap"><input id="pw2" type="password" autocomplete="new-password" class="mono"><button type="button" class="pw-eye" data-eye="pw2" aria-label="Show password"><svg viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>
+        <div class="field" id="pw2Field"><label for="pw2" data-i18n="reset.repeat">Repeat password</label><input id="pw2" type="password" autocomplete="new-password" class="mono"><span class="pw-mm" id="pwMm" role="alert" hidden data-i18n="pw.mismatch">The passwords do not match.</span></div>
         <p class="msg" id="msg" role="status"></p>
         <button class="btn btn-primary btn-block" type="submit" id="btn" disabled data-i18n="reset.btn">Set password</button>
       </form>
@@ -65,7 +66,11 @@
   [].forEach.call(document.querySelectorAll('[data-eye]'), function (b) {
     b.addEventListener('click', function () { var i = q(b.getAttribute('data-eye')); i.type = i.type === 'password' ? 'text' : 'password'; });
   });
-  function refresh() { q('btn').disabled = !(valid(q('pw1').value) && q('pw1').value === q('pw2').value); }
+  function refresh() {
+    var a = q('pw1').value, b = q('pw2').value, mm = !!b && a !== b;
+    q('pwMm').hidden = !mm; q('pw2Field').classList.toggle('pw-bad', mm); q('pw2').setAttribute('aria-invalid', mm ? 'true' : 'false');
+    q('btn').disabled = !(valid(a) && a === b);
+  }
   q('pw1').addEventListener('input', refresh); q('pw2').addEventListener('input', refresh);
 
   function renderLangSw() {
