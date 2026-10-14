@@ -3,7 +3,7 @@ window.ClavorisI18n.add('en', {
     'lang.en': 'English', 'lang.nl': 'Nederlands', 'lang.fr': 'Français',
     'nav.rooms': 'Data rooms', 'nav.market': 'Marketplace', 'nav.portfolio': 'Portfolio', 'nav.contracts': 'Contracts', 'nav.admin': 'Admin', 'nav.signout': 'Sign out', 'nav.kyc_verified': 'KYC verified', 'nav.account': 'Account', 'nav.kyc_title': 'Complete identity verification',
     'status.registered': 'registered', 'status.kyc_pending': 'in verification', 'status.kyc_retry': 'retry needed', 'status.verified': 'verified', 'status.rejected': 'rejected', 'status.suspended': 'suspended',
-    'footer.tag': 'Clavoris · Private Investment Enablement Platform', 'footer.loc': 'Antwerp · Luxembourg · Nordic · CSSF · FSMA · MiCA',
+    'footer.tag': 'Clavoris · Private Investment Enablement Platform', 'footer.loc': 'Antwerp · Luxembourg',
     'common.loading': 'Loading…', 'common.download': 'Download', 'common.failed': 'Failed', 'common.preparing': 'Preparing…', 'common.view_only': 'view only', 'common.open': 'Open', 'common.continue': 'Continue', 'common.none': '—',
     // login
     'login.eyebrow': 'Private Investment Enablement Platform', 'login.title': 'Private capital,<br>precisely secured.', 'login.body': 'Tokenised private bonds and SICAV-RAIF share classes from regulated partner issuers. T+0 settlement on Canton Network, for qualified professional investors.',
