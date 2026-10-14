@@ -146,12 +146,17 @@ const CTA: Record<string, Record<Lang, string>> = {
 export function ctaLabel(lang: Lang | string, key: "activate" | "reset" | "fallback"): string { const L = pickLang(lang); return CTA[key][L] || CTA[key].en; }
 const FONT_UI = "Poppins,'Helvetica Neue',Helvetica,Arial,sans-serif";
 const FONT_DISPLAY = "'EB Garamond',Garamond,Georgia,'Times New Roman',serif";
+const FROM_CAPTION: Record<string, string> = { en: "Message from", nl: "Bericht van", fr: "Message de" };
 export function textToHtml(text: string, cta?: Cta, lang: Lang = "en"): string {
   const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   const link = (href: string, label: string) => `<a href="${esc(href)}" style="color:#1A3A5C;text-decoration:underline">${esc(label)}</a>`;
   // The plain-text lead-in ("Click here to activate your account:") is replaced by the button itself.
   const norm = (x: string) => x.trim().replace(/\s*:$/, "").toLowerCase();
-  const src = text.replace(/\r/g, "").split("\n");
+  let src = text.replace(/\r/g, "").split("\n");
+  // Sender line ("Message from <company>") is shown as a caption under the logo.
+  let sender = "";
+  const fm = (src[0] || "").match(/^(Message from|Bericht van|Message de) (.+)$/);
+  if (fm) { sender = fm[2].trim(); src = src.slice(1); while (src.length && !src[0].trim()) src.shift(); }
   const blocks: string[] = [];
   let para: string[] = [];
   const flush = () => { if (para.length) { blocks.push(`<p style="margin:0 0 20px;font-family:${FONT_UI};font-size:15px;line-height:1.7;color:#1F2933">${para.join("<br>")}</p>`); para = []; } };
@@ -178,7 +183,9 @@ export function textToHtml(text: string, cta?: Cta, lang: Lang = "en"): string {
     + `<body style="margin:0;padding:0;background:#F7F3EC">`
     + `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#F7F3EC" style="background:#F7F3EC"><tr><td align="center" style="padding:40px 16px">`
     + `<table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;background:#FFFFFF;border:1px solid #E6DFD1;border-top:3px solid #B8860B">`
-    + `<tr><td align="center" style="padding:40px 48px 28px"><img src="${logo}" width="72" alt="Clavoris" style="display:block;width:72px;height:auto;border:0"></td></tr>`
+    + `<tr><td align="center" style="padding:40px 48px 28px"><img src="${logo}" width="72" alt="Clavoris" style="display:block;width:72px;height:auto;border:0">`
+    + (sender ? `<p style="margin:22px 0 0;font-family:${FONT_UI};font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#6E83A0">${esc(FROM_CAPTION[lang] || FROM_CAPTION.en)}</p><p style="margin:4px 0 0;font-family:${FONT_DISPLAY};font-size:21px;line-height:1.3;color:#1A3A5C">${esc(sender)}</p>` : "")
+    + `</td></tr>`
     + `<tr><td style="padding:0 48px"><div style="height:1px;line-height:1px;background:#E6DFD1">&nbsp;</div></td></tr>`
     + `<tr><td style="padding:36px 48px 24px">${blocks.join("")}</td></tr>`
     + `<tr><td bgcolor="#EDE7DA" style="background:#EDE7DA;padding:28px 48px 30px">`
