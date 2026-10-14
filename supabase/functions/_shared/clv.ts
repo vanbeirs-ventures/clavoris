@@ -75,13 +75,19 @@ export const MAIL_SIGNATURE = "Clavoris · Private investment, enabled\nAntwerp 
 
 export function mailConfigured(): boolean { return !!Deno.env.get("CLAVORIS_SMTP_HOST"); }
 
-// RFC 2047 encoded words (base64, short chunks on one line) for non-ASCII subjects. The mail
-// library's own quoted-printable encoding folds long subjects with soft line breaks, which some
-// receivers treat as the end of the header block (the rest of the headers then show up in the body).
+// Subject header. The mail library re-encodes any subject that contains non-ASCII characters or starts
+// with "=?" as one long quoted-printable word folded with soft line breaks, which breaks the header block
+// in most receivers (the remaining headers then show up in the body). So: keep the leading ASCII part as
+// plain text and encode only the rest as RFC 2047 base64 words; the result is pure ASCII and never starts
+// with "=?", so the library passes it through untouched.
 export function encodeSubject(s: string): string {
   const str = String(s || "").replace(/[\r\n]+/g, " ").trim();
   if (/^[\x20-\x7e]*$/.test(str)) return str;
-  const bytes = new TextEncoder().encode(str);
+  const ascii = /^[\x20-\x7e]*/.exec(str)![0];
+  let head = ascii.slice(0, ascii.lastIndexOf(" ") + 1).replace(/\s+$/, ""); // cut at a word boundary
+  let rest = str.slice(head.length).replace(/^\s+/, "");
+  if (!head) { head = "Clavoris:"; rest = rest.replace(/^Clavoris\s*:?\s*/i, ""); }
+  const bytes = new TextEncoder().encode(rest);
   const words: string[] = [];
   for (let i = 0; i < bytes.length;) {
     let end = Math.min(bytes.length, i + 33);
@@ -89,7 +95,7 @@ export function encodeSubject(s: string): string {
     words.push("=?utf-8?B?" + btoa(String.fromCharCode(...bytes.subarray(i, end))) + "?=");
     i = end;
   }
-  return words.join(" ");
+  return head + " " + words.join(" ");
 }
 
 export async function sendMail(to: string, subject: string, text: string, lang: Lang | string = "en"): Promise<boolean> {
@@ -107,7 +113,7 @@ export async function sendMail(to: string, subject: string, text: string, lang: 
 // ---- enrolment on the shared user directory ----
 // The Supabase project is shared with the Minerva cloud: one auth user per e-mail address.
 // A Clavoris enrolment therefore either creates the auth user (new to both platforms) or
-// attaches a Clavoris profile to an existing user (who keeps their existing passphrase).
+// attaches a Clavoris profile to an existing user (who keeps their existing password).
 // Returns the activation link to send: a one-time recovery link lands on reset.html.
 export type Enrolled = { id: string; created: boolean; linked: boolean; link: string };
 export async function enrolUser(admin: SupabaseClient, email: string, name: string, company: string | null, lang = "en", role: "user" | "admin" = "user"): Promise<Enrolled | { error: string }> {
