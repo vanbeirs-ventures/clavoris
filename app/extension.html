@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Extension request — Clavoris</title>
+<link rel="icon" href="../assets/clavoris-mark.png">
+<link rel="stylesheet" href="app.css?v=20261014e">
+<script>document.documentElement.classList.add('clv-checking');</script>
+<style>
+.xr-grid { display:grid; grid-template-columns: 170px 1fr; gap:8px 16px; font-size:14px; line-height:1.55; margin-top:6px; }
+.xr-grid dt { color:var(--fg-3); }
+.xr-grid dd { margin:0; color:var(--fg-1); }
+.xr-msg { margin-top:14px; padding:12px 14px; background:var(--bg-2, #F4EFE5); border-radius:8px; font-size:14px; line-height:1.6; white-space:pre-wrap; }
+.xr-choice { display:flex; gap:10px; flex-wrap:wrap; margin-top:6px; }
+.xr-choice label { display:flex; align-items:center; gap:8px; padding:10px 14px; border:1px solid var(--line, #E6DFD1); border-radius:8px; cursor:pointer; font-size:14px; }
+.xr-choice input { accent-color: var(--clavis-navy); }
+@media (max-width: 560px) { .xr-grid { grid-template-columns: 1fr; gap:2px; } .xr-grid dd { margin-bottom:8px; } }
+</style>
+</head>
+<body data-clv-restrict="admin">
+<div class="app">
+  <nav class="nav" id="nav"></nav>
+  <main class="screen-wrap" data-screen-label="Extension request">
+    <p class="eyebrow" id="tEyebrow">Data room</p>
+    <h1 class="page-title" id="tTitle">Extension request</h1>
+    <p class="page-sub" id="tSub"></p>
+
+    <section class="card" style="padding:22px 24px;margin-top:24px" id="reqCard">
+      <p id="loading" style="color:var(--fg-3)">…</p>
+      <div id="reqBody" style="display:none">
+        <dl class="xr-grid" id="facts"></dl>
+        <div class="xr-msg" id="memberMsg" style="display:none"></div>
+      </div>
+    </section>
+
+    <section class="card" style="padding:22px 24px;margin-top:18px;display:none" id="decCard">
+      <form id="decForm" onsubmit="return false;" autocomplete="off">
+        <div class="field" style="margin-top:0"><label id="lDecision">Decision</label>
+          <div class="xr-choice">
+            <label><input type="radio" name="dec" value="accept"> <span id="lAccept">Accept</span></label>
+            <label><input type="radio" name="dec" value="reject"> <span id="lReject">Decline</span></label>
+          </div>
+        </div>
+        <div class="field" id="untilField"><label for="until" id="lUntil">Access until</label><input id="until" type="date" class="mono" style="max-width:200px"></div>
+        <div class="field"><label for="note" id="lNote">Comment to the member (optional)</label><textarea id="note" rows="4" maxlength="1000"></textarea></div>
+        <p class="note" id="lInfo" style="margin-top:6px"></p>
+        <p class="msg" id="err" role="alert" style="color:var(--alert, #B3261E)"></p>
+        <button class="btn btn-primary" type="submit" id="send">Confirm</button>
+      </form>
+    </section>
+
+    <section class="card" style="padding:22px 24px;margin-top:18px;display:none" id="doneCard">
+      <p id="doneText" style="font-size:15px;line-height:1.6"></p>
+      <a class="btn-text" href="admin.html#rooms" id="back">Admin › Data rooms</a>
+    </section>
+  </main>
+  <footer class="app-foot"><span data-i18n="footer.tag">Clavoris · Private Investment Enablement Platform</span><span class="loc" data-i18n="footer.loc">Antwerp · Luxembourg</span></footer>
+</div>
+
+<script src="config.js?v=20261014e"></script>
+<script src="i18n.js?v=20261014e"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="clavoris-access.js?v=20261014e"></script>
+<script src="shell.js?v=20261014e"></script>
+<script>
+(function () {
+  'use strict';
+  // Decision page for an access-extension request, opened from the "Accept" / "Decline" buttons in the
+  // mail to the room owner's administrators: ?id=<request id>&d=accept|reject. The decision goes through
+  // clv-admin-rooms (decide_extension), which checks the room belongs to the admin's company and mails
+  // the member the outcome with the comment.
+  var A = window.ClavorisAccess, S = window.ClavorisShell;
+  function q(id) { return document.getElementById(id); }
+  function param(k) { return new URLSearchParams(location.search).get(k); }
+  var T = {
+    en: { eyebrow: 'Data room', title: 'Extension request', sub: 'A member asks for a longer access to a data room. Accept or decline; the member is informed by e-mail, with your comment.',
+      member: 'Member', email: 'E-mail', org: 'Organisation', room: 'Data room', current: 'Current end date', requested: 'Requested until', sent: 'Requested on', none: '—',
+      decision: 'Decision', accept: 'Accept', reject: 'Decline', until: 'Access until', note: 'Comment to the member (optional)',
+      info: 'The member receives an e-mail with your decision and this comment.', confirm: 'Confirm decision', pick: 'Choose accept or decline.', date: 'Enter a valid end date.',
+      notfound: 'This request was not found, or you are not an administrator of the company that owns this data room.',
+      decided: 'This request was already {s} on {d}.', s_accepted: 'accepted', s_rejected: 'declined',
+      doneA: 'Accepted. Access now runs until {d}; the member has been informed by e-mail.', doneR: 'Declined. The member has been informed by e-mail.', fail: 'The decision could not be saved: ' },
+    nl: { eyebrow: 'Dataroom', title: 'Verlengingsaanvraag', sub: 'Een lid vraagt een langere toegang tot een dataroom. Aanvaard of weiger; het lid wordt per e-mail op de hoogte gebracht, met uw opmerking.',
+      member: 'Lid', email: 'E-mail', org: 'Organisatie', room: 'Dataroom', current: 'Huidige einddatum', requested: 'Gevraagd tot', sent: 'Gevraagd op', none: '—',
+      decision: 'Beslissing', accept: 'Aanvaarden', reject: 'Weigeren', until: 'Toegang tot', note: 'Opmerking voor het lid (optioneel)',
+      info: 'Het lid ontvangt een e-mail met uw beslissing en deze opmerking.', confirm: 'Beslissing bevestigen', pick: 'Kies aanvaarden of weigeren.', date: 'Geef een geldige einddatum in.',
+      notfound: 'Deze aanvraag werd niet gevonden, of u bent geen beheerder van de onderneming die eigenaar is van deze dataroom.',
+      decided: 'Deze aanvraag werd al {s} op {d}.', s_accepted: 'aanvaard', s_rejected: 'geweigerd',
+      doneA: 'Aanvaard. De toegang loopt nu tot {d}; het lid werd per e-mail op de hoogte gebracht.', doneR: 'Geweigerd. Het lid werd per e-mail op de hoogte gebracht.', fail: 'De beslissing kon niet worden opgeslagen: ' },
+    fr: { eyebrow: 'Data room', title: 'Demande de prolongation', sub: "Un membre demande un accès prolongé à une data room. Acceptez ou refusez ; le membre en est informé par e-mail, avec votre commentaire.",
+      member: 'Membre', email: 'E-mail', org: 'Organisation', room: 'Data room', current: 'Date de fin actuelle', requested: "Demandé jusqu'au", sent: 'Demandé le', none: '—',
+      decision: 'Décision', accept: 'Accepter', reject: 'Refuser', until: "Accès jusqu'au", note: 'Commentaire pour le membre (facultatif)',
+      info: 'Le membre reçoit un e-mail avec votre décision et ce commentaire.', confirm: 'Confirmer la décision', pick: 'Choisissez accepter ou refuser.', date: 'Indiquez une date de fin valide.',
+      notfound: "Cette demande est introuvable, ou vous n'êtes pas administrateur de la société propriétaire de cette data room.",
+      decided: 'Cette demande a déjà été {s} le {d}.', s_accepted: 'acceptée', s_rejected: 'refusée',
+      doneA: "Acceptée. L'accès court désormais jusqu'au {d} ; le membre en a été informé par e-mail.", doneR: 'Refusée. Le membre en a été informé par e-mail.', fail: "La décision n'a pas pu être enregistrée : " }
+  };
+  var L = 'en', t = T.en;
+  function fmt(d) { if (!d) return t.none; try { return new Date(String(d).length === 10 ? d + 'T12:00:00Z' : d).toLocaleDateString(L === 'en' ? 'en-GB' : L + '-BE', { year: 'numeric', month: 'long', day: 'numeric' }); } catch (e) { return String(d).slice(0, 10); } }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+
+  A.ready(function () {
+    if (!A.clears('admin')) return;
+    S.render('admin');
+    var p = A.profile() || {};
+    L = T[param('lang')] ? param('lang') : (T[p.lang] ? p.lang : 'en'); t = T[L];
+    document.documentElement.lang = L;
+    q('tEyebrow').textContent = t.eyebrow; q('tTitle').textContent = t.title; q('tSub').textContent = t.sub; document.title = t.title + ' — Clavoris';
+    q('lDecision').textContent = t.decision; q('lAccept').textContent = t.accept; q('lReject').textContent = t.reject;
+    q('lUntil').textContent = t.until; q('lNote').textContent = t.note; q('lInfo').textContent = t.info; q('send').textContent = t.confirm;
+
+    var id = param('id') || '';
+    var sb = A.client();
+    function notFound() { q('loading').textContent = t.notfound; }
+    if (!/^[0-9a-f-]{36}$/i.test(id)) return notFound();
+    sb.from('clv_access_requests').select('id, room_id, user_id, requested_until, message, status, created_at, decided_at').eq('id', id).maybeSingle().then(function (r) {
+      var rq = r && r.data; if (!rq) return notFound();
+      return Promise.all([
+        sb.from('clv_rooms').select('id, name, company_id').eq('id', rq.room_id).maybeSingle(),
+        sb.from('clv_profiles').select('full_name, email, company').eq('id', rq.user_id).maybeSingle(),
+        sb.from('clv_room_assignments').select('expires_at').eq('room_id', rq.room_id).eq('user_id', rq.user_id).maybeSingle()
+      ]).then(function (res) {
+        var room = res[0].data, who = res[1].data || {}, asg = res[2].data || {};
+        if (!room || (p.role !== 'super' && room.company_id !== p.company_id)) return notFound();
+        q('loading').style.display = 'none'; q('reqBody').style.display = 'block';
+        q('facts').innerHTML = [[t.member, who.full_name || t.none], [t.email, who.email], [t.org, who.company || t.none], [t.room, room.name], [t.current, fmt(asg.expires_at)], [t.requested, fmt(rq.requested_until)], [t.sent, fmt(rq.created_at)]]
+          .map(function (x) { return '<dt>' + esc(x[0]) + '</dt><dd>' + esc(x[1]) + '</dd>'; }).join('');
+        if (rq.message) { q('memberMsg').style.display = 'block'; q('memberMsg').textContent = rq.message; }
+        if (rq.status !== 'pending') {
+          q('doneCard').style.display = 'block';
+          q('doneText').textContent = t.decided.replace('{s}', t['s_' + rq.status] || rq.status).replace('{d}', fmt(rq.decided_at));
+          return;
+        }
+        q('decCard').style.display = 'block';
+        q('until').value = String(rq.requested_until || '').slice(0, 10);
+        var pre = param('d');
+        function sync() { var v = (document.querySelector('input[name=dec]:checked') || {}).value; q('untilField').style.display = v === 'reject' ? 'none' : ''; }
+        [].forEach.call(document.querySelectorAll('input[name=dec]'), function (el) { if (el.value === pre) el.checked = true; el.addEventListener('change', sync); });
+        sync();
+        q('decForm').addEventListener('submit', function () {
+          q('err').textContent = '';
+          var v = (document.querySelector('input[name=dec]:checked') || {}).value;
+          if (!v) { q('err').textContent = t.pick; return; }
+          var until = q('until').value;
+          if (v === 'accept' && !/^\d{4}-\d{2}-\d{2}$/.test(until)) { q('err').textContent = t.date; return; }
+          q('send').disabled = true;
+          A.callFn('clv-admin-rooms', { action: 'decide_extension', request_id: rq.id, accept: v === 'accept', until: v === 'accept' ? until : undefined, note: q('note').value.trim() }).then(function (x) {
+            if (!x || x.error) { q('err').textContent = t.fail + ((x && x.error) || ''); q('send').disabled = false; return; }
+            q('decCard').style.display = 'none'; q('doneCard').style.display = 'block';
+            q('doneText').textContent = v === 'accept' ? t.doneA.replace('{d}', fmt(x.expires_at || until)) : t.doneR;
+          });
+        });
+      });
+    }).catch(notFound);
+  });
+})();
+</script>
+</body>
+</html>

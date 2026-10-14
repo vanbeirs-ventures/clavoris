@@ -133,7 +133,7 @@ Deno.serve(async (req) => {
     if (u) {
       const L = pickLang(u.lang);
       const m = mail(L, accept ? "ext_accepted" : "ext_rejected", { name: u.full_name, room: room.name, company: cname, owner: cname, date: fmtDay(accept ? endOfDay(until!) : a?.expires_at, L), note: note ? word(L, "note_line", { company: cname, owner: cname, note }) : "", link: `${APP_URL}/room.html?id=${room.id}` });
-      sendMail(u.email, m.subject, m.text, L).catch(() => {});
+      await sendMail(u.email, m.subject, m.text, L).catch((e) => console.error("ext decision mail:", (e as Error).message));
     }
     await audit(admin, me, accept ? "access-extended" : "access-extension-rejected", rq.user_id, { room: room.slug, until, note });
     return json({ ok: true, accepted: accept, expires_at: accept ? endOfDay(until!) : a?.expires_at || null });
@@ -208,7 +208,7 @@ Deno.serve(async (req) => {
     if (!a) return json({ error: "not-revoked" }, 400);
     await audit(admin, me, "room-access-reactivated", userId, { room: room.slug });
     const { data: prof } = await admin.from("clv_profiles").select("email, full_name, lang").eq("id", userId).maybeSingle();
-    if (prof) { const L = pickLang(prof.lang); const m = mail(L, "room_invite_existing", { name: prof.full_name, room: room.name, company: cname, owner: cname, until: expires ? word(L, "until_line", { date: fmtDay(expires, L) }) : "", link: `${APP_URL}/login.html?lang=${L}` }); sendMail(prof.email, m.subject, m.text, L).catch(() => {}); }
+    if (prof) { const L = pickLang(prof.lang); const m = mail(L, "room_invite_existing", { name: prof.full_name, room: room.name, company: cname, owner: cname, until: expires ? word(L, "until_line", { date: fmtDay(expires, L) }) : "", link: `${APP_URL}/login.html?lang=${L}` }); await sendMail(prof.email, m.subject, m.text, L).catch(() => false); }
     return json({ ok: true, expires_at: expires });
   }
 
