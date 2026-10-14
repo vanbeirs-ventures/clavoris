@@ -185,7 +185,7 @@ export function textToHtml(text: string, cta?: Cta | Cta[], lang: Lang = "en"): 
   const logo = `${SITE_URL}/assets/clavoris-logo.png`;
   const fl = (href: string, label: string) => `<a href="${esc(href)}" style="color:#6E83A0;text-decoration:underline">${esc(label)}</a>`;
   return `<!doctype html><html lang="${lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">`
-    + `<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital@0;1&family=Poppins:wght@400;500;600&display=swap" rel="stylesheet"></head>`
+    + `</head>`
     + `<body style="margin:0;padding:0;background:#F7F3EC">`
     + `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#F7F3EC" style="background:#F7F3EC"><tr><td align="center" style="padding:40px 16px">`
     + `<table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;background:#FFFFFF;border:1px solid #E6DFD1;border-top:3px solid #B8860B">`
