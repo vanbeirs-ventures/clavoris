@@ -17,6 +17,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Cache-bust script and stylesheet URLs with the commit
+        # Every page references its scripts/stylesheets as "file.js?v=<version>". The version is
+        # rewritten to the commit SHA at deploy time, so each deploy gets fresh URLs and no browser can
+        # keep running an old clavoris-access.js / i18n dictionary against a new page (i18n.js passes
+        # the same ?v= on to the dictionaries it loads).
+        run: |
+          set -euo pipefail
+          V="${GITHUB_SHA::10}"
+          grep -rlE '\?v=[0-9a-z]+' --include='*.html' . | grep -v '^./.git/' | while read -r f; do
+            sed -i -E "s/\?v=[0-9a-z]+/?v=$V/g" "$f"
+          done
+          echo "Asset version: $V"
+
       - name: Upload site files to Bunny Storage
         env:
           BUNNY_API_KEY: ${{ secrets.BUNNY_API_KEY }}
@@ -48,8 +61,8 @@ jobs:
           import json, os, urllib.request
           key, zone = os.environ["BUNNY_API_KEY"], os.environ["PULLZONE_ID"]
           RULES = [
-              ("HTML: no browser cache (deploys visible immediately)", ["*.html", "*/", "https://www.clavoris.com", "https://www.clavoris.com/app", "https://clavoris.com"]),
-              ("CSS/JS: no browser cache (deploys visible immediately)", ["*.css", "*.js"]),
+              ("HTML: no browser cache (deploys visible immediately)", ["*.html", "*.html?*", "*/", "https://www.clavoris.com", "https://www.clavoris.com/app"]),
+              ("CSS/JS: no browser cache (deploys visible immediately)", ["*.css", "*.js", "*.css?*", "*.js?*"]),
           ]
           def call(method, path, body=None):
               req = urllib.request.Request("https://api.bunny.net" + path, method=method, data=json.dumps(body).encode() if body is not None else None,
