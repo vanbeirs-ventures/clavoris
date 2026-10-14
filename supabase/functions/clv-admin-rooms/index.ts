@@ -11,7 +11,7 @@
 //   { action: "decide_extension", request_id, accept, until?, note? } -> accept / reject an extension request (mails the user)
 //   { action: "revoke" | "reactivate" | "remind", room_id, user_id }
 // Deploy: supabase functions deploy clv-admin-rooms --no-verify-jwt
-import { adminClient, APP_URL, audit, companyScope, cors, enrolUser, fmtDay, inScope, json, requireAdmin, sendMail } from "../_shared/clv.ts";
+import { adminClient, APP_URL, audit, companyScope, cors, enrolUser, fmtDay, inScope, json, requireAdmin, sendMail, ctaLabel } from "../_shared/clv.ts";
 import { mail, pickLang, word } from "../_shared/mail-i18n.ts";
 import { ncConfigured, ncMkdirP, ncPut, sha256Hex } from "../_shared/nc.ts";
 const withLang = (u: string, l: string) => u + (u.includes("?") ? "&" : "?") + "lang=" + l;
@@ -195,7 +195,7 @@ Deno.serve(async (req) => {
     } else if (step === "kyc") link = `${APP_URL}/kyc.html?next=room.html%3Fid%3D${roomId}`;
     const m = mail(L, "remind_" + step, { name: prof.full_name, room: room.name, link });
     let mailed = false;
-    try { mailed = await sendMail(prof.email, m.subject, m.text, L); } catch (e) { console.error("clv-admin-rooms remind mail:", (e as Error).message); }
+    try { mailed = await sendMail(prof.email, m.subject, m.text, L, step === "signup" ? { url: link, label: ctaLabel(L, "activate") } : undefined); } catch (e) { console.error("clv-admin-rooms remind mail:", (e as Error).message); }
     await audit(admin, me, "room-reminder-sent", userId, { room: room.slug, step, mailed });
     return json({ ok: true, step, mailed });
   }
@@ -256,7 +256,8 @@ Deno.serve(async (req) => {
       : linked ? mail(L, "room_invite_linked", { name, room: room.name, company: cname, until, login, link: withLang(link, L) + ctx })
       : mail(L, "room_invite_existing", { name: prof.full_name, room: room.name, company: cname, until, link: login });
     let mailed = false;
-    try { mailed = await sendMail(email, m.subject, m.text, L); } catch (e) { console.error("clv-admin-rooms invite mail:", (e as Error).message); }
+    const cta = (created || linked) ? { url: withLang(link, L) + ctx, label: ctaLabel(L, "activate") } : undefined;
+    try { mailed = await sendMail(email, m.subject, m.text, L, cta); } catch (e) { console.error("clv-admin-rooms invite mail:", (e as Error).message); }
     return json({ ok: true, user_id: prof.id, created, linked, mailed, expires_at: expires });
   }
 

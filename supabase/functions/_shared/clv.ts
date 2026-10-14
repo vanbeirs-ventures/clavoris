@@ -127,7 +127,36 @@ export function base64Lines(s: string): string {
   return (btoa(bin).match(/.{1,76}/g) || []).join("\r\n");
 }
 
-export async function sendMail(to: string, subject: string, text: string, lang: Lang | string = "en"): Promise<boolean> {
+// HTML alternative of a plain-text mail: paragraphs kept, bare URLs made clickable, and — when a call to
+// action is given — its URL rendered as a button with a label ("Click here to activate your account")
+// plus the address underneath for clients that strip buttons. Mail clients such as Outlook do not always
+// linkify a long plain-text URL with several parameters; the HTML part makes the link reliable.
+export type Cta = { url: string; label: string };
+const CTA: Record<string, Record<Lang, string>> = {
+  activate: { en: "Click here to activate your account", nl: "Klik hier om uw account te activeren", fr: "Cliquez ici pour activer votre compte" },
+  reset: { en: "Click here to set a new password", nl: "Klik hier om een nieuw wachtwoord in te stellen", fr: "Cliquez ici pour définir un nouveau mot de passe" },
+  fallback: { en: "If the button does not work, copy this address into your browser:", nl: "Werkt de knop niet? Kopieer dan dit adres in uw browser:", fr: "Si le bouton ne fonctionne pas, copiez cette adresse dans votre navigateur :" },
+};
+export function ctaLabel(lang: Lang | string, key: "activate" | "reset" | "fallback"): string { const L = pickLang(lang); return CTA[key][L] || CTA[key].en; }
+export function textToHtml(text: string, cta?: Cta, lang: Lang = "en"): string {
+  const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const lines = text.split("\n").map((line) => {
+    const t = line.trim();
+    if (cta && t === cta.url) {
+      return `<p style="margin:18px 0"><a href="${esc(cta.url)}" style="display:inline-block;background:#1B3A5C;color:#F5EFE3;text-decoration:none;font-weight:600;padding:12px 22px;border-radius:4px">${esc(cta.label)}</a></p>`
+        + `<p style="font-size:12px;color:#6b6b6b;margin:0 0 14px">${esc(ctaLabel(lang, "fallback"))}<br><a href="${esc(cta.url)}" style="color:#1B3A5C;word-break:break-all">${esc(cta.url)}</a></p>`;
+    }
+    const html = esc(line).replace(/(https?:\/\/[^\s&]+(?:&amp;[^\s&]+)*)/g, (u) => `<a href="${u}" style="color:#1B3A5C;word-break:break-all">${u}</a>`);
+    return html === "" ? "" : html;
+  });
+  const body = lines.join("\n").replace(/\n{2,}/g, "</p><p>").replace(/\n/g, "<br>");
+  return `<!doctype html><html><body style="margin:0;padding:24px;background:#F7F3EB;font-family:Helvetica,Arial,sans-serif;font-size:14.5px;line-height:1.6;color:#1f2933">`
+    + `<div style="max-width:620px;margin:0 auto;background:#ffffff;border:1px solid #e6dfd1;border-radius:6px;padding:28px 32px">`
+    + `<p style="font-size:20px;color:#1B3A5C;margin:0 0 18px"><strong>Clavoris</strong> <span style="color:#B8860B;font-size:12px">· Private investment, enabled</span></p>`
+    + `<p>${body}</p></div></body></html>`;
+}
+
+export async function sendMail(to: string, subject: string, text: string, lang: Lang | string = "en", cta?: Cta): Promise<boolean> {
   const host = Deno.env.get("CLAVORIS_SMTP_HOST"); if (!host || !to) return false;
   const port = Number(Deno.env.get("CLAVORIS_SMTP_PORT") || 465);
   const user = Deno.env.get("CLAVORIS_SMTP_USER") || MAIL_FROM;
@@ -136,8 +165,12 @@ export async function sendMail(to: string, subject: string, text: string, lang: 
   try {
     // The body goes out base64-encoded: the library's own quoted-printable folding drops characters when an
     // encoded byte straddles a line break (e.g. the "." of "clavoris.com" vanished in a footer link).
-    const body = text + "\n\n" + mailFooter(pickLang(lang));
-    await client.send({ from: `Clavoris <${MAIL_FROM}>`, to, replyTo: MAIL_REPLY_TO, subject: encodeSubject(subject), mimeContent: [{ mimeType: 'text/plain; charset="utf-8"', content: base64Lines(body), transferEncoding: "base64" }] });
+    const L = pickLang(lang);
+    const body = text + "\n\n" + mailFooter(L);
+    await client.send({ from: `Clavoris <${MAIL_FROM}>`, to, replyTo: MAIL_REPLY_TO, subject: encodeSubject(subject), mimeContent: [
+      { mimeType: 'text/plain; charset="utf-8"', content: base64Lines(body), transferEncoding: "base64" },
+      { mimeType: 'text/html; charset="utf-8"', content: base64Lines(textToHtml(body, cta, L)), transferEncoding: "base64" },
+    ] });
     return true;
   } finally { try { await client.close(); } catch { /* ignore */ } }
 }

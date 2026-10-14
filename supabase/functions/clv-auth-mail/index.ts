@@ -5,7 +5,7 @@
 // Always answers { ok: true } so the endpoint cannot be used to enumerate
 // enrolled addresses. Only addresses with a clv_profiles row are mailed.
 // Deploy: supabase functions deploy clv-auth-mail --no-verify-jwt
-import { adminClient, APP_URL, cors, json, mailConfigured, sendMail } from "../_shared/clv.ts";
+import { adminClient, APP_URL, cors, json, mailConfigured, sendMail, ctaLabel } from "../_shared/clv.ts";
 import { mail, pickLang } from "../_shared/mail-i18n.ts";
 const withLang = (u: string, l: string) => u + (u.includes("?") ? "&" : "?") + "lang=" + l;
 
@@ -39,7 +39,7 @@ Deno.serve(async (req) => {
   const L = pickLang(p.lang);
   const m = mail(L, "recovery", { name: p.full_name, link: withLang(resetUrl, L) });
   try {
-    const sent = await sendMail(email, m.subject, m.text, L);
+    const sent = await sendMail(email, m.subject, m.text, L, { url: withLang(resetUrl, L), label: ctaLabel(L, "reset") });
     console.log("clv-auth-mail recovery mail", sent ? "sent" : "not sent (mail not configured)", "->", email);
   } catch (e) { console.error("clv-auth-mail sendMail failed:", (e as Error)?.message || String(e)); }
   return json({ ok: true });
