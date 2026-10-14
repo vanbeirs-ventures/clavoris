@@ -29,6 +29,8 @@ const EXT_REQ: Record<Lang, { s: string; t: string }> = {
   fr: { s: "Demande de prolongation — {room}", t: "{name} ({email}, {org}) demande la prolongation de son accès à la data room « {room} » jusqu'au {date}. Date de fin actuelle : {current}.\n\nMessage du membre : {message}\n\n" + EXT_CTA.fr.accept + " :\n{accept}\n\n" + EXT_CTA.fr.reject + " :\n{reject}\n\nLes deux liens ouvrent la page de décision, où vous pouvez ajuster la date de fin et ajouter un commentaire. Le membre est informé de votre décision par e-mail." },
 };
 const fillV = (s: string, v: V) => s.replace(/\{(\w+)\}/g, (_, k) => String(v[k] ?? ""));
+// Invitation of a user who already has an account: one button straight into the room (sign-in first if needed).
+export const OPEN_CTA: Record<Lang, string> = { en: "Open the data room", nl: "Open de dataroom", fr: "Ouvrir la data room" };
 const START = /\n\n(Start here:|Begin hier:|Commencez ici :)\n/;
 
 export function mail(lang: Lang, key: string, vars: V = {}): { subject: string; text: string } {
