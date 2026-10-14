@@ -29,8 +29,10 @@
   try {
     if (window.supabase && CFG.url && CFG.anonKey) {
       // The session lives in sessionStorage: it ends when the browser page is closed, not only on sign-out
-      // (compliance requirement). A legacy session left in localStorage by earlier versions is discarded.
-      try { for (var i = localStorage.length - 1; i >= 0; i--) { var lk = localStorage.key(i); if (/^sb-.*-auth-token/.test(lk)) localStorage.removeItem(lk); } } catch (e) {}
+      // (compliance requirement). A session left in localStorage by an earlier version of this file (a page
+      // the browser still had cached) is moved into this tab's sessionStorage once, then removed, so the
+      // user is not bounced between a page that sees it and one that does not.
+      try { for (var i = localStorage.length - 1; i >= 0; i--) { var lk = localStorage.key(i); if (/^sb-.*-auth-token/.test(lk)) { if (!sessionStorage.getItem(lk)) sessionStorage.setItem(lk, localStorage.getItem(lk)); localStorage.removeItem(lk); } } } catch (e) {}
       sb = window.supabase.createClient(CFG.url, CFG.anonKey, {
         auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, storage: window.sessionStorage }
       });

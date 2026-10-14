@@ -72,9 +72,23 @@ jobs:
               except urllib.error.HTTPError as e: return e.code, e.read().decode()
           st, txt = call("GET", f"/pullzone/{zone}")
           rules = json.loads(txt).get("EdgeRules", []) if st == 200 else []
+          # Transitional (October 2026): pages loaded earlier were cached by browsers for 30 days together with
+          # their scripts; one fresh page load now clears that browser cache (Clear-Site-Data: cache), so no
+          # visitor keeps running an old script against new pages. Remove this rule after mid-November 2026.
+          HEADERS = [
+              ("HTML: clear stale browser cache (transitional)", ["*.html", "*.html?*", "*/", "https://www.clavoris.com", "https://www.clavoris.com/app"], "Clear-Site-Data", "\"cache\""),
+          ]
           for desc, patterns in RULES:
               guid = next((r.get("Guid") for r in rules if r.get("Description") == desc), None)
               rule = {"ActionType": 16, "ActionParameter1": "0", "ActionParameter2": "", "Enabled": True, "Description": desc, "TriggerMatchingType": 0,
+                      "Triggers": [{"Type": 0, "PatternMatchingType": 0, "PatternMatches": patterns, "Parameter1": ""}]}
+              if guid: rule["Guid"] = guid
+              st, txt = call("POST", f"/pullzone/{zone}/edgerules/addOrUpdate", rule)
+              print("Edge rule:", desc, "updated" if guid else "created", st, txt[:200])
+              if st not in (200, 201, 204): print(f"::warning::edge rule not applied: HTTP {st} {txt[:400]}")
+          for desc, patterns, hname, hval in HEADERS:
+              guid = next((r.get("Guid") for r in rules if r.get("Description") == desc), None)
+              rule = {"ActionType": 5, "ActionParameter1": hname, "ActionParameter2": hval, "Enabled": True, "Description": desc, "TriggerMatchingType": 0,
                       "Triggers": [{"Type": 0, "PatternMatchingType": 0, "PatternMatches": patterns, "Parameter1": ""}]}
               if guid: rule["Guid"] = guid
               st, txt = call("POST", f"/pullzone/{zone}/edgerules/addOrUpdate", rule)
