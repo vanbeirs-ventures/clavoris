@@ -1,26 +1,27 @@
 // supabase/functions/clv-contracts/index.ts
-// Contracts executed with eIDAS qualified electronic signatures (Sumsub QES).
+// Contracts executed with eIDAS qualified electronic signatures (e-Signature.eu: itsme® / Evrotrust).
 // Caller = any signed-in user; staff (admin/super) manage contracts, parties see their own.
 //   { action: "list" }                                        -> contracts the caller is party to (staff: all)
 //   { action: "get", id }                                     -> contract, parties, events, caller's rights
 //   { action: "create", title, description, file_name, pdf_base64 }   (staff; PDF only)
 //   { action: "add_party", id, email, name, company, role, order_no } (staff; draft only)
 //   { action: "remove_party", id, party_id }                  (staff; draft only)
-//   { action: "launch", id }                                  (staff) -> invites the first signatory
-//   { action: "cancel", id }                                  (staff)
+//   { action: "launch", id }                                  (staff) -> creates the e-Signature.eu request, invites the first signatory
+//   { action: "cancel", id }                                  (staff) -> cancels the request at the provider too
 //   { action: "open", id }                                    -> marks the caller's party as opened
-//   { action: "sign_start", id }                              -> uploads the current PDF to Sumsub, returns a WebSDK token
-//   { action: "sign_check", id }                              -> polls Sumsub for the signed PDF and advances the sequence
-//   { action: "download", id, which: original|executed|certificate } -> binary
-// Secrets: SUMSUB_APP_TOKEN, SUMSUB_SECRET_KEY, SUMSUB_QES_LEVEL_NAME. Deploy with --no-verify-jwt.
+//   { action: "sign_start", id }                              -> returns the caller's embedded signing link
+//   { action: "sign_check", id }                              -> syncs with the provider (signed parties, finished document)
+//   { action: "balance" }                                     (staff) -> signature credits left at the provider
+//   { action: "download", id, which: original|executed|certificate|audit } -> binary
+// Secrets: ESIGN_API_KEY, ESIGN_USER_ID (optional ESIGN_METHODS). Deploy with --no-verify-jwt.
 import { PDFDocument } from "https://esm.sh/pdf-lib@1.17.1";
 import { adminClient, APP_URL, audit, clientIp, companyScope, cors, enrolUser, inScope, isStaff, json, requireUser, sendMail } from "../_shared/clv.ts";
 import { wants } from "../_shared/notify.ts";
 import { ncConfigured, ncGet, ncMkdirP, ncPut, sha256Hex } from "../_shared/nc.ts";
-import { sumsub, sumsubAccessToken, sumsubApplicantId, sumsubConfigured } from "../_shared/sumsub.ts";
+import { bytesToB64, esign, esignBalance, esignConfigured, esignGetRequest, ESIGN_METHODS, type EsignRequest, esignResult, normalizePhone, splitName } from "../_shared/esign.ts";
 import { mail, pickLang, word } from "../_shared/mail-i18n.ts";
 const withLang = (u: string, l: string) => u + (u.includes("?") ? "&" : "?") + "lang=" + l;
-import { CONTRACTS_ROOT, type Contract, finalizeParty, inviteNext, loadParties, logEvent, nextSignatory, type Party, QES_LEVEL, signatoriesInOrder } from "../_shared/contracts.ts";
+import { CONTRACTS_ROOT, type Contract, inviteNext, loadParties, logEvent, nextSignatory, type Party, signatoriesInOrder, syncContract } from "../_shared/contracts.ts";
 
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 48) || "contract";
 
@@ -81,12 +82,18 @@ Deno.serve(async (req) => {
     const canExecuted = c.status === "executed" && (staff || (mine?.role === "signatory"));
     return json({
       ok: true, staff,
-      contract: { id: c.id, title: c.title, description: c.description, status: c.status, original_name: c.original_name, sha256_original: c.sha256_original, sha256_executed: c.sha256_executed, pages: c.pages, created_at: c.created_at, launched_at: c.launched_at, executed_at: c.executed_at },
+      contract: { id: c.id, title: c.title, description: c.description, status: c.status, original_name: c.original_name, sha256_original: c.sha256_original, sha256_executed: c.sha256_executed, pages: c.pages, created_at: c.created_at, launched_at: c.launched_at, executed_at: c.executed_at, esign_id_sign: staff ? c.esign_id_sign : null, esign_status: staff ? c.esign_status : null, has_audit_trail: !!c.audit_trail_path },
       parties: parties.map(partyView),
       events: (events || []).map((e: any) => ({ ...e, who: e.user_id ? names.get(e.user_id) || "" : "Clavoris", detail: staff || mine?.role === "auditor" ? e.detail : { } })),
       me: { role: mine?.role || (staff ? "staff" : null), status: mine?.status || null, my_turn: myTurn, can_download_original: true, can_download_executed: canExecuted, can_manage: staff, next_signatory: nxt ? partyView(nxt).name : null },
-      qes_configured: sumsubConfigured() && !!QES_LEVEL(),
+      qes_configured: esignConfigured(),
     });
+  }
+
+  if (action === "balance") {
+    if (!staff) return json({ error: "forbidden" }, 403);
+    if (!esignConfigured()) return json({ ok: true, configured: false, balance: null });
+    return json({ ok: true, configured: true, balance: await esignBalance() });
   }
 
   if (action === "open") {
@@ -173,13 +180,38 @@ Deno.serve(async (req) => {
   if (action === "launch") {
     if (!staff) return json({ error: "forbidden" }, 403);
     const r = await loadContract(String(body.id || "")); if (r instanceof Response) return r;
-    const { c, parties } = r;
+    const c = r.c; let parties = r.parties;
     if (c.status !== "draft") return json({ error: "not-draft" }, 400);
-    if (!signatoriesInOrder(parties).length) return json({ error: "no-signatories" }, 400);
-    if (!sumsubConfigured() || !QES_LEVEL()) return json({ error: "qes-not-configured" }, 503);
-    await admin.from("clv_contracts").update({ status: "in_progress", launched_at: new Date().toISOString() }).eq("id", c.id);
-    await logEvent(admin, c.id, me.id, "contract-launched", { signatories: signatoriesInOrder(parties).length, auditors: parties.filter((p) => p.role === "auditor").length }, ip);
-    const c2 = { ...c, status: "in_progress" };
+    const sigs = signatoriesInOrder(parties);
+    if (!sigs.length) return json({ error: "no-signatories" }, 400);
+    if (!esignConfigured()) return json({ error: "qes-not-configured" }, 503);
+    // Every signatory needs a name and a mobile number (itsme®/Evrotrust identify the signer by phone).
+    const missing = sigs.filter((p) => !normalizePhone(p.profile?.mobile) || !String(p.profile?.full_name || "").trim()).map((p) => p.profile?.email || p.user_id);
+    if (missing.length) return json({ error: "party-profile-incomplete", parties: missing }, 400);
+
+    // One request at e-Signature.eu for the whole contract (embedded mode: the provider sends no mail;
+    // Clavoris hands out the signing links in order).
+    const src = await ncGet(c.current_path || c.original_path);
+    const bytes = new Uint8Array(await src.arrayBuffer());
+    const docName = `Clavoris-${c.id.slice(0, 8)}.pdf`;
+    const signers = sigs.map((p) => ({ ...splitName(p.profile?.full_name, p.profile?.email || ""), email: p.profile?.email || "", phone: normalizePhone(p.profile?.mobile) }));
+    const payload = {
+      lang: pickLang(sigs[0].profile?.lang), title: c.title, signature_place: "position_auto", send_email: false, reminder: 0, email_notification: false,
+      note_html: `<p>${c.title.replace(/</g, "&lt;")}</p>`, signature_redirect: `${APP_URL}/contract.html?id=${c.id}&signed=1`,
+      methods: ESIGN_METHODS(), signers, pdf_file_base64: bytesToB64(bytes),
+    };
+    const cr = await esign("POST", "request", payload);
+    const reqData = esignResult<EsignRequest>(cr.data);
+    if (!cr.ok || !reqData?.id_sign) { console.error("esign request", cr.status, cr.text.slice(0, 400)); return json({ error: "provider-request-failed", status: cr.status, detail: (cr.data as any)?.message || cr.text.slice(0, 200) }, 502); }
+    const idSign = String(reqData.id_sign);
+    for (let i = 0; i < sigs.length; i++) {
+      const s = reqData.signers?.[String(i + 1)];
+      await admin.from("clv_contract_parties").update({ esign_signer_no: i + 1, esign_signature_link: s?.signature_link || null, evidence: { ...(sigs[i].evidence || {}), input_sha256: c.sha256_original } }).eq("id", sigs[i].id);
+    }
+    await admin.from("clv_contracts").update({ status: "in_progress", launched_at: new Date().toISOString(), esign_id_sign: idSign, esign_status: reqData.status_id || "pending", esign_doc_name: reqData.doc_name || docName, esign_synced_at: new Date().toISOString() }).eq("id", c.id);
+    await logEvent(admin, c.id, me.id, "contract-launched", { signatories: sigs.length, auditors: parties.filter((p) => p.role === "auditor").length, esign_id_sign: idSign, methods: ESIGN_METHODS() }, ip);
+    parties = await loadParties(admin, c.id);
+    const c2 = { ...c, status: "in_progress", esign_id_sign: idSign };
     await inviteNext(admin, c2, parties);
     const link = `${APP_URL}/contract.html?id=${c.id}`;
     for (const p of parties) {
@@ -195,9 +227,16 @@ Deno.serve(async (req) => {
     if (!staff) return json({ error: "forbidden" }, 403);
     const r = await loadContract(String(body.id || "")); if (r instanceof Response) return r;
     if (r.c.status === "executed") return json({ error: "already-executed" }, 400);
-    await admin.from("clv_contracts").update({ status: "cancelled", closed_at: new Date().toISOString() }).eq("id", r.c.id);
-    await logEvent(admin, r.c.id, me.id, "contract-cancelled", {}, ip);
-    return json({ ok: true });
+    let provider: string | null = null;
+    if (r.c.esign_id_sign && r.c.status === "in_progress" && esignConfigured()) {
+      const x = await esign("DELETE", "cancel", undefined, { id_sign: r.c.esign_id_sign });
+      provider = x.ok ? "cancelled" : `cancel-failed ${x.status}`;
+      if (!x.ok) console.error("esign cancel", x.status, x.text.slice(0, 300));
+    }
+    await admin.from("clv_contracts").update({ status: "cancelled", closed_at: new Date().toISOString(), esign_status: provider === "cancelled" ? "cancelled" : r.c.esign_status }).eq("id", r.c.id);
+    await admin.from("clv_contract_parties").update({ esign_signature_link: null }).eq("contract_id", r.c.id);
+    await logEvent(admin, r.c.id, me.id, "contract-cancelled", { provider }, ip);
+    return json({ ok: true, provider });
   }
 
   // ---- signing ----
@@ -208,47 +247,38 @@ Deno.serve(async (req) => {
     if (c.status !== "in_progress") return json({ error: "not-in-progress" }, 400);
     const nxt = nextSignatory(parties);
     if (!nxt || nxt.id !== mine.id) return json({ error: "not-your-turn", waiting_for: nxt ? partyView(nxt).name : null }, 400);
-    if (!sumsubConfigured() || !QES_LEVEL()) return json({ error: "qes-not-configured" }, 503);
+    if (!esignConfigured() || !c.esign_id_sign) return json({ error: "qes-not-configured" }, 503);
     if (mine.status === "signed") return json({ ok: true, already: true });
-
-    // 1. The applicant: existing KYC applicant (externalUserId = user id) or a new one on the QES level.
-    let applicantId = mine.sumsub_applicant_id || me.sumsub_applicant_id || await sumsubApplicantId(me.id);
-    if (!applicantId) {
-      const cr = await sumsub("POST", `/resources/applicants?levelName=${encodeURIComponent(QES_LEVEL())}`, { externalUserId: me.id, email: me.email });
-      const d = await cr.json().catch(() => ({}));
-      if (!cr.ok || !d.id) { console.error("sumsub create applicant", cr.status, JSON.stringify(d).slice(0, 300)); return json({ error: "applicant-failed" }, 502); }
-      applicantId = d.id as string;
+    // The embedded signing link was issued at launch; re-fetch it from the provider if missing.
+    let link = mine.esign_signature_link;
+    if (!link && mine.esign_signer_no) {
+      const req = await esignGetRequest(c.esign_id_sign);
+      link = req?.signers?.[String(mine.esign_signer_no)]?.signature_link || null;
+      if (link) await admin.from("clv_contract_parties").update({ esign_signature_link: link }).eq("id", mine.id);
     }
-    // 2. Upload the current version of the contract to the applicant's e-sign step (once per party).
-    let docName = mine.sumsub_doc_name;
-    if (!docName || mine.status !== "signing") {
-      const src = await ncGet(c.current_path || c.original_path);
-      const bytes = new Uint8Array(await src.arrayBuffer());
-      docName = `Clavoris-${c.id.slice(0, 8)}-${mine.order_no}-${mine.id.slice(0, 8)}.pdf`;
-      // Visible signature block on the last page: two columns, stacked by signing order.
-      const i = mine.order_no - 1;
-      const sigBox = { page: Math.max(1, c.pages || 1), x: 56 + (i % 2) * 250, y: 60 + Math.floor(i / 2) * 70, width: 230, height: 58 };
-      const fd = new FormData();
-      fd.append("content", new Blob([bytes], { type: "application/pdf" }), docName);
-      fd.append("metadata", JSON.stringify({ imageFileName: docName, signatures: { pages: [sigBox] } }));
-      const up = await sumsub("POST", `/resources/applicants/${encodeURIComponent(applicantId)}/esign/resources/uploadDoc`, fd);
-      const ud = await up.text();
-      if (!up.ok) { console.error("sumsub uploadDoc", up.status, ud.slice(0, 300)); return json({ error: "upload-failed", status: up.status }, 502); }
-      await admin.from("clv_contract_parties").update({ status: "signing", signing_started_at: new Date().toISOString(), sumsub_applicant_id: applicantId, sumsub_doc_name: docName, ip, user_agent: ua, evidence: { ...(mine.evidence || {}), signature_box: sigBox, input_sha256: await sha256Hex(bytes) } }).eq("id", mine.id);
-      await logEvent(admin, c.id, me.id, "signing-started", { party_id: mine.id, doc: docName, applicant: applicantId }, ip);
+    if (!link) return json({ error: "signing-link-unavailable" }, 502);
+    if (mine.status !== "signing") {
+      await admin.from("clv_contract_parties").update({ status: "signing", signing_started_at: new Date().toISOString(), ip, user_agent: ua }).eq("id", mine.id);
+      await logEvent(admin, c.id, me.id, "signing-started", { party_id: mine.id, esign_id_sign: c.esign_id_sign, signer_no: mine.esign_signer_no }, ip);
     }
-    // 3. WebSDK token on the QES level.
-    const token = await sumsubAccessToken(me.id, QES_LEVEL());
-    if (!token) return json({ error: "token-failed" }, 502);
-    return json({ ok: true, token, email: me.email, doc: docName });
+    return json({ ok: true, url: link, email: me.email, methods: ESIGN_METHODS() });
   }
 
   if (action === "sign_check") {
     const r = await loadContract(String(body.id || "")); if (r instanceof Response) return r;
-    const { mine } = r;
+    const { c, mine } = r;
     if (!mine || mine.role !== "signatory") return json({ error: "not-signatory" }, 403);
-    const res = await finalizeParty(admin, mine.id);
-    return json({ ok: res.ok, state: res.state, error: res.error });
+    if (mine.status === "signed") return json({ ok: true, state: c.status === "executed" ? "executed" : "signed" });
+    if (c.status !== "in_progress") return json({ ok: true, state: c.status });
+    // The webhook is the primary path; this sync is rate-limited so that the page can poll gently.
+    const age = c.esign_synced_at ? Date.now() - new Date(c.esign_synced_at).getTime() : Infinity;
+    if (age < 10_000) return json({ ok: true, state: mine.status });
+    const res = await syncContract(admin, c);
+    if (!res.ok) return json({ ok: false, state: res.state, error: res.error });
+    const { data: p2 } = await admin.from("clv_contract_parties").select("status").eq("id", mine.id).maybeSingle();
+    const { data: c2 } = await admin.from("clv_contracts").select("status").eq("id", c.id).maybeSingle();
+    const state = c2?.status === "executed" ? "executed" : p2?.status === "signed" ? "signed" : c2?.status === "cancelled" ? "cancelled" : "signing";
+    return json({ ok: true, state });
   }
 
   if (action === "download") {
@@ -257,11 +287,12 @@ Deno.serve(async (req) => {
     const which = String(body.which || "original");
     let path: string | null = null, name = "";
     if (which === "original") { path = c.original_path; name = c.original_name; }
-    else if (which === "executed" || which === "certificate") {
+    else if (which === "executed" || which === "certificate" || which === "audit") {
       if (c.status !== "executed") return json({ error: "not-executed" }, 400);
       if (!staff && mine?.role !== "signatory") return json({ error: "signatories-only" }, 403);
-      path = which === "executed" ? c.executed_path : c.certificate_path;
-      name = which === "executed" ? c.original_name.replace(/\.pdf$/i, "") + "__EXECUTED.pdf" : c.original_name.replace(/\.pdf$/i, "") + "__certificate-of-completion.pdf";
+      const base = c.original_name.replace(/\.pdf$/i, "");
+      path = which === "executed" ? c.executed_path : which === "certificate" ? c.certificate_path : c.audit_trail_path;
+      name = which === "executed" ? base + "__EXECUTED.pdf" : which === "certificate" ? base + "__certificate-of-completion.pdf" : base + "__audit-trail.pdf";
     } else return json({ error: "bad-which" }, 400);
     if (!path) return json({ error: "file-missing" }, 404);
     let res: Response;
