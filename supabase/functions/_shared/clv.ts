@@ -108,6 +108,13 @@ export function encodeSubject(s: string): string {
   return head + " " + words.join(" ");
 }
 
+// Base64 of a UTF-8 string, folded into 76-character lines (RFC 2045).
+export function base64Lines(s: string): string {
+  const bytes = new TextEncoder().encode(s);
+  let bin = ""; for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return (btoa(bin).match(/.{1,76}/g) || []).join("\r\n");
+}
+
 export async function sendMail(to: string, subject: string, text: string, lang: Lang | string = "en"): Promise<boolean> {
   const host = Deno.env.get("CLAVORIS_SMTP_HOST"); if (!host || !to) return false;
   const port = Number(Deno.env.get("CLAVORIS_SMTP_PORT") || 465);
@@ -115,7 +122,10 @@ export async function sendMail(to: string, subject: string, text: string, lang: 
   const pass = Deno.env.get("CLAVORIS_SMTP_PASS") || "";
   const client = new SMTPClient({ connection: { hostname: host, port, tls: port === 465, auth: { username: user, password: pass } } });
   try {
-    await client.send({ from: `Clavoris <${MAIL_FROM}>`, to, replyTo: MAIL_REPLY_TO, subject: encodeSubject(subject), content: text + "\n\n" + mailFooter(pickLang(lang)) });
+    // The body goes out base64-encoded: the library's own quoted-printable folding drops characters when an
+    // encoded byte straddles a line break (e.g. the "." of "clavoris.com" vanished in a footer link).
+    const body = text + "\n\n" + mailFooter(pickLang(lang));
+    await client.send({ from: `Clavoris <${MAIL_FROM}>`, to, replyTo: MAIL_REPLY_TO, subject: encodeSubject(subject), mimeContent: [{ mimeType: 'text/plain; charset="utf-8"', content: base64Lines(body), transferEncoding: "base64" }] });
     return true;
   } finally { try { await client.close(); } catch { /* ignore */ } }
 }
