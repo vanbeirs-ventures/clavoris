@@ -15,10 +15,24 @@ const KYC_NOTE: Record<Lang, string> = {
   nl: "Over de identiteitsverificatie: die wordt uitgevoerd door Didit, een onafhankelijke aanbieder van identiteitsverificatie, gecertificeerd volgens ISO/IEC 27001:2022 en ISO/IEC 27017/27018, geauditeerd onder SOC 2 Type 2 en getest volgens iBeta Level 1 (ISO/IEC 30107-3) voor liveness-detectie. Uw identiteitsdocument en de foto's die tijdens de controle worden genomen, worden door Didit verwerkt in overeenstemming met de AVG. Clavoris gebruikt het resultaat van de verificatie om uw toegang te openen en behandelt uw identiteitsgegevens strikt vertrouwelijk.",
   fr: "À propos de la vérification d'identité : elle est réalisée par Didit, un prestataire indépendant de vérification d'identité certifié ISO/IEC 27001:2022 et ISO/IEC 27017/27018, audité SOC 2 Type 2 et testé iBeta niveau 1 (ISO/IEC 30107-3) pour la détection du vivant. Votre pièce d'identité et les photos prises lors du contrôle sont traitées par Didit conformément au RGPD. Clavoris utilise le résultat de la vérification pour ouvrir votre accès et traite vos données d'identité de manière strictement confidentielle.",
 };
+
+// Extension request to the administrators of the company that owns the room: two buttons (accept /
+// decline) open the decision page, where the date can be adjusted and a comment added for the member.
+export const EXT_CTA: Record<Lang, { accept: string; reject: string }> = {
+  en: { accept: "Accept the request", reject: "Decline the request" },
+  nl: { accept: "Aanvraag aanvaarden", reject: "Aanvraag weigeren" },
+  fr: { accept: "Accepter la demande", reject: "Refuser la demande" },
+};
+const EXT_REQ: Record<Lang, { s: string; t: string }> = {
+  en: { s: "Extension request — {room}", t: "{name} ({email}, {org}) asks to extend their access to the data room \"{room}\" until {date}. Current end date: {current}.\n\nMessage from the member: {message}\n\n" + EXT_CTA.en.accept + ":\n{accept}\n\n" + EXT_CTA.en.reject + ":\n{reject}\n\nBoth links open the decision page, where you can adjust the end date and add a comment. The member is informed of your decision by e-mail." },
+  nl: { s: "Verlengingsaanvraag — {room}", t: "{name} ({email}, {org}) vraagt de toegang tot de dataroom \"{room}\" te verlengen tot {date}. Huidige einddatum: {current}.\n\nBericht van het lid: {message}\n\n" + EXT_CTA.nl.accept + ":\n{accept}\n\n" + EXT_CTA.nl.reject + ":\n{reject}\n\nBeide links openen de beslissingspagina, waar u de einddatum kunt aanpassen en een opmerking kunt toevoegen. Het lid wordt per e-mail op de hoogte gebracht van uw beslissing." },
+  fr: { s: "Demande de prolongation — {room}", t: "{name} ({email}, {org}) demande la prolongation de son accès à la data room « {room} » jusqu'au {date}. Date de fin actuelle : {current}.\n\nMessage du membre : {message}\n\n" + EXT_CTA.fr.accept + " :\n{accept}\n\n" + EXT_CTA.fr.reject + " :\n{reject}\n\nLes deux liens ouvrent la page de décision, où vous pouvez ajuster la date de fin et ajouter un commentaire. Le membre est informé de votre décision par e-mail." },
+};
+const fillV = (s: string, v: V) => s.replace(/\{(\w+)\}/g, (_, k) => String(v[k] ?? ""));
 const START = /\n\n(Start here:|Begin hier:|Commencez ici :)\n/;
 
 export function mail(lang: Lang, key: string, vars: V = {}): { subject: string; text: string } {
-  const m = base(lang, key, vars);
+  const m = key === "ext_requested" ? { subject: fillV((EXT_REQ[lang] || EXT_REQ.en).s, vars), text: fillV((EXT_REQ[lang] || EXT_REQ.en).t, vars) } : base(lang, key, vars);
   const text = m.text
     .replace(/the Clavoris data room/g, "the data room")
     .replace(/de Clavoris-dataroom/g, "de dataroom")

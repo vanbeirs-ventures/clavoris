@@ -4,7 +4,7 @@
 // listed once the NDA is signed (when the room requires one); downloads go through
 // clv-room-file. Deploy: supabase functions deploy clv-room --no-verify-jwt
 import { adminClient, APP_URL, audit, clientIp, cors, fmtDay, isStaff, json, requireUser, sendMail } from "../_shared/clv.ts";
-import { mail, pickLang } from "../_shared/room-mail.ts";
+import { EXT_CTA, mail, pickLang } from "../_shared/room-mail.ts";
 import { ncConfigured, ncTree } from "../_shared/nc.ts";
 
 Deno.serve(async (req) => {
@@ -40,18 +40,22 @@ Deno.serve(async (req) => {
     const message = String(body.message || "").trim().slice(0, 1000);
     const { data: open } = await admin.from("clv_access_requests").select("id").eq("room_id", roomId).eq("user_id", me.id).eq("status", "pending").maybeSingle();
     if (open) return json({ error: "already-pending" }, 400);
-    const { error } = await admin.from("clv_access_requests").insert({ room_id: roomId, user_id: me.id, requested_until: until, message: message || null });
+    const { data: created, error } = await admin.from("clv_access_requests").insert({ room_id: roomId, user_id: me.id, requested_until: until, message: message || null }).select("id").single();
     if (error) return json({ error: error.message }, 400);
     await audit(admin, { id: me.id, email: me.email, role: me.role }, "access-extension-requested", roomId, { until, message });
     const L = pickLang(me.lang);
     const rc = mail(L, "ext_received", { name: me.full_name, room: room.name, company: companyName, owner: companyName, date: fmtDay(until + "T12:00:00Z", L) });
-    sendMail(me.email, rc.subject, rc.text, L).catch(() => {});
+    // Mails are awaited: the function instance may stop as soon as the response is returned.
+    const sends: Promise<unknown>[] = [sendMail(me.email, rc.subject, rc.text, L).catch((e) => console.error("ext receipt mail:", (e as Error).message))];
     const { data: staff } = await admin.from("clv_profiles").select("email, lang, role, company_id").in("role", ["admin", "super"]).neq("status", "suspended");
     for (const s of (staff || []).filter((s: any) => s.role === "super" || s.company_id === room.company_id)) {
       const sl = pickLang(s.lang);
-      const m = mail(sl, "ext_requested", { name: me.full_name || me.email, email: me.email, org: me.company || "—", room: room.name, date: fmtDay(until + "T12:00:00Z", sl), message: message || "—", link: `${APP_URL}/admin.html#rooms` });
-      sendMail(s.email, m.subject, m.text, sl).catch(() => {});
+      const base = `${APP_URL}/extension.html?id=${created.id}&lang=${sl}`;
+      const accept = `${base}&d=accept`, reject = `${base}&d=reject`;
+      const m = mail(sl, "ext_requested", { name: me.full_name || me.email, email: me.email, org: me.company || "—", room: room.name, date: fmtDay(until + "T12:00:00Z", sl), current: fmtDay(assignment?.expires_at, sl), message: message || "—", accept, reject });
+      sends.push(sendMail(s.email, m.subject, m.text, sl, [{ url: accept, label: EXT_CTA[sl].accept }, { url: reject, label: EXT_CTA[sl].reject }]).catch((e) => console.error("ext request mail:", s.email, (e as Error).message)));
     }
+    await Promise.all(sends);
     return json({ ok: true });
   }
 
