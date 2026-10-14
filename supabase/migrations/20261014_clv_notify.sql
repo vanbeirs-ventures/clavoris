@@ -42,7 +42,7 @@ create extension if not exists pg_net with schema extensions;
 select cron.unschedule(jobid) from cron.job where jobname = 'clv-notify-scan';
 select cron.schedule('clv-notify-scan', '*/15 * * * *', $$
   select net.http_post(
-    url := 'https://ojwvdfdkybutuflwbutd.supabase.co/functions/v1/clv-notify',
+    url := 'https://gihetiiuqawfhlwixncn.supabase.co/functions/v1/clv-notify',
     headers := '{"content-type":"application/json","x-clavoris-cron":"1"}'::jsonb,
     body := '{"action":"scan"}'::jsonb,
     timeout_milliseconds := 120000

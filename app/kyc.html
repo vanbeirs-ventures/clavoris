@@ -6,9 +6,12 @@
 <meta name="robots" content="noindex">
 <title>Identity verification — Clavoris</title>
 <link rel="icon" href="../assets/clavoris-mark.png">
-<link rel="stylesheet" href="app.css?v=20261013j">
+<link rel="stylesheet" href="app.css?v=20261014c">
 <script>document.documentElement.classList.add('clv-checking');</script>
-<style>#sumsub-websdk-container { min-height: 520px; margin-top: 18px; }</style>
+<style>
+#kycFrame { width:100%; min-height:640px; border:0; border-radius:12px; margin-top:18px; background:#fff; display:none; }
+#kycFrame.on { display:block; }
+</style>
 </head>
 <body data-clv-restrict="full">
 <div class="app">
@@ -16,57 +19,58 @@
   <main class="screen-wrap" data-screen-label="Identity verification" data-i18n-doctitle="kyc.eyebrow">
     <p class="eyebrow" data-i18n="kyc.eyebrow">Identity verification</p>
     <h1 class="page-title" data-i18n="kyc.title">Verify your identity</h1>
-    <p class="page-sub" data-i18n="kyc.sub">Clavoris verifies every investor under AMLD6 before any data room or instrument opens. The check is handled by Sumsub (eIDAS-compliant identity provider); it takes a few minutes with an ID document and a camera.</p>
+    <p class="page-sub" data-i18n="kyc.sub">Clavoris verifies every investor under AMLD6 before any data room or instrument opens. The check is handled by Didit (certified identity-verification provider); it takes a few minutes with an ID document and a camera.</p>
 
     <section class="card" style="padding:22px 24px;margin-top:24px">
       <div id="statusBox" style="font-size:14px;line-height:1.6;color:var(--fg-2)"></div>
-      <div id="sumsub-websdk-container"></div>
+      <iframe id="kycFrame" title="Identity verification" allow="camera; microphone; fullscreen; autoplay; encrypted-media" referrerpolicy="strict-origin-when-cross-origin"></iframe>
       <p class="msg" id="msg" role="status"></p>
       <div id="actions" style="margin-top:14px"></div>
     </section>
-    <p class="note" data-i18n="kyc.note">Your identity data is processed by Sumsub on behalf of Clavoris for AMLD6/KYC purposes and retained per CSSF requirements. Clavoris never stores your document images.</p>
+    <p class="note" data-i18n="kyc.note">Your identity data is processed by Didit on behalf of Clavoris for AMLD6/KYC purposes and retained per CSSF requirements. Clavoris never stores your document images.</p>
   </main>
   <footer class="app-foot"><span data-i18n="footer.tag">Clavoris · Private Investment Enablement Platform</span><span class="loc" data-i18n="footer.loc">Antwerp · Luxembourg · Nordic · CSSF · FSMA · MiCA</span></footer>
 </div>
 
-<script src="config.js?v=20261013j"></script>
-<script src="i18n.js?v=20261013j"></script>
+<script src="config.js?v=20261014c"></script>
+<script src="i18n.js?v=20261014c"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="clavoris-access.js?v=20261013j"></script>
-<script src="shell.js?v=20261013j"></script>
-<script src="https://static.sumsub.com/idensic/static/sns-websdk-builder.js"></script>
+<script src="clavoris-access.js?v=20261014c"></script>
+<script src="shell.js?v=20261014c"></script>
 <script>
 (function () {
   'use strict';
   var A = window.ClavorisAccess, S = window.ClavorisShell, I = window.ClavorisI18n, esc = S.esc;
   function q(id) { return document.getElementById(id); }
-  var next = new URLSearchParams(location.search).get('next') || 'portal.html';
+  var params = new URLSearchParams(location.search);
+  var next = params.get('next') || 'portal.html';
+  if (!/^[a-z0-9_./?=&-]+$/i.test(next) || next.indexOf('//') >= 0 || next.charAt(0) === '/') next = 'portal.html';
+  var returned = params.get('verificationSessionId');   // Didit sends the user back here with ?verificationSessionId=&status=
   function showStatus() {
     var st = A.status();
     q('statusBox').innerHTML = '<span class="chip ' + esc(st) + '"><span class="dot"></span>' + esc(I.t('status.' + st)) + '</span><p style="margin-top:10px">' + esc(['verified', 'kyc_pending', 'kyc_retry', 'registered'].indexOf(st) >= 0 ? I.t('kyc.' + st) : '') + '</p>';
     q('actions').innerHTML = st === 'verified' ? '<a class="btn btn-primary" href="' + esc(next) + '">' + I.t('kyc.continue') + '</a>' : '';
+    if (st === 'verified') { q('kycFrame').className = ''; q('kycFrame').src = 'about:blank'; }
   }
   function launch() {
-    A.callFn('clv-kyc-token', {}).then(function (r) {
+    A.callFn('clv-kyc-token', { next: next }).then(function (r) {
       if (r.verified) { A.refresh().then(showStatus); return; }
       if (r.error === 'kyc-not-configured') { q('msg').className = 'msg'; q('msg').textContent = I.t('kyc.setting_up'); return; }
       if (r.error) { q('msg').className = 'msg err'; q('msg').textContent = I.t('kyc.start_failed', { err: r.error }); return; }
-      var sdk = window.snsWebSdk.init(r.token, function () { return A.callFn('clv-kyc-token', {}).then(function (x) { return x.token; }); })
-        .withConf({ lang: I.lang, email: r.email, theme: 'light' })
-        .withOptions({ addViewportTag: false, adaptIframeHeight: true })
-        .on('idCheck.onApplicantSubmitted', function () { q('msg').className = 'msg ok'; q('msg').textContent = I.t('kyc.submitted'); poll(); })
-        .on('idCheck.onApplicantStatusChanged', function () { poll(); })
-        .onMessage(function () {})
-        .build();
-      sdk.launch('#sumsub-websdk-container');
+      var f = q('kycFrame'); f.src = r.url; f.className = 'on';
+      q('actions').innerHTML = '<a class="btn" href="' + esc(r.url) + '">' + esc(I.t('kyc.open_full')) + '</a>';
+      poll();
     });
   }
   var polls = 0;
-  function poll() { if (polls++ > 60) return; setTimeout(function () { A.refresh().then(function () { showStatus(); if (A.status() !== 'verified' && A.status() !== 'rejected') poll(); }); }, 5000); }
+  function poll() { if (polls++ > 120) return; setTimeout(function () { A.refresh().then(function () { showStatus(); if (A.status() !== 'verified' && A.status() !== 'rejected') poll(); }); }, 5000); }
   A.ready(function () {
     if (!A.clears('full')) return;
     S.render('account'); showStatus();
-    if (A.status() !== 'verified' && A.status() !== 'rejected') launch();
+    var st = A.status();
+    if (st === 'verified' || st === 'rejected') return;
+    if (returned && /^(Approved|In Review|In Progress)$/.test(params.get('status') || '')) { q('msg').className = 'msg ok'; q('msg').textContent = I.t('kyc.submitted'); poll(); return; }
+    launch();   // first visit, or came back without finishing: Didit resumes the same session
   });
 })();
 </script>
