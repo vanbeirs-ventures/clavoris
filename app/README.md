@@ -30,9 +30,9 @@ later migrations in the same folder.
 | `app.css` | App styles on top of `../assets/colors_and_type.css`; phone layout (single-column grids bounded to the viewport, file rows wrap). |
 | `login.html` | Sign in + "forgotten password". Routes staff to `admin.html`, investors to `portal.html`. `?unsubscribe=1` (from mail footers) triggers the notification-settings pop-up after sign-in. |
 | `reset.html` | Landing page for recovery/activation links; sets a new password (show/hide on both fields). |
-| `account.html` | Profile, password change, verification status, e-mail notification preferences, personal audit trail. |
+| `account.html` | Profile (full name; private person or organisation — then role and legal-representative yes/no are mandatory), password change, verification status, e-mail notification preferences, personal audit trail. `?next=room.html?…` returns the user to the room once the profile is complete. |
 | `portal.html` | Data rooms home: KYC banner and the rooms the user has been granted. |
-| `room.html` | One data room: NDA gate, PDF list from Nextcloud, watermarked downloads, members with presence dots, access end date + "Request extension". |
+| `room.html` | One data room: profile-completeness gate, NDA gate (signatory card with capacity, typed-name confirmation with live match), PDF list from Nextcloud, watermarked downloads, members with presence dots, access end date + "Request extension". |
 | `kyc.html` | Identity verification (Didit hosted flow, embedded; breaks out of the frame on return). Pulls the decision from the provider on load and every 30 s, so a missed webhook never leaves a user pending. |
 | `contracts.html` / `contract.html` | Contracts with qualified electronic signatures: draft → parties → launch → embedded signing (itsme / Evrotrust) in signing order → executed PDF, audit trail, certificate of completion. |
 | `admin.html` | Users console (status, roles, KYC), companies, data rooms (invite by email, members, NDA status, revoke, extension requests), document storage. |
@@ -59,8 +59,18 @@ delivered file is recorded, so a leaked file can be traced to one download recor
 drafts to PDF before placing them in the room folder.
 
 Flow for an investor (as described in the invitation mail): activation link → password →
-profile (name and organisation appear on the NDA) → identity verification → sign the room
-NDA → documents open. Access has an end date (room default, e.g. 90 days); the member can request
+profile → identity verification → sign the room NDA → documents open.
+
+**Profile and signing capacity.** The full name is mandatory (it is the name that signs). The
+user registers as a private person or on behalf of an organisation; with an organisation the
+role (free text) and the answer to "are you a legal representative authorised to sign on behalf
+of this organisation?" (yes/no, `clv_profiles.legal_rep`) are mandatory too. The NDA step is only
+shown once the profile is complete (`clv-room-nda` enforces the same rule); the acceptance
+wording, the signature page of the stored PDF and `clv_signed_documents.validation` record the
+capacity: on behalf of the organisation, in a personal capacity although employed by it, or as a
+private person. The typed name is compared ignoring case, accents and extra spaces.
+
+Access has an end date (room default, e.g. 90 days); the member can request
 an extension from inside the room, company staff accept or reject from Admin › Data rooms, and
 reminders go out 7 days and 24 hours before the end. Member presence: green = active in the room
 in the last 3 minutes, orange = visited before, red = never.
