@@ -84,15 +84,21 @@ export const MAIL_FROM = Deno.env.get("CLAVORIS_MAIL_FROM") || "noreply@clavoris
 export const MAIL_REPLY_TO = "access@clavoris.com";
 export const APP_URL = (Deno.env.get("CLAVORIS_APP_URL") || "https://www.clavoris.com/app").replace(/\/$/, "");
 export const SITE_URL = APP_URL.replace(/\/app$/, "");
-// Footer under every automated mail: signature, assistance address, notification settings /
-// unsubscribe (lands on the sign-in page; after sign-in the app offers the notification settings)
-// and the privacy policy.
-const FOOTER: Record<Lang, string> = {
-  en: "Clavoris · Private investment, enabled\nAntwerp · Luxembourg\n\nThis mailbox is not monitored. For assistance write to access@clavoris.com.\nManage your e-mail notifications or unsubscribe: {unsub}\nPrivacy policy: {privacy}",
-  nl: "Clavoris · Private investeringen, mogelijk gemaakt\nAntwerpen · Luxemburg\n\nDeze mailbox wordt niet gelezen. Voor hulp schrijft u naar access@clavoris.com.\nE-mailmeldingen beheren of uitschrijven: {unsub}\nPrivacybeleid: {privacy}",
-  fr: "Clavoris · L'investissement privé, rendu possible\nAnvers · Luxembourg\n\nCette boîte n'est pas surveillée. Pour toute assistance, écrivez à access@clavoris.com.\nGérer vos notifications par e-mail ou vous désinscrire : {unsub}\nPolitique de confidentialité : {privacy}",
+// Footer under every automated mail: signature, locations, assistance address, notification settings /
+// unsubscribe (lands on the sign-in page; after sign-in the app offers the notification settings) and the
+// privacy policy. Plain text carries the addresses; the HTML version links the words themselves.
+type FooterParts = { tag: string; loc: string; help: string; notif: string; unsub: string; privacy: string };
+const FOOTER_PARTS: Record<Lang, FooterParts> = {
+  en: { tag: "Private investment, enabled", loc: "Antwerp · Luxembourg", help: "This mailbox is not monitored. For assistance write to access@clavoris.com.", notif: "Manage e-mail notifications", unsub: "Unsubscribe", privacy: "Privacy policy" },
+  nl: { tag: "Private investeringen, mogelijk gemaakt", loc: "Antwerpen · Luxemburg", help: "Deze mailbox wordt niet gelezen. Voor hulp schrijft u naar access@clavoris.com.", notif: "E-mailmeldingen beheren", unsub: "Uitschrijven", privacy: "Privacybeleid" },
+  fr: { tag: "L'investissement privé, rendu possible", loc: "Anvers · Luxembourg", help: "Cette boîte n'est pas surveillée. Pour toute assistance, écrivez à access@clavoris.com.", notif: "Gérer les notifications par e-mail", unsub: "Se désinscrire", privacy: "Politique de confidentialité" },
 };
-export function mailFooter(lang: Lang): string { return FOOTER[lang].replace("{unsub}", `${APP_URL}/login.html?unsubscribe=1`).replace("{privacy}", `${SITE_URL}/privacy.html`); }
+const UNSUB_URL = () => `${APP_URL}/login.html?unsubscribe=1`;
+const PRIVACY_URL = () => `${SITE_URL}/privacy.html`;
+export function mailFooter(lang: Lang): string {
+  const f = FOOTER_PARTS[lang] || FOOTER_PARTS.en;
+  return `____________________\n\nClavoris · ${f.tag}\n${f.loc}\n\n${f.help}\n${f.unsub} / ${f.notif.toLowerCase()}: ${UNSUB_URL()}\n${f.privacy}: ${PRIVACY_URL()}`;
+}
 export const MAIL_SIGNATURE = mailFooter("en");
 
 export function mailConfigured(): boolean { return !!Deno.env.get("CLAVORIS_SMTP_HOST"); }
@@ -138,26 +144,49 @@ const CTA: Record<string, Record<Lang, string>> = {
   fallback: { en: "If the button does not work, copy this address into your browser:", nl: "Werkt de knop niet? Kopieer dan dit adres in uw browser:", fr: "Si le bouton ne fonctionne pas, copiez cette adresse dans votre navigateur :" },
 };
 export function ctaLabel(lang: Lang | string, key: "activate" | "reset" | "fallback"): string { const L = pickLang(lang); return CTA[key][L] || CTA[key].en; }
+const FONT_UI = "Poppins,'Helvetica Neue',Helvetica,Arial,sans-serif";
+const FONT_DISPLAY = "'EB Garamond',Garamond,Georgia,'Times New Roman',serif";
 export function textToHtml(text: string, cta?: Cta, lang: Lang = "en"): string {
   const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-  // The plain-text lead-in "Click here to activate your account:" is replaced by the button itself.
+  const link = (href: string, label: string) => `<a href="${esc(href)}" style="color:#1A3A5C;text-decoration:underline">${esc(label)}</a>`;
+  // The plain-text lead-in ("Click here to activate your account:") is replaced by the button itself.
   const norm = (x: string) => x.trim().replace(/\s*:$/, "").toLowerCase();
-  const src = text.split("\n");
-  const lines = src.map((line, i) => {
+  const src = text.replace(/\r/g, "").split("\n");
+  const blocks: string[] = [];
+  let para: string[] = [];
+  const flush = () => { if (para.length) { blocks.push(`<p style="margin:0 0 20px;font-family:${FONT_UI};font-size:15px;line-height:1.7;color:#1F2933">${para.join("<br>")}</p>`); para = []; } };
+  src.forEach((line, i) => {
     const t = line.trim();
-    if (cta && src[i + 1] !== undefined && src[i + 1].trim() === cta.url && norm(t) === norm(cta.label)) return null;
+    if (cta && src[i + 1] !== undefined && src[i + 1].trim() === cta.url && norm(t) === norm(cta.label)) return;
     if (cta && t === cta.url) {
-      return `<p style="margin:18px 0"><a href="${esc(cta.url)}" style="display:inline-block;background:#1B3A5C;color:#F5EFE3;text-decoration:none;font-weight:600;padding:12px 22px;border-radius:4px">${esc(cta.label)}</a></p>`
-        + `<p style="font-size:12px;color:#6b6b6b;margin:0 0 14px">${esc(ctaLabel(lang, "fallback"))}<br><a href="${esc(cta.url)}" style="color:#1B3A5C;word-break:break-all">${esc(cta.url)}</a></p>`;
+      flush();
+      blocks.push(`<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 14px"><tr><td bgcolor="#1A3A5C" style="background:#1A3A5C;border-radius:4px">`
+        + `<a href="${esc(cta.url)}" target="_blank" style="display:inline-block;padding:15px 30px;font-family:${FONT_UI};font-size:15px;font-weight:600;letter-spacing:.02em;color:#F7F3EC;text-decoration:none;border-radius:4px"><span style="color:#F7F3EC">${esc(cta.label)}</span></a>`
+        + `</td></tr></table>`
+        + `<p style="margin:0 0 26px;font-family:${FONT_UI};font-size:12px;line-height:1.6;color:#6E83A0">${esc(ctaLabel(lang, "fallback"))}<br><a href="${esc(cta.url)}" style="color:#6E83A0;word-break:break-all">${esc(cta.url)}</a></p>`);
+      return;
     }
-    const html = esc(line).replace(/(https?:\/\/[^\s&]+(?:&amp;[^\s&]+)*)/g, (u) => `<a href="${u}" style="color:#1B3A5C;word-break:break-all">${u}</a>`);
-    return html === "" ? "" : html;
-  }).filter((x) => x !== null);
-  const body = lines.join("\n").replace(/\n{2,}/g, "</p><p>").replace(/\n/g, "<br>");
-  return `<!doctype html><html><body style="margin:0;padding:24px;background:#F7F3EB;font-family:Helvetica,Arial,sans-serif;font-size:14.5px;line-height:1.6;color:#1f2933">`
-    + `<div style="max-width:620px;margin:0 auto;background:#ffffff;border:1px solid #e6dfd1;border-radius:6px;padding:28px 32px">`
-    + `<p style="font-size:20px;color:#1B3A5C;margin:0 0 18px"><strong>Clavoris</strong> <span style="color:#B8860B;font-size:12px">· Private investment, enabled</span></p>`
-    + `<p>${body}</p></div></body></html>`;
+    if (!t) { flush(); return; }
+    para.push(esc(line).replace(/(https?:\/\/[^\s&]+(?:&amp;[^\s&]+)*)/g, (u) => link(u.replace(/&amp;/g, "&"), u.replace(/&amp;/g, "&"))).replace(/([\w.+-]+@clavoris\.com)/g, (m) => link("mailto:" + m, m)));
+  });
+  flush();
+  const f = FOOTER_PARTS[lang] || FOOTER_PARTS.en;
+  const logo = `${SITE_URL}/assets/clavoris-logo.png`;
+  const fl = (href: string, label: string) => `<a href="${esc(href)}" style="color:#6E83A0;text-decoration:underline">${esc(label)}</a>`;
+  return `<!doctype html><html lang="${lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">`
+    + `<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital@0;1&family=Poppins:wght@400;500;600&display=swap" rel="stylesheet"></head>`
+    + `<body style="margin:0;padding:0;background:#F7F3EC">`
+    + `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#F7F3EC" style="background:#F7F3EC"><tr><td align="center" style="padding:40px 16px">`
+    + `<table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;background:#FFFFFF;border:1px solid #E6DFD1;border-top:3px solid #B8860B">`
+    + `<tr><td align="center" style="padding:40px 48px 28px"><img src="${logo}" width="72" alt="Clavoris" style="display:block;width:72px;height:auto;border:0"></td></tr>`
+    + `<tr><td style="padding:0 48px"><div style="height:1px;line-height:1px;background:#E6DFD1">&nbsp;</div></td></tr>`
+    + `<tr><td style="padding:36px 48px 24px">${blocks.join("")}</td></tr>`
+    + `<tr><td bgcolor="#EDE7DA" style="background:#EDE7DA;padding:28px 48px 30px">`
+    + `<p style="margin:0 0 4px;font-family:${FONT_DISPLAY};font-size:17px;color:#1A3A5C">Clavoris <span style="font-style:italic;color:#B8860B">· ${esc(f.tag)}</span></p>`
+    + `<p style="margin:0 0 16px;font-family:${FONT_UI};font-size:12px;letter-spacing:.06em;color:#6E83A0">${esc(f.loc)}</p>`
+    + `<p style="margin:0 0 10px;font-family:${FONT_UI};font-size:12px;line-height:1.6;color:#6E83A0">${esc(f.help).replace("access@clavoris.com", fl("mailto:access@clavoris.com", "access@clavoris.com"))}</p>`
+    + `<p style="margin:0;font-family:${FONT_UI};font-size:12px;line-height:1.6;color:#6E83A0">${fl(UNSUB_URL(), f.notif)} &nbsp;·&nbsp; ${fl(UNSUB_URL(), f.unsub)} &nbsp;·&nbsp; ${fl(PRIVACY_URL(), f.privacy)}</p>`
+    + `</td></tr></table></td></tr></table></body></html>`;
 }
 
 export async function sendMail(to: string, subject: string, text: string, lang: Lang | string = "en", cta?: Cta): Promise<boolean> {
@@ -175,7 +204,7 @@ export async function sendMail(to: string, subject: string, text: string, lang: 
     const body = text + "\n\n" + mailFooter(L);
     await client.send({ from: `Clavoris <${MAIL_FROM}>`, to, replyTo: MAIL_REPLY_TO, subject: encodeSubject(subject), mimeContent: [
       { mimeType: 'text/plain; charset="utf-8"', content: base64Lines(body), transferEncoding: "base64" },
-      { mimeType: 'text/html; charset="utf-8"', content: base64Lines(textToHtml(body, cta, L)), transferEncoding: "base64" },
+      { mimeType: 'text/html; charset="utf-8"', content: base64Lines(textToHtml(text, cta, L)), transferEncoding: "base64" },
     ] });
     return true;
   } finally { try { await client.close(); } catch { /* ignore */ } }
