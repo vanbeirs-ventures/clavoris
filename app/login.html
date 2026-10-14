@@ -80,7 +80,8 @@
   if (param('unsubscribe')) { try { sessionStorage.setItem('clv_unsub', '1'); } catch (e) {} }
   A.ready(function () {
     if (param('denied')) q('loginError').textContent = I.t('login.err.denied');
-    if (A.isSignedIn() && A.profile() && !param('denied')) { location.replace(param('next') || A.homeFor()); return; }
+    if (param('loop')) q('loginError').textContent = I.t('login.err.unavailable');
+    if (A.isSignedIn() && A.profile() && !param('denied') && !param('loop')) { location.replace(param('next') || A.homeFor()); return; }
 
     function submit() {
       var err = q('loginError'); err.textContent = '';

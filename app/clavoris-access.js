@@ -46,15 +46,24 @@
   function whenReady(fn) { if (_ready) return fn(); _waiters.push(fn); }
   function reset() { _user = null; _profile = null; }
 
-  function refreshSession() {
+  // Reads the session and the caller's profile into the cache. A transient failure (token refresh in
+  // flight in another tab, lock contention, a dropped request) is retried once before the cache is
+  // cleared, so a signed-in user is not mistaken for a signed-out one.
+  function refreshSession(attempt) {
     if (!sb) { reset(); return Promise.resolve(); }
+    attempt = attempt || 0;
+    var retry = function () { if (attempt >= 1) { reset(); return; } return new Promise(function (r) { setTimeout(r, 600); }).then(function () { return refreshSession(attempt + 1); }); };
     return sb.auth.getSession().then(function (res) {
+      if (res && res.error) return retry();
       var session = res && res.data ? res.data.session : null;
       if (!session || !session.user) { reset(); return; }
       _user = session.user;
       return sb.from('clv_profiles').select(PROFILE_SEL).eq('id', session.user.id).maybeSingle()
-        .then(function (pr) { _profile = pr && pr.data ? pr.data : null; });
-    }).catch(reset);
+        .then(function (pr) {
+          if (pr && pr.error) { if (!_profile) return retry(); return; } // keep the cached profile on a transient error
+          _profile = pr && pr.data ? pr.data : null;
+        });
+    }).catch(retry);
   }
 
   /* ---------------- getters (sync, read the cache) ---------------- */
@@ -109,7 +118,7 @@
     return sb.auth.signOut().then(reset, reset);
   }
 
-  // Send a passphrase-recovery email from noreply@clavoris.com (edge function
+  // Send a password-recovery email from noreply@clavoris.com (edge function
   // clv-auth-mail generates the one-time link; it lands on reset.html).
   function requestPasswordReset(email) {
     return callFn('clv-auth-mail', { action: 'recovery', email: String(email || '').trim() })
@@ -164,6 +173,10 @@
     if (clears(level)) { document.documentElement.classList.add('clv-cleared'); return; }
     var main = document.querySelector('main'); if (main) main.remove();
     var next = encodeURIComponent(location.pathname.split('/').pop() + location.search);
+    // Loop breaker: if this page and the sign-in page keep bouncing each other (the sign-in page sees a
+    // session, this page does not), stop after three rounds, drop the session and show the sign-in form.
+    var bounces = 0; try { var b = JSON.parse(sessionStorage.getItem('clv_bounce') || '{}'); bounces = (Date.now() - (b.t || 0) < 20000) ? (b.n || 0) : 0; sessionStorage.setItem('clv_bounce', JSON.stringify({ n: bounces + 1, t: Date.now() })); } catch (e) {}
+    if (bounces >= 3 && !_user) { try { sessionStorage.removeItem('clv_bounce'); } catch (e) {} sb.auth.signOut().catch(function () {}).then(function () { location.replace('login.html?next=' + next + '&loop=1'); }); return; }
     location.replace('login.html?next=' + next + (_user ? '&denied=1' : ''));
   }
 
