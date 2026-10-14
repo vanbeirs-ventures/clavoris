@@ -177,6 +177,22 @@ export function textToHtml(text: string, cta?: Cta | Cta[], lang: Lang = "en"): 
     + `</td></tr></table></td></tr></table></body></html>`;
 }
 
+// Formal greeting: when the recipient's profile carries Mr / Mrs and a last name, the template's opening
+// line ("Dear {name}," / "Beste {name}," / "Cher/Chère {name},") becomes "Dear Mr Van Beirs," etc.
+const GREETING: Record<string, Record<Lang, string>> = {
+  mr: { en: "Dear Mr {last},", nl: "Geachte heer {last},", fr: "Cher Monsieur {last}," },
+  mrs: { en: "Dear Mrs {last},", nl: "Geachte mevrouw {last},", fr: "Chère Madame {last}," },
+};
+async function formalGreeting(to: string, text: string, L: Lang): Promise<string> {
+  const line = /^(Dear|Beste|Cher\/Chère) [^\n]*,[ \t]*$/m;
+  if (!line.test(text)) return text;
+  try {
+    const { data: p } = await adminClient().from("clv_profiles").select("salutation, last_name").eq("email", to.trim().toLowerCase()).maybeSingle();
+    const g = p?.salutation && String(p.last_name || "").trim() ? GREETING[p.salutation]?.[L] : "";
+    return g ? text.replace(line, g.replace("{last}", String(p!.last_name).trim())) : text;
+  } catch { return text; }
+}
+
 export async function sendMail(to: string, subject: string, text: string, lang: Lang | string = "en", cta?: Cta | Cta[]): Promise<boolean> {
   const host = Deno.env.get("CLAVORIS_SMTP_HOST"); if (!host || !to) return false;
   const port = Number(Deno.env.get("CLAVORIS_SMTP_PORT") || 465);
@@ -185,6 +201,7 @@ export async function sendMail(to: string, subject: string, text: string, lang: 
   const L = pickLang(lang);
   // The invitation's lead-in "Start here:" reads as "Click here to activate your account:" above the link.
   if (cta && !Array.isArray(cta)) text = text.replace(/\n(Start here:|Begin hier:|Commencez ici :)\n/, "\n" + cta.label + (L === "fr" ? " :" : ":") + "\n");
+  text = await formalGreeting(to, text, L);
   const body = text + "\n\n" + mailFooter(L);
   try {
     // Own SMTP submission (_shared/smtp.ts): standard headers (Message-ID, Date), one multipart/alternative.
@@ -205,7 +222,8 @@ export async function sendMail(to: string, subject: string, text: string, lang: 
 // attaches a Clavoris profile to an existing user (who keeps their existing password).
 // Returns the activation link to send: a one-time recovery link lands on reset.html.
 export type Enrolled = { id: string; created: boolean; linked: boolean; link: string };
-export async function enrolUser(admin: SupabaseClient, email: string, name: string, company: string | null, lang = "en", role: "user" | "admin" = "user"): Promise<Enrolled | { error: string }> {
+export type Addressing = { salutation?: string | null; first_name?: string | null; last_name?: string | null };
+export async function enrolUser(admin: SupabaseClient, email: string, name: string, company: string | null, lang = "en", role: "user" | "admin" = "user", addr: Addressing = {}): Promise<Enrolled | { error: string }> {
   const { data: existing } = await admin.from("clv_profiles").select("id, status").eq("email", email).maybeSingle();
   if (existing) return { error: "already-enrolled" };
   let id: string | null = null, created = false, linked = false;
@@ -219,7 +237,7 @@ export async function enrolUser(admin: SupabaseClient, email: string, name: stri
   if (lErr || !l?.user) { if (created && id) await admin.auth.admin.deleteUser(id).catch(() => {}); return { error: lErr?.message || "link-failed" }; }
   id = id || l.user.id;
   const link = l.properties?.hashed_token ? `${APP_URL}/reset.html?token_hash=${encodeURIComponent(l.properties.hashed_token)}&type=recovery&welcome=1` : `${APP_URL}/login.html`;
-  const { error: pErr } = await admin.from("clv_profiles").insert({ id, email, full_name: name || (l.user.user_metadata as { full_name?: string } | null)?.full_name || null, company, lang, role, status: "registered" });
+  const { error: pErr } = await admin.from("clv_profiles").insert({ id, email, full_name: name || (l.user.user_metadata as { full_name?: string } | null)?.full_name || null, company, lang, role, status: "registered", salutation: addr.salutation || null, first_name: addr.first_name || null, last_name: addr.last_name || null });
   if (pErr) { if (created) await admin.auth.admin.deleteUser(id).catch(() => {}); return { error: pErr.message }; }
   return { id, created, linked, link };
 }

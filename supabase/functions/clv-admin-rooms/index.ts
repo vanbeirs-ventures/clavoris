@@ -6,7 +6,8 @@
 //   { action: "list" }                                   -> rooms with member counts, pending extension requests
 //   { action: "save_room", room: {...}, nda_pdf_base64?, nda_pdf_name? } -> create / update a room (NDA PDF stored on Nextcloud)
 //   { action: "members", room_id }                       -> members incl. revoked, onboarding status, expiry, pending request
-//   { action: "invite", room_id, email, lang?, name?, company?, expires_at? } -> enrol-if-needed + assign + invitation mail
+//   { action: "invite", room_id, email, lang?, salutation? ("mr"|"mrs"), first_name?, last_name?, name?, company?, expires_at? }
+//                                                         -> enrol-if-needed + assign + invitation mail
 //   { action: "set_expiry", room_id, user_id, expires_at } -> change the access end date
 //   { action: "decide_extension", request_id, accept, until?, note? } -> accept / reject an extension request (mails the user)
 //   { action: "revoke" | "reactivate" | "remind", room_id, user_id }
@@ -223,21 +224,35 @@ Deno.serve(async (req) => {
   if (action === "invite") {
     const email = String(body.email || "").trim().toLowerCase().slice(0, 200);
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json({ error: "email-invalid" }, 400);
-    const name = String(body.name || "").trim().slice(0, 120);
+    // Optional addressing: Mr / Mrs, first and last name. When given, every mail to this person opens
+    // with "Dear Mr <last name>," (sendMail reads the profile).
+    const salutation = ["mr", "mrs"].includes(String(body.salutation || "")) ? String(body.salutation) : null;
+    const nm = (v: unknown) => String(v || "").replace(/\s+/g, " ").trim().slice(0, 80);
+    const first = nm(body.first_name), last = nm(body.last_name);
+    const name = [first, last].filter(Boolean).join(" ") || String(body.name || "").trim().slice(0, 120);
     const company = String(body.company || "").trim().slice(0, 160) || null;
     const lang = pickLang(body.lang);
     if (body.expires_at && !isDate(body.expires_at)) return json({ error: "bad-date" }, 400);
 
     // 1. Enrol the user if needed (shared directory: an existing Minerva user keeps their passphrase).
-    let { data: prof } = await admin.from("clv_profiles").select("id, email, full_name, status, lang").eq("email", email).maybeSingle();
+    let { data: prof } = await admin.from("clv_profiles").select("id, email, full_name, status, lang, salutation, first_name, last_name").eq("email", email).maybeSingle();
     let created = false, linked = false, link = `${APP_URL}/login.html`;
     if (!prof) {
-      const en = await enrolUser(admin, email, name, company, lang);
+      const en = await enrolUser(admin, email, name, company, lang, "user", { salutation, first_name: first || null, last_name: last || null });
       if ("error" in en) return json({ error: en.error }, 400);
-      prof = { id: en.id, email, full_name: name, status: "registered", lang };
+      prof = { id: en.id, email, full_name: name, status: "registered", lang, salutation, first_name: first || null, last_name: last || null };
       created = en.created; linked = en.linked; link = en.link;
       await audit(admin, me, "user-created", email, { via: "room-invite", room: room.slug, linked });
     } else if (prof.status === "suspended" || prof.status === "rejected") return json({ error: "user-blocked" }, 400);
+    else {
+      // Existing account: fill in only what is still empty; what the person entered themselves stays.
+      const patch: Record<string, string> = {};
+      if (salutation && !prof.salutation) patch.salutation = salutation;
+      if (first && !prof.first_name) patch.first_name = first;
+      if (last && !prof.last_name) patch.last_name = last;
+      if (name && !String(prof.full_name || "").trim()) patch.full_name = name;
+      if (Object.keys(patch).length) { await admin.from("clv_profiles").update(patch).eq("id", prof.id); prof = { ...prof, ...patch }; }
+    }
 
     // 2. Assign (re-activate if previously revoked). End date: as chosen, else the room default.
     const expires = isDate(body.expires_at) ? endOfDay(String(body.expires_at)) : room.default_expiry_days ? new Date(Date.now() + room.default_expiry_days * 86400000).toISOString() : null;
