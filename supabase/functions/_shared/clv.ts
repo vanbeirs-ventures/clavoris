@@ -141,8 +141,10 @@ export function textToHtml(text: string, cta?: Cta | Cta[], lang: Lang = "en"): 
     if (c) {
       const cta = c;
       flush();
-      blocks.push(`<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 14px"><tr><td bgcolor="#1A3A5C" style="background:#1A3A5C;border-radius:4px">`
-        + `<a href="${esc(cta.url)}" target="_blank" style="display:inline-block;padding:15px 30px;font-family:${FONT_UI};font-size:15px;font-weight:600;letter-spacing:.02em;color:#F7F3EC;text-decoration:none;border-radius:4px"><span style="color:#F7F3EC">${esc(cta.label)}</span></a>`
+      // "Bulletproof" button: the padding sits on the table cell (Outlook ignores padding on links).
+      blocks.push(`<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:6px ${single ? "0 14px" : "10px 14px 0"};display:inline-table"><tr>`
+        + `<td align="center" bgcolor="#1A3A5C" style="background:#1A3A5C;border-radius:3px;padding:12px 26px;mso-padding-alt:12px 26px">`
+        + `<a href="${esc(cta.url)}" target="_blank" style="display:inline-block;font-family:${FONT_UI};font-size:14px;font-weight:500;line-height:20px;letter-spacing:.03em;color:#F7F3EC;text-decoration:none"><span style="color:#F7F3EC">${esc(cta.label)}</span></a>`
         + `</td></tr></table>`
         + (!single ? "" : `<p style="margin:0 0 26px;font-family:${FONT_UI};font-size:12px;line-height:1.6;color:#6E83A0">${esc(ctaLabel(lang, "fallback"))}<br><a href="${esc(cta.url)}" style="color:#6E83A0;word-break:break-all">${esc(cta.url)}</a></p>`));
       return;
@@ -186,6 +188,8 @@ export async function sendMail(to: string, subject: string, text: string, lang: 
     const r = await smtpSend({ host, port, user, pass, helo: "clavoris.com" }, {
       fromName: "Clavoris", from: MAIL_FROM, to: to.trim(), replyTo: MAIL_REPLY_TO, subject,
       text: body, html: textToHtml(text, cta, L),
+      // Standard unsubscribe header (shown by Gmail and Outlook as "Unsubscribe"); expected on automated mail.
+      headers: { "List-Unsubscribe": `<mailto:${MAIL_REPLY_TO}?subject=unsubscribe>, <${UNSUB_URL()}>` },
     });
     console.log("mail sent:", to, "|", subject, "|", r.messageId, "|", r.reply.replace(/\s+/g, " ").slice(0, 120));
     return true;

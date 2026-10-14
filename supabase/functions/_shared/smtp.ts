@@ -8,7 +8,7 @@
 // The server's final reply ("250 … queued as …") is returned so it can be logged and traced.
 
 export type SmtpConfig = { host: string; port: number; user: string; pass: string; helo?: string };
-export type OutMail = { fromName: string; from: string; to: string; replyTo?: string; subject: string; text: string; html?: string };
+export type OutMail = { fromName: string; from: string; to: string; replyTo?: string; subject: string; text: string; html?: string; headers?: Record<string, string> };
 
 const enc = new TextEncoder();
 const dec = new TextDecoder();
@@ -58,6 +58,7 @@ export function buildMessage(m: OutMail): { raw: string; messageId: string } {
     `Subject: ${subjectHeader(m.subject)}`,
     `Date: ${rfc5322Date()}`,
     `Message-ID: ${messageId}`,
+    ...Object.entries(m.headers || {}).map(([k, v]) => `${k}: ${String(v).replace(/[\r\n]+/g, " ")}`),
     "MIME-Version: 1.0",
   ];
   const part = (type: string, body: string) => [`Content-Type: ${type}; charset="UTF-8"`, "Content-Transfer-Encoding: base64", "", fold76(b64(body.replace(/\r?\n/g, "\r\n")))].join("\r\n");
