@@ -23,6 +23,8 @@ Deno.serve(async (req) => {
   const ip = clientIp(req), ua = req.headers.get("user-agent") || "";
 
   if (action === "login") {
+    // Sign-in time is set here with the service role (the browser-side update was not reliable).
+    await admin.from("clv_profiles").update({ last_login_at: new Date().toISOString() }).eq("id", me.id).then(() => {}, (e: Error) => console.error("clv-audit last_login:", e.message));
     const { error } = await admin.from("clv_access_log").insert({ user_id: me.id, action: "login", ip, user_agent: ua });
     if (error) console.error("clv-audit login:", error.message);
     return json({ ok: true });
