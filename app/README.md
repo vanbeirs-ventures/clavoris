@@ -25,8 +25,8 @@ later migrations in the same folder.
 | File | Purpose |
 |---|---|
 | `config.js` | Public project URL + publishable key + app URL. Loads first. |
-| `clavoris-access.js` | Session/role engine (`window.ClavorisAccess`): sign in/out, password recovery and change, profile update, edge-function calls, page gating. Retries a transient session failure once and breaks a sign-in/page redirect loop after three rounds. |
-| `shell.js` | Top band for signed-in pages, shared helpers (downloads, dates, extension dialog), the "manage notifications / unsubscribe" pop-up. |
+| `clavoris-access.js` | Session/role engine (`window.ClavorisAccess`): sign in/out, password recovery and change, profile update, edge-function calls, page gating. The session is kept in `sessionStorage`, so it ends when the browser page is closed (not only on sign-out) and is per tab. One signed-in user per computer: signed-in pages write a heartbeat to `localStorage` (`clv_active`); the sign-in page asks for confirmation (naming the active user) before a different user signs in, then broadcasts `clv_kick` and every open tab of the previous user signs out (`login.html?kicked=1`). Session reads are single-flight with back-off and never clear a valid session on a transient error. |
+| `shell.js` | Top band for signed-in pages, shared helpers (downloads, dates, extension dialog), the "manage notifications / unsubscribe" pop-up, and the inactivity guard: 10 minutes without activity → 60-second countdown dialog ("Stay signed in" restarts the 10 minutes) → sign-out (`login.html?idle=1`). |
 | `app.css` | App styles on top of `../assets/colors_and_type.css`; phone layout (single-column grids bounded to the viewport, file rows wrap). |
 | `login.html` | Sign in + "forgotten password". Routes staff to `admin.html`, investors to `portal.html`. `?unsubscribe=1` (from mail footers) triggers the notification-settings pop-up after sign-in. |
 | `reset.html` | Landing page for recovery/activation links; sets a new password (show/hide on both fields). |
