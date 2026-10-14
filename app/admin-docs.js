@@ -3,7 +3,8 @@
    uploads its PDFs there (PDF only, max 25 MB each, optional sub-folders); the storage location is
    created automatically from the room name and never shown. Files go through clv-room-docs.
    Also: "+ New user" is reserved to Clavoris (super) — company admins add people by inviting them
-   to a data room. Loaded after admin.js. */
+   to a data room. The invitation form gets optional Mr / Mrs, first and last name fields.
+   Loaded after admin.js. */
 (function () {
   'use strict';
   var A = window.ClavorisAccess;
@@ -105,4 +106,26 @@
 
   // ---- accounts are created by Clavoris only ----
   A.ready(function () { var nu = q('newUser'); if (nu && !A.isSuper()) nu.hidden = true; });
+
+  // ---- invitation: optional Mr / Mrs, first and last name ----
+  // With a title and last name, the e-mails open with "Dear Mr Van Beirs," (in the invitation's language).
+  var langField = q('iLang') && q('iLang').closest('.field');
+  if (langField) {
+    var invBox = document.createElement('div');
+    invBox.innerHTML = '<div class="g3" style="grid-template-columns:110px 1fr 1fr">'
+      + '<div class="field"><label for="iSal">Title</label><select id="iSal"><option value="">—</option><option value="mr">Mr</option><option value="mrs">Mrs</option></select></div>'
+      + '<div class="field"><label for="iFirst">First name</label><input id="iFirst" type="text" autocomplete="off"></div>'
+      + '<div class="field"><label for="iLast">Last name</label><input id="iLast" type="text" autocomplete="off"></div></div>'
+      + '<span class="hint" style="display:block;margin-top:6px">Optional. With a title and last name the e-mails open with “Dear Mr Van Beirs,” in the chosen language; without, they use a neutral greeting. The person can still correct their name in their profile.</span>';
+    langField.parentNode.insertBefore(invBox, langField);
+    var call = A.callFn;
+    A.callFn = function (fn, body) {
+      if (fn === 'clv-admin-rooms' && body && body.action === 'invite') {
+        body.salutation = q('iSal').value || undefined;
+        body.first_name = q('iFirst').value.trim() || undefined;
+        body.last_name = q('iLast').value.trim() || undefined;
+      }
+      return call.apply(this, arguments);
+    };
+  }
 })();
