@@ -7,6 +7,7 @@
 //   { action: "add_party", id, email, name, company, role, order_no } (staff; draft only)
 //   { action: "remove_party", id, party_id }                  (staff; draft only)
 //   { action: "launch", id }                                  (staff) -> creates the e-Signature.eu request, invites the first signatory
+//   { action: "remind", id }                                  (staff) -> re-sends "your signature is requested" to the current signatory
 //   { action: "cancel", id }                                  (staff) -> cancels the request at the provider too
 //   { action: "open", id }                                    -> marks the caller's party as opened
 //   { action: "sign_start", id }                              -> returns the caller's embedded signing link
@@ -222,6 +223,21 @@ Deno.serve(async (req) => {
       else if (p.status === "pending" && wants(p.profile.notify, "contract_new")) { const m = mail(L, "contract_launched_wait", { name: p.profile.full_name, title: c.title, order: p.order_no, link }); sendMail(p.profile.email, m.subject, m.text, L).catch(() => {}); }
     }
     return json({ ok: true });
+  }
+
+  if (action === "remind") {
+    // Staff: re-send "your signature is requested" to the signatory whose turn it is.
+    if (!staff) return json({ error: "forbidden" }, 403);
+    const r = await loadContract(String(body.id || "")); if (r instanceof Response) return r;
+    const { c, parties } = r;
+    if (c.status !== "in_progress") return json({ error: "not-in-progress" }, 400);
+    const nxt = nextSignatory(parties);
+    if (!nxt || !nxt.profile?.email) return json({ error: "no-signatory" }, 400);
+    const L = pickLang(nxt.profile.lang);
+    const m = mail(L, "contract_your_turn", { name: nxt.profile.full_name, title: c.title, link: `${APP_URL}/contract.html?id=${c.id}` });
+    const sent = await sendMail(nxt.profile.email, m.subject, m.text, L).catch((e) => { console.error("contract remind mail", e); return false; });
+    await logEvent(admin, c.id, me.id, "party-reminded", { party_id: nxt.id, sent }, ip);
+    return json({ ok: true, sent, to: nxt.profile.email });
   }
 
   if (action === "cancel") {
