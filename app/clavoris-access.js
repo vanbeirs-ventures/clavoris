@@ -46,24 +46,40 @@
   function whenReady(fn) { if (_ready) return fn(); _waiters.push(fn); }
   function reset() { _user = null; _profile = null; }
 
-  // Reads the session and the caller's profile into the cache. A transient failure (token refresh in
-  // flight in another tab, lock contention, a dropped request) is retried once before the cache is
-  // cleared, so a signed-in user is not mistaken for a signed-out one.
-  function refreshSession(attempt) {
+  // Reads the session and the caller's profile into the cache. Single-flight: concurrent callers share
+  // one request. A failed read (token refresh in flight in another tab, auth lock contention, a dropped
+  // request) is retried with back-off and never clears a cached session: the cache is only cleared when
+  // the auth library definitively reports "no session". Being signed out is a fact, not a timeout.
+  var _inflight = null, _lastErr = '';
+  function refreshSession(maxAttempts) {
     if (!sb) { reset(); return Promise.resolve(); }
-    attempt = attempt || 0;
-    var retry = function () { if (attempt >= 1) { reset(); return; } return new Promise(function (r) { setTimeout(r, 600); }).then(function () { return refreshSession(attempt + 1); }); };
-    return sb.auth.getSession().then(function (res) {
-      if (res && res.error) return retry();
-      var session = res && res.data ? res.data.session : null;
-      if (!session || !session.user) { reset(); return; }
-      _user = session.user;
-      return sb.from('clv_profiles').select(PROFILE_SEL).eq('id', session.user.id).maybeSingle()
-        .then(function (pr) {
-          if (pr && pr.error) { if (!_profile) return retry(); return; } // keep the cached profile on a transient error
+    if (_inflight) return _inflight;
+    maxAttempts = maxAttempts || 2;
+    var attempt = 0;
+    function once() {
+      return sb.auth.getSession().then(function (res) {
+        if (res && res.error) throw res.error;
+        var session = res && res.data ? res.data.session : null;
+        if (!session || !session.user) { reset(); return; }
+        _user = session.user;
+        return sb.from('clv_profiles').select(PROFILE_SEL).eq('id', session.user.id).maybeSingle().then(function (pr) {
+          if (pr && pr.error) { if (!_profile) throw pr.error; return; } // keep the cached profile on a transient error
           _profile = pr && pr.data ? pr.data : null;
         });
-    }).catch(retry);
+      }).catch(function (e) {
+        _lastErr = (e && e.message) || String(e);
+        attempt += 1;
+        if (attempt >= maxAttempts) return; // keep whatever is cached
+        return new Promise(function (r) { setTimeout(r, 500 * Math.pow(2, attempt - 1)); }).then(once);
+      });
+    }
+    _inflight = once().then(function () { _inflight = null; }, function () { _inflight = null; });
+    return _inflight;
+  }
+  // A session persisted by the auth library on this device (the page may simply not have read it yet).
+  function hasStoredSession() {
+    try { for (var i = 0; i < localStorage.length; i++) { var k = localStorage.key(i); if (/^sb-.*-auth-token$/.test(k) && localStorage.getItem(k)) return true; } } catch (e) {}
+    return false;
   }
 
   /* ---------------- getters (sync, read the cache) ---------------- */
@@ -179,11 +195,16 @@
   function client() { return sb; }
 
   /* ---------------- page gating ---------------- */
+  var _gateRetried = false;
   function gate() {
     var level = document.body && document.body.getAttribute('data-clv-restrict');
+    if (!level) { document.documentElement.classList.remove('clv-checking'); return; }
+    if (clears(level)) { document.documentElement.classList.remove('clv-checking'); document.documentElement.classList.add('clv-cleared'); return; }
+    // A session is stored on this device but could not be read yet (auth lock held by another tab, refresh
+    // in flight): keep the page hidden and try again for a few seconds before concluding "signed out".
+    if ((!_user || !_profile) && hasStoredSession() && !_gateRetried) { _gateRetried = true; return refreshSession(5).then(gate); }
     document.documentElement.classList.remove('clv-checking');
-    if (!level) return;
-    if (clears(level)) { document.documentElement.classList.add('clv-cleared'); return; }
+    try { if (_lastErr) sessionStorage.setItem('clv_gate_err', _lastErr); } catch (e) {}
     var main = document.querySelector('main'); if (main) main.remove();
     var next = encodeURIComponent(location.pathname.split('/').pop() + location.search);
     // Loop breaker: if this page and the sign-in page keep bouncing each other (the sign-in page sees a
@@ -195,11 +216,16 @@
 
   function init() {
     if (!sb) { document.documentElement.classList.remove('clv-checking'); markReady(); return; }
-    refreshSession().then(function () { gate(); markReady(); });
+    refreshSession().then(function () { return gate(); }).then(markReady, markReady);
     try {
-      sb.auth.onAuthStateChange(function (event) {
+      // Never call the auth library from inside its own callback (it holds the auth lock there and the
+      // nested call waits for it = timeout). INITIAL_SESSION is handled by the read above.
+      sb.auth.onAuthStateChange(function (event, session) {
+        if (event === 'INITIAL_SESSION') return;
         if (event === 'PASSWORD_RECOVERY') { document.dispatchEvent(new CustomEvent('clv:recovery')); }
-        refreshSession();
+        if (event === 'TOKEN_REFRESHED' && session && session.user) { _user = session.user; return; }
+        if (event === 'SIGNED_OUT') { reset(); return; }
+        setTimeout(function () { refreshSession(); }, 0);
       });
     } catch (e) {}
   }
