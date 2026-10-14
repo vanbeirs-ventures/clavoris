@@ -50,7 +50,7 @@
 
     <h2 style="font-family:var(--font-display);font-size:24px;color:var(--clavis-navy);margin-top:44px" id="rooms-h">Data rooms</h2>
     <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px">
-      <p class="page-sub" style="margin-top:4px">Invite by email address with an access end date: the user is enrolled if new, receives an invitation naming your company and the end date, sets a password, completes KYC, signs the room's NDA and gets access. Documents are read from the room's Nextcloud folder. Reminders go out 7 days and 24 hours before the end date; after it, the member can still open the room and download their signed NDA, nothing else.</p>
+      <p class="page-sub" style="margin-top:4px">Invite by email address with an access end date: the user is enrolled if new, receives an invitation naming your company and the end date, sets a password, completes KYC, signs the room's NDA and gets access. The company that owns the room uploads its documents with the room's <b>Documents</b> button (PDF only). Reminders go out 7 days and 24 hours before the end date; after it, the member can still open the room and download their signed NDA, nothing else.</p>
       <button class="btn btn-primary" type="button" id="newRoom">+ New data room</button>
     </div>
     <section class="card" id="ncCard" style="padding:16px 20px;margin-top:14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
@@ -146,7 +146,7 @@
         <div class="field"><label for="rType">Project type</label><select id="rType"><option value="ma">M&amp;A</option><option value="financing">Financing</option><option value="other">Other</option></select></div>
         <div class="field"><label for="rStatus">Status</label><select id="rStatus"><option value="open">open</option><option value="closed">closed</option></select></div>
         <div class="field"><label for="rDays">Default access (days)</label><input id="rDays" type="number" min="1" max="3650" value="90" class="mono"></div>
-        <div class="field" style="grid-column:2/4"><label for="rFolder">Document folder on Nextcloud (relative to the connected account root)</label><input id="rFolder" type="text" class="mono" placeholder="Documents/Clavoris/Data Rooms/Minerva Luxury Motors 1"></div>
+        <div class="field" style="grid-column:2/4"><label>Documents</label><p class="hint" style="margin-top:6px;line-height:1.6">After saving, use the <b>Documents</b> button of the room to upload its PDFs. The room's document folder is created automatically.</p><input id="rFolder" type="hidden"></div>
       </div>
       <label class="check"><input type="checkbox" id="rDownloads" checked><span>Downloads allowed (otherwise members can only read the document list)</span></label>
       <label class="check" style="margin-top:8px"><input type="checkbox" id="rNda" checked><span>NDA must be signed before the documents open</span></label>
@@ -227,5 +227,6 @@
 <script src="clavoris-access.js?v=20261014d"></script>
 <script src="shell.js?v=20261014d"></script>
 <script src="admin.js?v=20261014d"></script>
+<script src="admin-docs.js?v=20261014d"></script>
 </body>
 </html>
