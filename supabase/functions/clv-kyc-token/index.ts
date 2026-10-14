@@ -5,9 +5,8 @@
 // Results come back through clv-didit-webhook.
 // Secrets: DIDIT_API_KEY, DIDIT_WORKFLOW_ID (console workflow id); optional CLAVORIS_APP_URL.
 // Deploy: supabase functions deploy clv-kyc-token --no-verify-jwt
-import { adminClient, APP_URL, clientIp, cors, json, requireUser } from "../_shared/clv.ts";
-
-const DIDIT_URL = "https://verification.didit.me";
+import { adminClient, APP_URL, clientIp, cors, isStaff, json, requireUser } from "../_shared/clv.ts";
+import { DIDIT_URL, syncKycSession } from "../_shared/kyc.ts";
 const LANGS = new Set(["en", "nl", "fr", "de", "es", "it"]);
 
 Deno.serve(async (req) => {
@@ -19,10 +18,19 @@ Deno.serve(async (req) => {
 
   const apiKey = Deno.env.get("DIDIT_API_KEY"), workflow = Deno.env.get("DIDIT_WORKFLOW_ID");
   if (!apiKey || !workflow) return json({ error: "kyc-not-configured" }, 503);
+  const body = await req.json().catch(() => ({}));
+  // { sync: true [, user_id] }: pull the session decision from Didit and apply it (covers a missed
+  // webhook). A user syncs their own session; staff may sync any user's.
+  if (body.sync) {
+    const target = isStaff(me) && typeof body.user_id === "string" && /^[0-9a-f-]{36}$/i.test(body.user_id) ? body.user_id : me.id;
+    const { data: t } = await admin.from("clv_profiles").select("id, status, kyc_session_id").eq("id", target).maybeSingle();
+    if (!t) return json({ error: "not-found" }, 404);
+    if (!t.kyc_session_id) return json({ ok: true, status: "", profile: t.status });
+    const r = await syncKycSession(admin, t.id, t.kyc_session_id);
+    return "error" in r ? json(r, 502) : json({ ok: true, ...r });
+  }
   if (me.status === "verified") return json({ ok: true, verified: true });
   if (me.status === "rejected" || me.status === "suspended") return json({ error: "kyc-closed" }, 403);
-
-  const body = await req.json().catch(() => ({}));
   const next = typeof body.next === "string" && /^[a-z0-9_./?=&-]{1,200}$/i.test(body.next) && !body.next.startsWith("/") && !body.next.includes("//") ? body.next : "portal.html";
   const lang = LANGS.has(String(me.lang || "")) ? String(me.lang) : "en";
   const callback = `${APP_URL}/kyc.html?next=${encodeURIComponent(next)}`;
