@@ -149,7 +149,7 @@ export function textToHtml(text: string, cta?: Cta | Cta[], lang: Lang = "en"): 
         + `<td align="center" bgcolor="#1A3A5C" style="background:#1A3A5C;border-radius:3px;padding:12px 26px;mso-padding-alt:12px 26px">`
         + `<a href="${esc(cta.url)}" target="_blank" style="display:inline-block;font-family:${FONT_UI};font-size:14px;font-weight:500;line-height:20px;letter-spacing:.03em;color:#F7F3EC;text-decoration:none"><span style="color:#F7F3EC">${esc(cta.label)}</span></a>`
         + `</td></tr></table>`
-        + (!single ? "" : `<p style="margin:0 0 26px;font-family:${FONT_UI};font-size:12px;line-height:1.6;color:#6E83A0">${esc(ctaLabel(lang, "fallback"))}<br><a href="${esc(cta.url)}" style="color:#6E83A0;word-break:break-all">${esc(cta.url)}</a></p>`));
+        + (!single ? "" : `<p style="margin:22px 0 26px;font-family:${FONT_UI};font-size:12px;line-height:1.6;color:#6E83A0">${esc(ctaLabel(lang, "fallback"))}<br><a href="${esc(cta.url)}" style="color:#6E83A0;word-break:break-all">${esc(cta.url)}</a></p>`));
       return;
     }
     if (!t) { flush(); return; }
