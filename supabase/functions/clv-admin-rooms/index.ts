@@ -12,7 +12,7 @@
 //   { action: "revoke" | "reactivate" | "remind", room_id, user_id }
 // Deploy: supabase functions deploy clv-admin-rooms --no-verify-jwt
 import { adminClient, APP_URL, audit, companyScope, cors, enrolUser, fmtDay, inScope, json, requireAdmin, sendMail, ctaLabel } from "../_shared/clv.ts";
-import { mail, pickLang, word } from "../_shared/mail-i18n.ts";
+import { mail, pickLang, word } from "../_shared/room-mail.ts";
 import { ncConfigured, ncMkdirP, ncPut, sha256Hex } from "../_shared/nc.ts";
 const withLang = (u: string, l: string) => u + (u.includes("?") ? "&" : "?") + "lang=" + l;
 const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "room";
@@ -132,7 +132,7 @@ Deno.serve(async (req) => {
     const cname = await companyName(room.company_id);
     if (u) {
       const L = pickLang(u.lang);
-      const m = mail(L, accept ? "ext_accepted" : "ext_rejected", { name: u.full_name, room: room.name, company: cname, date: fmtDay(accept ? endOfDay(until!) : a?.expires_at, L), note: note ? word(L, "note_line", { company: cname, note }) : "", link: `${APP_URL}/room.html?id=${room.id}` });
+      const m = mail(L, accept ? "ext_accepted" : "ext_rejected", { name: u.full_name, room: room.name, company: cname, owner: cname, date: fmtDay(accept ? endOfDay(until!) : a?.expires_at, L), note: note ? word(L, "note_line", { company: cname, owner: cname, note }) : "", link: `${APP_URL}/room.html?id=${room.id}` });
       sendMail(u.email, m.subject, m.text, L).catch(() => {});
     }
     await audit(admin, me, accept ? "access-extended" : "access-extension-rejected", rq.user_id, { room: room.slug, until, note });
@@ -193,7 +193,7 @@ Deno.serve(async (req) => {
       const { data: l } = await admin.auth.admin.generateLink({ type: "recovery", email: prof.email, options: { redirectTo: APP_URL + "/reset.html" } });
       link = l?.properties?.hashed_token ? `${APP_URL}/reset.html?token_hash=${encodeURIComponent(l.properties.hashed_token)}&type=recovery&welcome=1&lang=${L}&room=${encodeURIComponent(room.name)}&by=${encodeURIComponent(cname)}` : `${APP_URL}/login.html?lang=${L}`;
     } else if (step === "kyc") link = `${APP_URL}/kyc.html?next=room.html%3Fid%3D${roomId}`;
-    const m = mail(L, "remind_" + step, { name: prof.full_name, room: room.name, link });
+    const m = mail(L, "remind_" + step, { name: prof.full_name, room: room.name, owner: cname, link });
     let mailed = false;
     try { mailed = await sendMail(prof.email, m.subject, m.text, L, step === "signup" ? { url: link, label: ctaLabel(L, "activate") } : undefined); } catch (e) { console.error("clv-admin-rooms remind mail:", (e as Error).message); }
     await audit(admin, me, "room-reminder-sent", userId, { room: room.slug, step, mailed });
@@ -208,7 +208,7 @@ Deno.serve(async (req) => {
     if (!a) return json({ error: "not-revoked" }, 400);
     await audit(admin, me, "room-access-reactivated", userId, { room: room.slug });
     const { data: prof } = await admin.from("clv_profiles").select("email, full_name, lang").eq("id", userId).maybeSingle();
-    if (prof) { const L = pickLang(prof.lang); const m = mail(L, "room_invite_existing", { name: prof.full_name, room: room.name, company: cname, until: expires ? word(L, "until_line", { date: fmtDay(expires, L) }) : "", link: `${APP_URL}/login.html?lang=${L}` }); sendMail(prof.email, m.subject, m.text, L).catch(() => {}); }
+    if (prof) { const L = pickLang(prof.lang); const m = mail(L, "room_invite_existing", { name: prof.full_name, room: room.name, company: cname, owner: cname, until: expires ? word(L, "until_line", { date: fmtDay(expires, L) }) : "", link: `${APP_URL}/login.html?lang=${L}` }); sendMail(prof.email, m.subject, m.text, L).catch(() => {}); }
     return json({ ok: true, expires_at: expires });
   }
 
@@ -252,9 +252,9 @@ Deno.serve(async (req) => {
     const ctx = `&room=${encodeURIComponent(room.name)}&by=${encodeURIComponent(cname)}`;
     const login = `${APP_URL}/login.html?lang=${L}`;
     const until = expires ? word(L, "until_line", { date: fmtDay(expires, L) }) : "";
-    const m = created ? mail(L, "room_invite_new", { name, room: room.name, company: cname, until, link: withLang(link, L) + ctx })
-      : linked ? mail(L, "room_invite_linked", { name, room: room.name, company: cname, until, login, link: withLang(link, L) + ctx })
-      : mail(L, "room_invite_existing", { name: prof.full_name, room: room.name, company: cname, until, link: login });
+    const m = created ? mail(L, "room_invite_new", { name, room: room.name, company: cname, owner: cname, until, link: withLang(link, L) + ctx })
+      : linked ? mail(L, "room_invite_linked", { name, room: room.name, company: cname, owner: cname, until, login, link: withLang(link, L) + ctx })
+      : mail(L, "room_invite_existing", { name: prof.full_name, room: room.name, company: cname, owner: cname, until, link: login });
     let mailed = false;
     const cta = (created || linked) ? { url: withLang(link, L) + ctx, label: ctaLabel(L, "activate") } : undefined;
     try { mailed = await sendMail(email, m.subject, m.text, L, cta); } catch (e) { console.error("clv-admin-rooms invite mail:", (e as Error).message); }
