@@ -4,7 +4,7 @@
 // listed once the NDA is signed (when the room requires one); downloads go through
 // clv-room-file. Deploy: supabase functions deploy clv-room --no-verify-jwt
 import { adminClient, APP_URL, audit, clientIp, cors, fmtDay, isStaff, json, requireUser, sendMail } from "../_shared/clv.ts";
-import { mail, pickLang } from "../_shared/mail-i18n.ts";
+import { mail, pickLang } from "../_shared/room-mail.ts";
 import { ncConfigured, ncTree } from "../_shared/nc.ts";
 
 Deno.serve(async (req) => {
@@ -44,7 +44,7 @@ Deno.serve(async (req) => {
     if (error) return json({ error: error.message }, 400);
     await audit(admin, { id: me.id, email: me.email, role: me.role }, "access-extension-requested", roomId, { until, message });
     const L = pickLang(me.lang);
-    const rc = mail(L, "ext_received", { name: me.full_name, room: room.name, company: companyName, date: fmtDay(until + "T12:00:00Z", L) });
+    const rc = mail(L, "ext_received", { name: me.full_name, room: room.name, company: companyName, owner: companyName, date: fmtDay(until + "T12:00:00Z", L) });
     sendMail(me.email, rc.subject, rc.text, L).catch(() => {});
     const { data: staff } = await admin.from("clv_profiles").select("email, lang, role, company_id").in("role", ["admin", "super"]).neq("status", "suspended");
     for (const s of (staff || []).filter((s: any) => s.role === "super" || s.company_id === room.company_id)) {
