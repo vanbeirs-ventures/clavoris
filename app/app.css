@@ -135,6 +135,20 @@ textarea { font-family: inherit; font-size: 14px; }
 .field textarea { width: 100%; color: var(--fg-1); background: var(--bg-raised); border: 1px solid var(--border-strong); border-radius: var(--r-sm); padding: 10px 12px; line-height: 1.5; resize: vertical; }
 .field textarea:focus { border-color: var(--clavis-navy); box-shadow: 0 0 0 2px rgba(184,134,11,.35); outline: none; }
 .check { display: flex; gap: 10px; align-items: flex-start; font-size: 13.5px; margin-top: 18px; line-height: 1.5; }
+/* Segmented radio choice (private / organisation, yes / no) */
+.seg { display: flex; flex-wrap: wrap; gap: 8px; }
+.seg-opt { display: flex; align-items: center; gap: 8px; padding: 9px 14px; border: 1px solid var(--border-strong); border-radius: var(--r-sm); background: var(--bg-raised); font-size: 13.5px; color: var(--fg-1); cursor: pointer; text-transform: none; letter-spacing: 0; font-weight: 400; }
+.seg-opt input { margin: 0; width: 15px; height: 15px; }
+.seg-opt:has(input:checked) { border-color: var(--clavis-navy); box-shadow: 0 0 0 2px rgba(184,134,11,.35); }
+.btn.disabled, .btn[aria-disabled="true"] { opacity: .45; cursor: not-allowed; }
+/* NDA step: who signs, and live feedback on the typed name */
+.signer { display: flex; gap: 14px; align-items: center; padding: 14px 16px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--bg-raised); margin-top: 18px; }
+.signer .initials { width: 42px; height: 42px; border-radius: 50%; background: var(--clavis-navy); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 600; flex: none; }
+.signer .who { font-size: 15px; font-weight: 600; color: var(--clavis-navy); }
+.signer .cap { font-size: 12.5px; color: var(--fg-2); line-height: 1.5; margin-top: 2px; }
+.signer .edit { font-size: 12px; margin-top: 4px; }
+.field .match { font-size: 12.5px; color: var(--fg-3); }
+.field .match.ok { color: #1f7a3a; }
 .check input { margin-top: 3px; width: 16px; height: 16px; flex: none; }
 .field .check { font-size: 13px; text-transform: none; letter-spacing: 0; color: var(--fg-1); font-weight: 400; }
 .picklist { max-height: 180px; overflow: auto; border: 1px solid var(--border); border-radius: var(--r-sm); padding: 8px 12px; font-size: 13px; }

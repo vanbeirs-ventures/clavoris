@@ -34,7 +34,7 @@
     }
   } catch (e) { sb = null; }
 
-  var PROFILE_SEL = 'id, email, full_name, company, job_title, mobile, lang, role, status, kyc_level, kyc_review_answer, last_login_at, created_at, features, notify';
+  var PROFILE_SEL = 'id, email, full_name, company, job_title, legal_rep, mobile, lang, role, status, kyc_level, kyc_review_answer, last_login_at, created_at, features, notify';
 
   /* ---------------- cached session state ---------------- */
   var _user = null;      // supabase auth user
@@ -84,6 +84,19 @@
     return true; // 'full' — any signed-in, non-suspended user
   }
   function displayName() { return (_profile && _profile.full_name) || (_user && _user.email) || ''; }
+  // Profile completeness (same rule as the server): a real name; for an organisation account also
+  // the role and the legal-representative answer (true/false).
+  function profileComplete(p) {
+    p = p || _profile || {};
+    if (!String(p.full_name || '').trim()) return false;
+    if (String(p.company || '').trim()) return !!String(p.job_title || '').trim() && typeof p.legal_rep === 'boolean';
+    return true;
+  }
+  // Typed-name comparison for signatures: case, accents and extra spaces do not count.
+  function sameName(a, b) {
+    function n(s) { return String(s || '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/\s+/g, ' ').trim(); }
+    return n(a) !== '' && n(a) === n(b);
+  }
   function initials() {
     return displayName().split(/\s+/).map(function (w) { return w[0] || ''; }).slice(0, 2).join('').toUpperCase() || 'C';
   }
@@ -145,7 +158,7 @@
   // Update own profile fields (RLS: own row only).
   function updateProfile(fields) {
     if (!sb || !_user) return Promise.resolve({ ok: false });
-    var allowed = {}; ['full_name', 'company', 'job_title', 'mobile', 'lang', 'notify'].forEach(function (k) { if (k in fields) allowed[k] = fields[k]; });
+    var allowed = {}; ['full_name', 'company', 'job_title', 'legal_rep', 'mobile', 'lang', 'notify'].forEach(function (k) { if (k in fields) allowed[k] = fields[k]; });
     return sb.from('clv_profiles').update(allowed).eq('id', _user.id).then(function (res) {
       if (res.error) return { ok: false, error: res.error.message };
       return refreshSession().then(function () { return { ok: true }; });
@@ -195,7 +208,7 @@
     ready: whenReady, refresh: refreshSession, client: client,
     user: user, profile: profile, role: role, status: status,
     isSignedIn: isSignedIn, isAdmin: isAdmin, isSuper: isSuper, isVerified: isVerified, isSuspended: isSuspended,
-    clears: clears, displayName: displayName, initials: initials, homeFor: homeFor,
+    clears: clears, displayName: displayName, profileComplete: profileComplete, sameName: sameName, initials: initials, homeFor: homeFor,
     signIn: signIn, signOut: signOut, requestPasswordReset: requestPasswordReset, verifyRecovery: verifyRecovery, updatePassword: updatePassword,
     verifyPassword: verifyPassword, updateProfile: updateProfile, callFn: callFn
   };
