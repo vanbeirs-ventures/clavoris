@@ -10,7 +10,7 @@
 // carries validation.method so an eIDAS QES signature (e-Signature.eu) can replace it later.
 // Deploy: supabase functions deploy clv-room-nda --no-verify-jwt
 import { PDFDocument, StandardFonts, rgb } from "https://esm.sh/pdf-lib@1.17.1";
-import { adminClient, clientIp, cors, isStaff, json, requireUser } from "../_shared/clv.ts";
+import { adminClient, clientIp, cors, isStaff, json, profileComplete, requireUser, sameName } from "../_shared/clv.ts";
 import { ncConfigured, ncGet, ncMkdirP, ncPut, sha256Hex } from "../_shared/nc.ts";
 
 function wrap(text: string, max: number): string[] {
@@ -51,7 +51,7 @@ async function renderNdaPdf(opts: { title: string; room: string; text: string; s
   line("Electronic signature record", bold, 12, navy); y -= 2;
   for (const [k, v] of Object.entries(opts.sig)) {
     page.drawText(k.padEnd(22), { x: M, y, size: 8.5, font: mono, color: grey });
-    page.drawText(v, { x: M + 140, y, size: 9, font, color: rgb(0.1, 0.1, 0.1) }); y -= 12.5;
+    for (const l of wrap(v, 80)) { page.drawText(l, { x: M + 140, y, size: 9, font, color: rgb(0.1, 0.1, 0.1) }); y -= 12.5; }
     if (y < M) newPage();
   }
   y -= 8;
@@ -94,9 +94,11 @@ async function storeNda(room: { nextcloud_folder: string | null; slug: string },
   catch (e) { console.error("clv-room-nda: nextcloud store failed:", (e as Error).message); return null; }
 }
 
-function sigBlock(me: { email: string; company: string | null; sumsub_applicant_id: string | null; kyc_provider?: string | null; kyc_session_id?: string | null; kyc_reviewed_at: string | null }, typed: string, at: Date, ip: string, version: string, shaUnsigned: string): Record<string, string> {
+function sigBlock(me: { email: string; company: string | null; job_title?: string | null; legal_rep?: boolean | null; sumsub_applicant_id: string | null; kyc_provider?: string | null; kyc_session_id?: string | null; kyc_reviewed_at: string | null }, typed: string, at: Date, ip: string, version: string, shaUnsigned: string): Record<string, string> {
   return {
-    "Signatory": typed, "Email": me.email, "Organisation": me.company || "—",
+    "Signatory": typed, "Email": me.email, "Organisation": me.company || "— (private person)",
+    "Role": me.company ? (me.job_title || "—") : "—",
+    "Capacity": me.company ? (me.legal_rep ? `Legal representative, authorised to sign on behalf of ${me.company}` : `Signs in a personal capacity (not an authorised representative of ${me.company})`) : "Private person, signs in a personal capacity",
     "Signed at (UTC)": at.toISOString().replace("T", " ").slice(0, 19),
     "Identity verification": `${me.kyc_provider === "didit" || (!me.sumsub_applicant_id && me.kyc_session_id) ? `Didit KYC · session ${me.kyc_session_id || "n/a"}` : `Sumsub KYC · applicant ${me.sumsub_applicant_id || "n/a"}`} · reviewed ${me.kyc_reviewed_at ? String(me.kyc_reviewed_at).slice(0, 10) : "n/a"}`,
     "Signature method": "KYC-attested electronic acceptance (eIDAS simple e-signature)",
@@ -167,8 +169,9 @@ Deno.serve(async (req) => {
   if (!room.qes_nda_required) return json({ ok: true, already: true });
   if (me.status !== "verified" && !isStaff(me)) return json({ error: "kyc-required" }, 403);
   if (body.accept !== true) return json({ error: "accept-required" }, 400);
+  if (!profileComplete(me)) return json({ error: "profile-incomplete" }, 400);
   const typed = String(body.typed_name || "").trim();
-  if (!typed || typed.toLowerCase() !== String(me.full_name || "").trim().toLowerCase()) return json({ error: "name-mismatch" }, 400);
+  if (!sameName(typed, me.full_name || "")) return json({ error: "name-mismatch" }, 400);
 
   const { data: existing } = await admin.from("clv_signed_documents").select("id, signed_at").eq("room_id", roomId).eq("user_id", me.id).eq("doc_type", "nda").maybeSingle();
   if (existing) return json({ ok: true, already: true, signed_at: existing.signed_at });
@@ -183,7 +186,7 @@ Deno.serve(async (req) => {
   const { error } = await admin.from("clv_signed_documents").insert({
     user_id: me.id, room_id: roomId, doc_type: "nda", doc_version: version,
     sha256_unsigned: shaUnsigned, sha256_signed: shaSigned, nextcloud_path: ncPath, signed_at: now.toISOString(),
-    validation: { method: "kyc-attested-click", typed_name: typed, ip, user_agent: ua, sumsub_applicant_id: me.sumsub_applicant_id, kyc_provider: me.kyc_provider || (me.sumsub_applicant_id ? "sumsub" : null), kyc_session_id: me.kyc_session_id, kyc_reviewed_at: me.kyc_reviewed_at, stored: !!ncPath },
+    validation: { method: "kyc-attested-click", typed_name: typed, organisation: me.company || null, role: me.job_title || null, legal_rep: me.company ? !!me.legal_rep : null, ip, user_agent: ua, sumsub_applicant_id: me.sumsub_applicant_id, kyc_provider: me.kyc_provider || (me.sumsub_applicant_id ? "sumsub" : null), kyc_session_id: me.kyc_session_id, kyc_reviewed_at: me.kyc_reviewed_at, stored: !!ncPath },
   });
   if (error) return json({ error: error.message }, 400);
   await admin.from("clv_access_log").insert({ user_id: me.id, room_id: roomId, file_path: ncPath, action: "nda-signed", ip, user_agent: ua }).then(() => {}, () => {});

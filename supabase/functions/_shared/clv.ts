@@ -31,19 +31,31 @@ export async function requireAdmin(admin: SupabaseClient, req: Request): Promise
 
 // Resolve the caller from the JWT: any enrolled, non-suspended Clavoris user.
 export type Features = { market?: boolean; trading?: boolean; products?: string[] | null };
-export type Profile = { id: string; email: string; full_name: string | null; company: string | null; company_id: string | null; role: "user" | "admin" | "super"; status: string; lang: string | null; features: Features; sumsub_applicant_id: string | null; kyc_provider: string | null; kyc_session_id: string | null; kyc_reviewed_at: string | null };
+export type Profile = { id: string; email: string; full_name: string | null; company: string | null; job_title: string | null; legal_rep: boolean | null; company_id: string | null; role: "user" | "admin" | "super"; status: string; lang: string | null; features: Features; sumsub_applicant_id: string | null; kyc_provider: string | null; kyc_session_id: string | null; kyc_reviewed_at: string | null };
 export async function requireUser(admin: SupabaseClient, req: Request): Promise<Profile | Response> {
   const jwt = (req.headers.get("authorization") || "").replace("Bearer ", "");
   if (!jwt) return json({ error: "unauthorized" }, 401);
   const { data } = await admin.auth.getUser(jwt);
   const user = data?.user;
   if (!user) return json({ error: "unauthorized" }, 401);
-  const { data: p } = await admin.from("clv_profiles").select("id, email, full_name, company, company_id, role, status, lang, features, sumsub_applicant_id, kyc_provider, kyc_session_id, kyc_reviewed_at").eq("id", user.id).single();
+  const { data: p } = await admin.from("clv_profiles").select("id, email, full_name, company, job_title, legal_rep, company_id, role, status, lang, features, sumsub_applicant_id, kyc_provider, kyc_session_id, kyc_reviewed_at").eq("id", user.id).single();
   if (!p || p.status === "suspended" || p.status === "rejected") return json({ error: "forbidden" }, 403);
   if (!p.features || typeof p.features !== "object") p.features = {};
   return p as Profile;
 }
 export function isStaff(p: { role: string }): boolean { return p.role === "admin" || p.role === "super"; }
+// A profile is complete when it carries a real name and, for an organisation account, the role
+// and the legal-representative answer (true/false). Same rule as the app's profile form.
+export function profileComplete(p: { full_name: string | null; company: string | null; job_title: string | null; legal_rep: boolean | null }): boolean {
+  if (!String(p.full_name || "").trim()) return false;
+  if (String(p.company || "").trim()) return !!String(p.job_title || "").trim() && typeof p.legal_rep === "boolean";
+  return true;
+}
+// Name comparison for typed signatures: case, accents and extra spaces do not count.
+export function sameName(a: string, b: string): boolean {
+  const n = (s: string) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+  return n(a) !== "" && n(a) === n(b);
+}
 // Company scoping: a super sees everything (null = no filter); an admin only their own company's
 // rooms, products and contracts. Returns the company id to filter on, or null for no filter.
 export function companyScope(p: { role: string; company_id?: string | null }): string | null { return p.role === "super" ? null : (p.company_id || "00000000-0000-0000-0000-000000000000"); }
@@ -141,7 +153,7 @@ export async function enrolUser(admin: SupabaseClient, email: string, name: stri
   if (existing) return { error: "already-enrolled" };
   let id: string | null = null, created = false, linked = false;
   const pw = Array.from(crypto.getRandomValues(new Uint8Array(24))).map((b) => "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789".charAt(b % 54)).join("");
-  const { data: u, error: cErr } = await admin.auth.admin.createUser({ email, password: pw, email_confirm: true, user_metadata: { full_name: name }, app_metadata: { app: "clavoris" } });
+  const { data: u, error: cErr } = await admin.auth.admin.createUser({ email, password: pw, email_confirm: true, user_metadata: name ? { full_name: name } : {}, app_metadata: { app: "clavoris" } });
   if (!cErr && u?.user) { id = u.user.id; created = true; }
   else if (cErr && /registered|exists|already/i.test(cErr.message)) linked = true; // existing Minerva/Clavoris auth user
   else return { error: cErr?.message || "create-failed" };
@@ -150,7 +162,7 @@ export async function enrolUser(admin: SupabaseClient, email: string, name: stri
   if (lErr || !l?.user) { if (created && id) await admin.auth.admin.deleteUser(id).catch(() => {}); return { error: lErr?.message || "link-failed" }; }
   id = id || l.user.id;
   const link = l.properties?.hashed_token ? `${APP_URL}/reset.html?token_hash=${encodeURIComponent(l.properties.hashed_token)}&type=recovery&welcome=1` : `${APP_URL}/login.html`;
-  const { error: pErr } = await admin.from("clv_profiles").insert({ id, email, full_name: name || (l.user.user_metadata as { full_name?: string } | null)?.full_name || email.split("@")[0], company, lang, role, status: "registered" });
+  const { error: pErr } = await admin.from("clv_profiles").insert({ id, email, full_name: name || (l.user.user_metadata as { full_name?: string } | null)?.full_name || null, company, lang, role, status: "registered" });
   if (pErr) { if (created) await admin.auth.admin.deleteUser(id).catch(() => {}); return { error: pErr.message }; }
   return { id, created, linked, link };
 }
