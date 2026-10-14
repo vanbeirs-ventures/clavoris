@@ -36,6 +36,18 @@ jobs:
           done < <(find . -type f -print0)
           echo "Uploaded $COUNT files"
 
+      - name: Edge rule — browsers must revalidate HTML pages
+        # The pull zone sends Cache-Control max-age=30d on everything; fine for app.css/js (versioned
+        # ?v= tags) but HTML pages would then survive a deploy for a month in the visitor's browser.
+        # Fixed Guid => addOrUpdate is idempotent. ActionType 16 = OverrideBrowserCacheTime (0 s).
+        env:
+          BUNNY_API_KEY: ${{ secrets.BUNNY_API_KEY }}
+        run: |
+          curl -fsS -X POST -H "AccessKey: $BUNNY_API_KEY" -H "content-type: application/json" \
+            "https://api.bunny.net/pullzone/$PULLZONE_ID/edgerules/addOrUpdate" \
+            -d '{"Guid":"7c1e6b6e-5e1a-4c0f-9d2a-0c1a7015c001","ActionType":16,"ActionParameter1":"0","ActionParameter2":"","Enabled":true,"Description":"HTML: no browser cache (deploys visible immediately)","TriggerMatchingType":0,"Triggers":[{"Type":0,"PatternMatchingType":0,"PatternMatches":["*.html","*/","https://www.clavoris.com","https://www.clavoris.com/app","https://clavoris.com","https://clavoris.com/app"],"Parameter1":""}]}' > /dev/null
+          echo 'Edge rule ensured.'
+
       - name: Purge CDN cache
         env:
           BUNNY_API_KEY: ${{ secrets.BUNNY_API_KEY }}
