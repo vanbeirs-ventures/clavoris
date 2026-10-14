@@ -140,15 +140,19 @@ const CTA: Record<string, Record<Lang, string>> = {
 export function ctaLabel(lang: Lang | string, key: "activate" | "reset" | "fallback"): string { const L = pickLang(lang); return CTA[key][L] || CTA[key].en; }
 export function textToHtml(text: string, cta?: Cta, lang: Lang = "en"): string {
   const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-  const lines = text.split("\n").map((line) => {
+  // The plain-text lead-in "Click here to activate your account:" is replaced by the button itself.
+  const norm = (x: string) => x.trim().replace(/\s*:$/, "").toLowerCase();
+  const src = text.split("\n");
+  const lines = src.map((line, i) => {
     const t = line.trim();
+    if (cta && src[i + 1] !== undefined && src[i + 1].trim() === cta.url && norm(t) === norm(cta.label)) return null;
     if (cta && t === cta.url) {
       return `<p style="margin:18px 0"><a href="${esc(cta.url)}" style="display:inline-block;background:#1B3A5C;color:#F5EFE3;text-decoration:none;font-weight:600;padding:12px 22px;border-radius:4px">${esc(cta.label)}</a></p>`
         + `<p style="font-size:12px;color:#6b6b6b;margin:0 0 14px">${esc(ctaLabel(lang, "fallback"))}<br><a href="${esc(cta.url)}" style="color:#1B3A5C;word-break:break-all">${esc(cta.url)}</a></p>`;
     }
     const html = esc(line).replace(/(https?:\/\/[^\s&]+(?:&amp;[^\s&]+)*)/g, (u) => `<a href="${u}" style="color:#1B3A5C;word-break:break-all">${u}</a>`);
     return html === "" ? "" : html;
-  });
+  }).filter((x) => x !== null);
   const body = lines.join("\n").replace(/\n{2,}/g, "</p><p>").replace(/\n/g, "<br>");
   return `<!doctype html><html><body style="margin:0;padding:24px;background:#F7F3EB;font-family:Helvetica,Arial,sans-serif;font-size:14.5px;line-height:1.6;color:#1f2933">`
     + `<div style="max-width:620px;margin:0 auto;background:#ffffff;border:1px solid #e6dfd1;border-radius:6px;padding:28px 32px">`
@@ -166,6 +170,8 @@ export async function sendMail(to: string, subject: string, text: string, lang: 
     // The body goes out base64-encoded: the library's own quoted-printable folding drops characters when an
     // encoded byte straddles a line break (e.g. the "." of "clavoris.com" vanished in a footer link).
     const L = pickLang(lang);
+    // The invitation's lead-in "Start here:" reads as "Click here to activate your account:" above the link.
+    if (cta) text = text.replace(/\n(Start here:|Begin hier:|Commencez ici :)\n/, "\n" + cta.label + (L === "fr" ? " :" : ":") + "\n");
     const body = text + "\n\n" + mailFooter(L);
     await client.send({ from: `Clavoris <${MAIL_FROM}>`, to, replyTo: MAIL_REPLY_TO, subject: encodeSubject(subject), mimeContent: [
       { mimeType: 'text/plain; charset="utf-8"', content: base64Lines(body), transferEncoding: "base64" },
