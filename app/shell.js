@@ -30,6 +30,26 @@
     var bg = document.getElementById('navBurger');
     if (bg) bg.addEventListener('click', function () { var open = nav.classList.toggle('open'); bg.setAttribute('aria-expanded', open ? 'true' : 'false'); });
     if (I) I.apply(document);
+    unsubscribePrompt();
+  }
+  // After following the "unsubscribe / manage notifications" link in a mail: offer the settings once signed in.
+  var UNSUB = {
+    en: { t: 'E-mail notifications', b: 'You followed the unsubscribe link in a Clavoris e-mail. Choose which automated messages you receive under Account › E-mail notifications. Messages about your own actions (invitations, signatures, settlements) are always sent.', o: 'Open notification settings', l: 'Later' },
+    nl: { t: 'E-mailmeldingen', b: 'U volgde de uitschrijflink in een Clavoris-e-mail. Kies onder Account › E-mailmeldingen welke automatische berichten u ontvangt. Berichten over uw eigen acties (uitnodigingen, handtekeningen, afwikkelingen) worden altijd verstuurd.', o: 'Meldingsinstellingen openen', l: 'Later' },
+    fr: { t: 'Notifications par e-mail', b: 'Vous avez suivi le lien de désinscription d\'un e-mail Clavoris. Choisissez sous Compte › Notifications par e-mail les messages automatiques que vous recevez. Les messages relatifs à vos propres actions (invitations, signatures, règlements) sont toujours envoyés.', o: 'Ouvrir les paramètres de notification', l: 'Plus tard' }
+  };
+  function unsubscribePrompt() {
+    var flag = null; try { flag = sessionStorage.getItem('clv_unsub'); } catch (e) {}
+    if (flag !== '1' || document.getElementById('unsubScrim')) return;
+    try { sessionStorage.removeItem('clv_unsub'); } catch (e) {}
+    var I = window.ClavorisI18n, L = UNSUB[I && I.lang] || UNSUB.en;
+    var el = document.createElement('div'); el.className = 'scrim'; el.id = 'unsubScrim';
+    el.innerHTML = '<div class="modal" role="dialog" aria-labelledby="unsubTitle"><div class="modal-head"><div><div class="e">Clavoris</div><div class="t" id="unsubTitle">' + esc(L.t) + '</div></div><button type="button" id="unsubClose" aria-label="Close">×</button></div>'
+      + '<div class="modal-body"><p style="font-size:13.5px;color:var(--fg-2);line-height:1.6">' + esc(L.b) + '</p>'
+      + '<div style="display:flex;gap:10px;margin-top:18px"><button class="btn btn-ghost" type="button" id="unsubLater" style="flex:1">' + esc(L.l) + '</button><a class="btn btn-primary" href="account.html#notif" style="flex:1.4">' + esc(L.o) + '</a></div></div></div>';
+    document.body.appendChild(el);
+    function close() { el.remove(); }
+    el.querySelector('#unsubClose').addEventListener('click', close); el.querySelector('#unsubLater').addEventListener('click', close);
   }
   function fmtMoney(n, ccy) { try { return new Intl.NumberFormat((window.ClavorisI18n && window.ClavorisI18n.lang) === 'en' ? 'en-GB' : (window.ClavorisI18n ? window.ClavorisI18n.lang + '-BE' : 'en-GB'), { style: 'currency', currency: ccy || 'EUR', maximumFractionDigits: 2 }).format(Number(n || 0)); } catch (e) { return (ccy || 'EUR') + ' ' + Number(n || 0).toFixed(2); } }
   function fmtDate(ts) { if (!ts) return '—'; try { var l = window.ClavorisI18n ? window.ClavorisI18n.lang : 'en'; return new Date(ts).toLocaleDateString(l === 'en' ? 'en-GB' : l + '-BE', { year: 'numeric', month: 'short', day: 'numeric' }); } catch (e) { return String(ts).slice(0, 10); } }

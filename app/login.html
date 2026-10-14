@@ -76,6 +76,8 @@
   q('toForgot').addEventListener('click', function () { q('loginForm').hidden = true; q('forgotForm').hidden = false; q('fEmail').value = q('email').value; });
   q('toLogin').addEventListener('click', function () { q('forgotForm').hidden = true; q('loginForm').hidden = false; });
 
+  // Unsubscribe link in automated mails lands here; after sign-in the app offers the notification settings.
+  if (param('unsubscribe')) { try { sessionStorage.setItem('clv_unsub', '1'); } catch (e) {} }
   A.ready(function () {
     if (param('denied')) q('loginError').textContent = I.t('login.err.denied');
     if (A.isSignedIn() && A.profile() && !param('denied')) { location.replace(param('next') || A.homeFor()); return; }

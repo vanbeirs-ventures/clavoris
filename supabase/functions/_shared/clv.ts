@@ -1,7 +1,7 @@
 // Shared helpers for the clv-admin-* functions (ported from the Minerva cloud).
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
-import { type Lang, pickLang, SIGNATURE } from "./mail-i18n.ts";
+import { type Lang, pickLang } from "./mail-i18n.ts";
 
 export const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -71,7 +71,17 @@ export const STATUSES = ["registered", "kyc_pending", "kyc_retry", "verified", "
 export const MAIL_FROM = Deno.env.get("CLAVORIS_MAIL_FROM") || "noreply@clavoris.com";
 export const MAIL_REPLY_TO = "access@clavoris.com";
 export const APP_URL = (Deno.env.get("CLAVORIS_APP_URL") || "https://www.clavoris.com/app").replace(/\/$/, "");
-export const MAIL_SIGNATURE = "Clavoris · Private investment, enabled\nAntwerp · Luxembourg · Nordic\n\nThis mailbox is not monitored. For assistance write to access@clavoris.com.";
+export const SITE_URL = APP_URL.replace(/\/app$/, "");
+// Footer under every automated mail: signature, assistance address, notification settings /
+// unsubscribe (lands on the sign-in page; after sign-in the app offers the notification settings)
+// and the privacy policy.
+const FOOTER: Record<Lang, string> = {
+  en: "Clavoris · Private investment, enabled\nAntwerp · Luxembourg\n\nThis mailbox is not monitored. For assistance write to access@clavoris.com.\nManage your e-mail notifications or unsubscribe: {unsub}\nPrivacy policy: {privacy}",
+  nl: "Clavoris · Private investeringen, mogelijk gemaakt\nAntwerpen · Luxemburg\n\nDeze mailbox wordt niet gelezen. Voor hulp schrijft u naar access@clavoris.com.\nE-mailmeldingen beheren of uitschrijven: {unsub}\nPrivacybeleid: {privacy}",
+  fr: "Clavoris · L'investissement privé, rendu possible\nAnvers · Luxembourg\n\nCette boîte n'est pas surveillée. Pour toute assistance, écrivez à access@clavoris.com.\nGérer vos notifications par e-mail ou vous désinscrire : {unsub}\nPolitique de confidentialité : {privacy}",
+};
+export function mailFooter(lang: Lang): string { return FOOTER[lang].replace("{unsub}", `${APP_URL}/login.html?unsubscribe=1`).replace("{privacy}", `${SITE_URL}/privacy.html`); }
+export const MAIL_SIGNATURE = mailFooter("en");
 
 export function mailConfigured(): boolean { return !!Deno.env.get("CLAVORIS_SMTP_HOST"); }
 
@@ -105,7 +115,7 @@ export async function sendMail(to: string, subject: string, text: string, lang: 
   const pass = Deno.env.get("CLAVORIS_SMTP_PASS") || "";
   const client = new SMTPClient({ connection: { hostname: host, port, tls: port === 465, auth: { username: user, password: pass } } });
   try {
-    await client.send({ from: `Clavoris <${MAIL_FROM}>`, to, replyTo: MAIL_REPLY_TO, subject: encodeSubject(subject), content: text + "\n\n" + SIGNATURE[pickLang(lang)] });
+    await client.send({ from: `Clavoris <${MAIL_FROM}>`, to, replyTo: MAIL_REPLY_TO, subject: encodeSubject(subject), content: text + "\n\n" + mailFooter(pickLang(lang)) });
     return true;
   } finally { try { await client.close(); } catch { /* ignore */ } }
 }
