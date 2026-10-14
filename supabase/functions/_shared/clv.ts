@@ -53,7 +53,7 @@ export function profileComplete(p: { full_name: string | null; company: string |
 }
 // Name comparison for typed signatures: case, accents and extra spaces do not count.
 export function sameName(a: string, b: string): boolean {
-  const n = (s: string) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+  const n = (s: string) => String(s || "").normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").toLowerCase().replace(/\\s+/g, " ").trim();
   return n(a) !== "" && n(a) === n(b);
 }
 // Company scoping: a super sees everything (null = no filter); an admin only their own company's
@@ -82,15 +82,15 @@ export const STATUSES = ["registered", "kyc_pending", "kyc_retry", "verified", "
 // optional CLAVORIS_MAIL_FROM (default noreply@clavoris.com), CLAVORIS_APP_URL.
 export const MAIL_FROM = Deno.env.get("CLAVORIS_MAIL_FROM") || "noreply@clavoris.com";
 export const MAIL_REPLY_TO = "access@clavoris.com";
-export const APP_URL = (Deno.env.get("CLAVORIS_APP_URL") || "https://www.clavoris.com/app").replace(/\/$/, "");
-export const SITE_URL = APP_URL.replace(/\/app$/, "");
+export const APP_URL = (Deno.env.get("CLAVORIS_APP_URL") || "https://www.clavoris.com/app").replace(/\\/$/, "");
+export const SITE_URL = APP_URL.replace(/\\/app$/, "");
 // Footer under every automated mail: signature, assistance address, notification settings /
 // unsubscribe (lands on the sign-in page; after sign-in the app offers the notification settings)
 // and the privacy policy.
 const FOOTER: Record<Lang, string> = {
-  en: "Clavoris · Private investment, enabled\nAntwerp · Luxembourg\n\nThis mailbox is not monitored. For assistance write to access@clavoris.com.\nManage your e-mail notifications or unsubscribe: {unsub}\nPrivacy policy: {privacy}",
-  nl: "Clavoris · Private investeringen, mogelijk gemaakt\nAntwerpen · Luxemburg\n\nDeze mailbox wordt niet gelezen. Voor hulp schrijft u naar access@clavoris.com.\nE-mailmeldingen beheren of uitschrijven: {unsub}\nPrivacybeleid: {privacy}",
-  fr: "Clavoris · L'investissement privé, rendu possible\nAnvers · Luxembourg\n\nCette boîte n'est pas surveillée. Pour toute assistance, écrivez à access@clavoris.com.\nGérer vos notifications par e-mail ou vous désinscrire : {unsub}\nPolitique de confidentialité : {privacy}",
+  en: "Clavoris · Private investment, enabled\\nAntwerp · Luxembourg\\n\\nThis mailbox is not monitored. For assistance write to access@clavoris.com.\\nManage your e-mail notifications or unsubscribe: {unsub}\\nPrivacy policy: {privacy}",
+  nl: "Clavoris · Private investeringen, mogelijk gemaakt\\nAntwerpen · Luxemburg\\n\\nDeze mailbox wordt niet gelezen. Voor hulp schrijft u naar access@clavoris.com.\\nE-mailmeldingen beheren of uitschrijven: {unsub}\\nPrivacybeleid: {privacy}",
+  fr: "Clavoris · L'investissement privé, rendu possible\\nAnvers · Luxembourg\\n\\nCette boîte n'est pas surveillée. Pour toute assistance, écrivez à access@clavoris.com.\\nGérer vos notifications par e-mail ou vous désinscrire : {unsub}\\nPolitique de confidentialité : {privacy}",
 };
 export function mailFooter(lang: Lang): string { return FOOTER[lang].replace("{unsub}", `${APP_URL}/login.html?unsubscribe=1`).replace("{privacy}", `${SITE_URL}/privacy.html`); }
 export const MAIL_SIGNATURE = mailFooter("en");
@@ -103,12 +103,12 @@ export function mailConfigured(): boolean { return !!Deno.env.get("CLAVORIS_SMTP
 // plain text and encode only the rest as RFC 2047 base64 words; the result is pure ASCII and never starts
 // with "=?", so the library passes it through untouched.
 export function encodeSubject(s: string): string {
-  const str = String(s || "").replace(/[\r\n]+/g, " ").trim();
-  if (/^[\x20-\x7e]*$/.test(str)) return str;
-  const ascii = /^[\x20-\x7e]*/.exec(str)![0];
-  let head = ascii.slice(0, ascii.lastIndexOf(" ") + 1).replace(/\s+$/, ""); // cut at a word boundary
-  let rest = str.slice(head.length).replace(/^\s+/, "");
-  if (!head) { head = "Clavoris:"; rest = rest.replace(/^Clavoris\s*:?\s*/i, ""); }
+  const str = String(s || "").replace(/[\\r\\n]+/g, " ").trim();
+  if (/^[\\x20-\\x7e]*$/.test(str)) return str;
+  const ascii = /^[\\x20-\\x7e]*/.exec(str)![0];
+  let head = ascii.slice(0, ascii.lastIndexOf(" ") + 1).replace(/\\s+$/, ""); // cut at a word boundary
+  let rest = str.slice(head.length).replace(/^\\s+/, "");
+  if (!head) { head = "Clavoris:"; rest = rest.replace(/^Clavoris\\s*:?\\s*/i, ""); }
   const bytes = new TextEncoder().encode(rest);
   const words: string[] = [];
   for (let i = 0; i < bytes.length;) {
@@ -124,7 +124,7 @@ export function encodeSubject(s: string): string {
 export function base64Lines(s: string): string {
   const bytes = new TextEncoder().encode(s);
   let bin = ""; for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-  return (btoa(bin).match(/.{1,76}/g) || []).join("\r\n");
+  return (btoa(bin).match(/.{1,76}/g) || []).join("\\r\\n");
 }
 
 export async function sendMail(to: string, subject: string, text: string, lang: Lang | string = "en"): Promise<boolean> {
@@ -136,7 +136,7 @@ export async function sendMail(to: string, subject: string, text: string, lang: 
   try {
     // The body goes out base64-encoded: the library's own quoted-printable folding drops characters when an
     // encoded byte straddles a line break (e.g. the "." of "clavoris.com" vanished in a footer link).
-    const body = text + "\n\n" + mailFooter(pickLang(lang));
+    const body = text + "\\n\\n" + mailFooter(pickLang(lang));
     await client.send({ from: `Clavoris <${MAIL_FROM}>`, to, replyTo: MAIL_REPLY_TO, subject: encodeSubject(subject), mimeContent: [{ mimeType: 'text/plain; charset="utf-8"', content: base64Lines(body), transferEncoding: "base64" }] });
     return true;
   } finally { try { await client.close(); } catch { /* ignore */ } }
