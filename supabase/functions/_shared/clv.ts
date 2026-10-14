@@ -219,8 +219,10 @@ export async function sendMail(to: string, subject: string, text: string, lang: 
       { mimeType: 'text/plain; charset="utf-8"', content: base64Lines(body), transferEncoding: "base64" },
       { mimeType: 'text/html; charset="utf-8"', content: base64Lines(textToHtml(text, cta, L)), transferEncoding: "base64" },
     ] });
+    console.log("mail sent:", to, "|", subject);
     return true;
-  } finally { try { await client.close(); } catch { /* ignore */ } }
+  } catch (e) { console.error("mail failed:", to, "|", subject, "|", (e as Error).message); throw e; }
+  finally { try { await client.close(); } catch { /* ignore */ } }
 }
 
 // ---- enrolment on the shared user directory ----
