@@ -90,8 +90,13 @@ Deno.serve(async (req) => {
       try {
         const root = room.nextcloud_folder || "";
         const all = await ncTree(root, 4);
+        // Data rooms deliver PDF only: every delivered page is watermarked with the recipient, the time
+        // and the download code. Other file types placed in the folder are not listed (and not downloadable).
         tree = all.filter((e) => !/^_(users|nda)(\/|$)/.test(e.path.slice(root.length + 1)))
+          .filter((e) => e.dir || /\.pdf$/i.test(e.name))
           .map((e) => ({ name: e.name, path: e.path.slice(root.length + 1), dir: e.dir, size: e.size, modified: e.modified, mime: e.mime }));
+        // Drop folders left empty by the filter (no PDF anywhere below them).
+        tree = tree.filter((e) => !e.dir || tree.some((f) => !f.dir && f.path.startsWith(e.path + "/")));
       } catch (e) { ncError = (e as Error).message; }
     }
     await admin.from("clv_access_log").insert({ user_id: me.id, room_id: roomId, file_path: null, action: "room-view", ip: clientIp(req), user_agent: req.headers.get("user-agent") || "" }).then(() => {}, () => {});

@@ -2,8 +2,8 @@
 // Streams one data room file to an entitled user. Checks: active assignment (or staff),
 // NDA signed when the room requires it, download permission. Every delivery is logged in
 // clv_access_log and clv_downloads with a unique download code and SHA-256 fingerprints.
-// PDFs are stamped on every page with the user's identity and the download code; other
-// file types carry the code in the delivered file name and in the record.
+// Data rooms deliver PDF only: every page is stamped with the user's identity, the time and
+// the download code (other file types placed in the folder are refused).
 // The user's first download triggers a confirmation mail (audit trail + confidentiality).
 //   { room_id, path }          -> a file inside the room folder
 //   { room_id, nda: true }     -> the caller's own signed NDA
@@ -68,6 +68,7 @@ Deno.serve(async (req) => {
     const rel = String(body.path || "").replace(/^\/+/, "");
     if (!rel || rel.includes("..") || /^_(users|nda)(\/|$)/.test(rel)) return json({ error: "bad-path" }, 400);
     target = `${room.nextcloud_folder}/${rel}`; fileName = rel.split("/").pop() || "file"; action = "download";
+    if (!/\.pdf$/i.test(fileName)) return json({ error: "pdf-only" }, 400); // data rooms deliver watermarked PDFs only
   }
 
   let res: Response;
