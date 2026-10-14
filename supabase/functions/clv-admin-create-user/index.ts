@@ -22,6 +22,9 @@ Deno.serve(async (req) => {
   const admin = adminClient();
   const me = await requireAdmin(admin, req);
   if (me instanceof Response) return me;
+  // Accounts are created by Clavoris only: company accounts (admins) here, investors through a company's
+  // data-room invitation (clv-admin-rooms "invite"). Company admins cannot create free-standing users.
+  if (me.role !== "super") return json({ error: "super-only" }, 403);
 
   const body = await req.json().catch(() => ({}));
   const role = body.role === "admin" ? "admin" : "user";

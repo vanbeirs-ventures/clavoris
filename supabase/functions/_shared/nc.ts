@@ -102,6 +102,12 @@ export async function ncPut(path: string, bytes: Uint8Array, contentType = "appl
   if (!res.ok) throw new Error(`nc put ${res.status}`);
 }
 
+export async function ncDelete(path: string): Promise<void> {
+  const c = await need();
+  const res = await fetch(davUrl(c, path), { method: "DELETE", headers: { authorization: auth(c) } });
+  if (!res.ok && res.status !== 404) throw new Error(`nc delete ${res.status}`);
+}
+
 export async function sha256Hex(data: Uint8Array | string): Promise<string> {
   const buf = typeof data === "string" ? new TextEncoder().encode(data) : data;
   const h = await crypto.subtle.digest("SHA-256", buf);
