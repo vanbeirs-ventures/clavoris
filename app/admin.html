@@ -50,7 +50,7 @@
 
     <h2 style="font-family:var(--font-display);font-size:24px;color:var(--clavis-navy);margin-top:44px" id="rooms-h">Data rooms</h2>
     <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px">
-      <p class="page-sub" style="margin-top:4px">Invite by email address with an access end date: the user is enrolled if new, receives an invitation naming your company and the end date, sets a passphrase, completes KYC, signs the room's NDA and gets access. Documents are read from the room's Nextcloud folder. Reminders go out 7 days and 24 hours before the end date; after it, the member can still open the room and download their signed NDA, nothing else.</p>
+      <p class="page-sub" style="margin-top:4px">Invite by email address with an access end date: the user is enrolled if new, receives an invitation naming your company and the end date, sets a password, completes KYC, signs the room's NDA and gets access. Documents are read from the room's Nextcloud folder. Reminders go out 7 days and 24 hours before the end date; after it, the member can still open the room and download their signed NDA, nothing else.</p>
       <button class="btn btn-primary" type="button" id="newRoom">+ New data room</button>
     </div>
     <section class="card" id="ncCard" style="padding:16px 20px;margin-top:14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
@@ -96,7 +96,7 @@
   <div class="modal" role="dialog" aria-labelledby="imTitle">
     <div class="modal-head"><div><div class="e">Data room</div><div class="t" id="imTitle">Invite</div></div><button type="button" id="imClose" aria-label="Close">×</button></div>
     <form class="modal-body" id="invForm" autocomplete="off" onsubmit="return false;">
-      <div class="field" style="margin-top:0"><label for="iEmail">Email address</label><input id="iEmail" type="email" autocomplete="off"><span class="hint">New users receive an activation link and complete their own profile; existing users of our platforms sign in with their usual passphrase.</span></div>
+      <div class="field" style="margin-top:0"><label for="iEmail">Email address</label><input id="iEmail" type="email" autocomplete="off"><span class="hint">New users receive an activation link and complete their own profile; existing users of our platforms sign in with their usual password.</span></div>
       <div class="field"><label for="iLang">Language (login page, e-mails and application)</label>
         <select id="iLang"><option value="en">English</option><option value="nl">Nederlands</option><option value="fr">Français</option></select></div>
       <div class="field"><label for="iUntil">Access until</label><input id="iUntil" type="date" class="mono"><span class="hint">Stated in the invitation e-mail; the member sees a countdown and can request an extension.</span></div>
@@ -123,7 +123,7 @@
       </div>
       <p class="msg" id="eMsg" role="status"></p>
       <div style="display:flex;gap:10px;margin-top:8px">
-        <button class="btn btn-ghost" type="button" id="eReset" style="flex:1">Send passphrase reset</button>
+        <button class="btn btn-ghost" type="button" id="eReset" style="flex:1">Send password reset</button>
         <button class="btn btn-primary" type="submit" id="eBtn" style="flex:1.2">Save</button>
       </div>
     </form>
