@@ -58,6 +58,14 @@
     var query = A.isAdmin()
       ? sb.from('clv_rooms').select('id, name, project_type, status, seller, company:clv_companies(name)').order('created_at', { ascending: false }).then(function (r) { return ((r && r.data) || []).map(function (rm) { return { room: rm, can_download: true, expires_at: null, staff: true }; }); })
       : sb.from('clv_room_assignments').select('can_download, expires_at, revoked_at, room:clv_rooms(id, name, project_type, status, seller, company:clv_companies(name))').eq('user_id', p.id).is('revoked_at', null).then(function (r) { return (r && r.data) || []; });
+    // Owner company and seller under the room name; the seller is left out when it repeats the owner
+    // (e.g. "X BV in oprichting" and "X BV").
+    function ownerLine(owner, seller) {
+      var n = function (x) { return String(x || '').toLowerCase().replace(/\s+/g, ' ').trim(); };
+      var a = n(owner), b = n(seller);
+      if (b && a && (a.indexOf(b) >= 0 || b.indexOf(a) >= 0)) return owner.length >= seller.length ? owner : seller;
+      return [owner, seller].filter(Boolean).join(' · ');
+    }
     query.then(function (rows) {
       var tb = q('roomRows');
       if (!rows.length) { tb.innerHTML = '<tr><td colspan="6" style="color:var(--fg-3)">' + I.t('portal.none') + '</td></tr>'; return; }
@@ -66,7 +74,7 @@
         var expired = a.expires_at && new Date(a.expires_at) < new Date();
         var x = a.expires_at ? S.accessLeft(a.expires_at) : null;
         var exp = !a.expires_at ? '—' : '<span class="chip ' + (x.state === 'ended' ? 'rejected' : x.state === 'ok' ? 'verified' : 'pending') + '">' + S.esc(S.accessText(a.expires_at)) + '</span>' + (a.staff ? '' : '<div style="margin-top:4px"><button class="btn-text" type="button" data-ext="' + S.esc(rm.id) + '" data-name="' + S.esc(rm.name || '') + '" data-exp="' + S.esc(a.expires_at) + '">' + I.t('access.request') + '</button></div>');
-        return '<tr><td style="font-weight:500;color:var(--clavis-navy)">' + S.esc(rm.name || '') + '<div class="mono" style="font-size:11px;color:var(--fg-3);margin-top:3px">' + S.esc([(rm.company && rm.company.name) || '', rm.seller || ''].filter(Boolean).join(' · ')) + '</div></td>'
+        return '<tr><td style="font-weight:500;color:var(--clavis-navy)">' + S.esc(rm.name || '') + '<div class="mono" style="font-size:11px;color:var(--fg-3);margin-top:3px">' + S.esc(ownerLine((rm.company && rm.company.name) || '', rm.seller || '')) + '</div></td>'
           + '<td>' + S.esc(rm.project_type === 'ma' ? I.t('portal.type.ma') : rm.project_type || '') + '</td>'
           + '<td>' + I.t(a.staff ? 'portal.access.staff' : a.can_download ? 'portal.access.dl' : 'portal.access.view') + '</td>'
           + '<td>' + exp + '</td>'
