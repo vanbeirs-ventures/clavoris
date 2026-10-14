@@ -36,7 +36,7 @@ export async function esignBalance(): Promise<number | null> {
   const r = await esign("GET", "requestBalance");
   const d: any = esignResult(r.data);
   if (!r.ok || d == null) return null;
-  const n = typeof d === "number" ? d : Number(d.balance ?? d.credits ?? d.credit ?? d);
+  const n = typeof d === "number" ? d : Number(d.credits_balance ?? d.balance ?? d.credits ?? d.credit ?? d);
   return Number.isFinite(n) ? n : null;
 }
 
