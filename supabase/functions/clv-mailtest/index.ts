@@ -5,6 +5,7 @@
 // clv_mail_test_tokens (inserted by an operator with database access; expires after 30 minutes).
 //   POST { token, recipients: string[] (max 8), modes?: ["html","text"] }
 //   -> { ok, results: [{ to, mode, ok, error?, mx }] }
+//   POST { token, status: true } -> delivery events of the last 30 Postmark messages (sends nothing)
 // Deploy: supabase functions deploy clv-mailtest --no-verify-jwt
 import { adminClient, cors, json, mxHosts, sendMail } from "../_shared/clv.ts";
 
@@ -22,6 +23,23 @@ Deno.serve(async (req) => {
   const { data: tok } = await admin.from("clv_mail_test_tokens").select("token_hash, expires_at, used_at").eq("token_hash", hash).maybeSingle();
   if (!tok || tok.used_at || new Date(tok.expires_at).getTime() < Date.now()) return json({ error: "forbidden" }, 403);
   await admin.from("clv_mail_test_tokens").update({ used_at: new Date().toISOString() }).eq("token_hash", hash);
+
+  // { token, status: true } -> delivery events of the last Postmark messages (no mail is sent).
+  if (body.status === true) {
+    const pm = Deno.env.get("CLAVORIS_POSTMARK_TOKEN");
+    if (!pm) return json({ error: "no-postmark" }, 400);
+    const h = { "Accept": "application/json", "X-Postmark-Server-Token": pm };
+    const list = await (await fetch("https://api.postmarkapp.com/messages/outbound?count=30&offset=0", { headers: h })).json();
+    const out: unknown[] = [];
+    for (const m of list.Messages || []) {
+      const d = await (await fetch(`https://api.postmarkapp.com/messages/outbound/${m.MessageID}/details`, { headers: h })).json().catch(() => ({}));
+      out.push({
+        to: (m.Recipients || []).join(","), subject: String(m.Subject || "").replace(/\b\d{6}\b/g, "******"), status: m.Status, at: m.ReceivedAt,
+        events: (d.MessageEvents || []).map((e: any) => ({ type: e.Type, at: e.ReceivedAt, detail: e.Details?.DeliveryMessage || e.Details?.Summary || e.Details?.BounceType || "" })),
+      });
+    }
+    return json({ ok: true, messages: out });
+  }
 
   const recipients: string[] = (Array.isArray(body.recipients) ? body.recipients : []).map((r: unknown) => String(r).trim().toLowerCase()).filter((r: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(r)).slice(0, 8);
   const modes: string[] = (Array.isArray(body.modes) ? body.modes : ["html", "text"]).filter((m: unknown) => m === "html" || m === "text");
