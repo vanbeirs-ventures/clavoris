@@ -30,9 +30,10 @@ export async function scanRooms(admin: SupabaseClient): Promise<{ rooms: number;
   for (const room of rooms || []) {
     out.rooms++;
     let tree: Awaited<ReturnType<typeof ncTree>>;
-    try { tree = await ncTree(room.nextcloud_folder, 4); } catch (e) { console.error("clv-notify scan", room.name, (e as Error).message); continue; }
+    try { tree = await ncTree(room.nextcloud_folder, 6); } catch (e) { console.error("clv-notify scan", room.name, (e as Error).message); continue; }
     const root = String(room.nextcloud_folder);
-    const files = tree.filter((e) => !e.dir && !e.path.slice(root.length + 1).startsWith("_users") && !e.path.slice(root.length + 1).startsWith("_nda")).map((e) => ({ path: e.path.slice(root.length + 1), etag: e.etag || null, size: e.size, modified: e.modified || null }));
+    // Only the documents members can open (PDF, JPEG, PNG) are announced.
+    const files = tree.filter((e) => !e.dir && /\.(pdf|jpe?g|png)$/i.test(e.name) && !e.path.slice(root.length + 1).startsWith("_users") && !e.path.slice(root.length + 1).startsWith("_nda")).map((e) => ({ path: e.path.slice(root.length + 1), etag: e.etag || null, size: e.size, modified: e.modified || null }));
     const { data: known } = await admin.from("clv_room_files").select("path, etag, size, modified").eq("room_id", room.id);
     const seen = new Map<string, Snap>(); for (const k of known || []) seen.set(k.path, k);
     const added: string[] = [], changed: string[] = [];

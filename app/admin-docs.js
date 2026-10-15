@@ -1,6 +1,6 @@
 /* Clavoris admin — data-room documents.
    Adds a "Documents" button to every data room in Admin › Data rooms. The company that owns the room
-   uploads its PDFs there (PDF only, max 25 MB each, optional sub-folders); the storage location is
+   uploads its documents there (PDF, JPEG or PNG, max 25 MB each, optional sub-folders shown to members as they are); the storage location is
    created automatically from the room name and never shown. Files go through clv-room-docs.
    Also: "+ New user" is reserved to Clavoris (super) — company admins add people by inviting them
    to a data room. The invitation form gets optional Mr / Mrs, first and last name fields.
@@ -13,7 +13,17 @@
   function size(n) { n = Number(n) || 0; return n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB'; }
   function day(s) { if (!s) return '—'; var d = new Date(s); return isNaN(d) ? '—' : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }); }
   var MAX = 25 * 1024 * 1024;
-  var ERR = { 'pdf-only': 'Only PDF files are accepted.', 'too-large': 'The file is larger than 25 MB.', 'storage-not-configured': 'Document storage is not connected yet (Document storage › Connect).', 'bad-folder': 'This folder name cannot be used.', 'not-found': 'You can only manage documents of your own company’s data rooms.' };
+  // Texts about the accepted file types, in the profile language (EN / NL / FR), chosen when used.
+  var TX = {
+    en: { pdfonly: 'Only PDF, JPEG and PNG files are accepted.', bad: 'Only PDF, JPEG and PNG files are accepted: ', none: 'Choose one or more files (PDF, JPEG, PNG).', files: 'Files (PDF, JPEG, PNG)', hidden: 'not shown to members', hiddenT: 'Not shown to members: data rooms deliver PDF, JPEG and PNG only',
+      hint: 'PDF, JPEG or PNG, up to 25 MB per file. Members see the folders and documents after signing the room’s NDA, with the same folder structure; every view and download is watermarked with their name and logged (an image is delivered inside a watermarked PDF page). Members are told about new and updated files by e-mail (within 15 minutes).' },
+    nl: { pdfonly: 'Enkel pdf-, jpeg- en png-bestanden worden aanvaard.', bad: 'Enkel pdf-, jpeg- en png-bestanden worden aanvaard: ', none: 'Kies een of meer bestanden (pdf, jpeg, png).', files: 'Bestanden (pdf, jpeg, png)', hidden: 'niet zichtbaar voor leden', hiddenT: 'Niet zichtbaar voor leden: datarooms leveren enkel pdf, jpeg en png',
+      hint: 'Pdf, jpeg of png, tot 25 MB per bestand. Leden zien de mappen en documenten, met dezelfde mappenstructuur, nadat ze de NDA van de dataroom ondertekend hebben; elke raadpleging en download krijgt een watermerk met hun naam en wordt geregistreerd (een afbeelding wordt geleverd in een pdf-pagina met watermerk). Leden krijgen binnen 15 minuten een e-mail over nieuwe en gewijzigde bestanden.' },
+    fr: { pdfonly: 'Seuls les fichiers PDF, JPEG et PNG sont acceptés.', bad: 'Seuls les fichiers PDF, JPEG et PNG sont acceptés : ', none: 'Choisissez un ou plusieurs fichiers (PDF, JPEG, PNG).', files: 'Fichiers (PDF, JPEG, PNG)', hidden: 'non visible pour les membres', hiddenT: 'Non visible pour les membres : les data rooms ne livrent que des PDF, JPEG et PNG',
+      hint: 'PDF, JPEG ou PNG, jusqu’à 25 Mo par fichier. Les membres voient les dossiers et documents, avec la même structure de dossiers, après avoir signé le NDA de la data room ; chaque consultation et téléchargement porte un filigrane à leur nom et est enregistré (une image est livrée dans une page PDF filigranée). Les membres sont avertis par e-mail des fichiers nouveaux et modifiés (dans les 15 minutes).' }
+  };
+  function tx(k) { var l = window.ClavorisI18n && window.ClavorisI18n.lang; return (TX[l] || TX.en)[k]; }
+  var ERR = { 'pdf-only': 'Only PDF, JPEG and PNG files are accepted.', 'too-large': 'The file is larger than 25 MB.', 'storage-not-configured': 'Document storage is not connected yet (Document storage › Connect).', 'bad-folder': 'This folder name cannot be used.', 'not-found': 'You can only manage documents of your own company’s data rooms.' };
 
   // ---- modal ----
   var wrap = document.createElement('div');
@@ -21,11 +31,11 @@
   wrap.innerHTML = '<div class="modal modal-wide" role="dialog" aria-labelledby="dmTitle">'
     + '<div class="modal-head"><div><div class="e">Data room documents</div><div class="t" id="dmTitle"></div></div><button type="button" id="dmClose" aria-label="Close">×</button></div>'
     + '<div class="modal-body">'
-    + '<p class="hint" style="margin:0 0 12px;font-size:12.5px;line-height:1.6">PDF only, up to 25 MB per file. Members see the documents after signing the room’s NDA; every download is watermarked with their name and logged. Members are told about new and updated files by e-mail (within 15 minutes).</p>'
+    + '<p class="hint" id="dmHint" style="margin:0 0 12px;font-size:12.5px;line-height:1.6"></p>'
     + '<div class="g3" style="align-items:end">'
     + '<div class="field" style="margin-top:0"><label for="dmFolder">Folder</label><select id="dmFolder"></select></div>'
     + '<div class="field" style="margin-top:0"><label for="dmNew">or new folder</label><input id="dmNew" type="text" placeholder="e.g. 01 Financials"></div>'
-    + '<div class="field" style="margin-top:0"><label for="dmFiles">PDF files</label><input id="dmFiles" type="file" accept="application/pdf,.pdf" multiple></div>'
+    + '<div class="field" style="margin-top:0"><label for="dmFiles" id="dmFilesLbl"></label><input id="dmFiles" type="file" accept="application/pdf,.pdf,image/jpeg,.jpg,.jpeg,image/png,.png" multiple></div>'
     + '</div>'
     + '<p class="msg" id="dmMsg" role="status"></p>'
     + '<button class="btn btn-primary" type="button" id="dmUpload">Upload</button>'
@@ -39,14 +49,14 @@
   function load() {
     q('dmRows').innerHTML = '<tr><td colspan="4" style="color:var(--fg-3)">Loading…</td></tr>';
     return A.callFn('clv-room-docs', { action: 'list', room_id: cur.id }).then(function (r) {
-      if (r.error) { q('dmRows').innerHTML = ''; msg(ERR[r.error] || r.error, 'err'); return; }
+      if (r.error) { q('dmRows').innerHTML = ''; msg(r.error === 'pdf-only' ? tx('pdfonly') : ERR[r.error] || r.error, 'err'); return; }
       var items = r.items || [], dirs = items.filter(function (x) { return x.dir; }), files = items.filter(function (x) { return !x.dir; });
       var sel = q('dmFolder'), keep = sel.value;
       sel.innerHTML = '<option value="">(main folder)</option>' + dirs.map(function (d) { return '<option value="' + esc(d.path) + '">' + esc(d.path) + '</option>'; }).join('');
       if (keep && dirs.some(function (d) { return d.path === keep; })) sel.value = keep;
       q('dmRows').innerHTML = files.length ? files.map(function (f) {
-        var pdf = /\.pdf$/i.test(f.name);
-        return '<tr><td>' + esc(f.path) + (pdf ? '' : ' <span class="chip alert" title="Not shown to members: data rooms deliver PDF only">not a PDF</span>') + '</td>'
+        var pdf = /\.(pdf|jpe?g|png)$/i.test(f.name);
+        return '<tr><td>' + esc(f.path) + (pdf ? '' : ' <span class="chip alert" title="' + esc(tx('hiddenT')) + '">' + esc(tx('hidden')) + '</span>') + '</td>'
           + '<td class="mono">' + esc(size(f.size)) + '</td><td class="mono">' + esc(day(f.modified)) + '</td>'
           + '<td><button class="btn-text" type="button" data-del="' + esc(f.path) + '">Delete</button></td></tr>';
       }).join('') : '<tr><td colspan="4" style="color:var(--fg-3)">No documents yet.</td></tr>';
@@ -63,9 +73,9 @@
   function readB64(f) { return new Promise(function (ok, ko) { var rd = new FileReader(); rd.onload = function () { ok(String(rd.result).split(',')[1]); }; rd.onerror = ko; rd.readAsDataURL(f); }); }
   q('dmUpload').addEventListener('click', function () {
     var files = [].slice.call(q('dmFiles').files || []);
-    if (!files.length) { msg('Choose one or more PDF files.', 'err'); return; }
-    var bad = files.filter(function (f) { return !/\.pdf$/i.test(f.name) || (f.type && f.type !== 'application/pdf'); });
-    if (bad.length) { msg('Only PDF files are accepted: ' + bad.map(function (f) { return f.name; }).join(', '), 'err'); return; }
+    if (!files.length) { msg(tx('none'), 'err'); return; }
+    var bad = files.filter(function (f) { return !/\.(pdf|jpe?g|png)$/i.test(f.name) || (f.type && !/^(application\/pdf|image\/jpeg|image\/png)$/.test(f.type)); });
+    if (bad.length) { msg(tx('bad') + bad.map(function (f) { return f.name; }).join(', '), 'err'); return; }
     var big = files.filter(function (f) { return f.size > MAX; });
     if (big.length) { msg('Larger than 25 MB: ' + big.map(function (f) { return f.name; }).join(', '), 'err'); return; }
     var folder = q('dmNew').value.trim() || q('dmFolder').value;
@@ -75,7 +85,7 @@
       return p.then(function () {
         msg('Uploading ' + (done + failed.length + 1) + ' of ' + files.length + ': ' + f.name + '…');
         return readB64(f).then(function (b64) { return A.callFn('clv-room-docs', { action: 'upload', room_id: cur.id, name: f.name, folder: folder, file_base64: b64 }); })
-          .then(function (r) { if (r.error) failed.push(f.name + ' (' + (ERR[r.error] || r.error) + ')'); else done++; }, function () { failed.push(f.name); });
+          .then(function (r) { if (r.error) failed.push(f.name + ' (' + (r.error === 'pdf-only' ? tx('pdfonly') : ERR[r.error] || r.error) + ')'); else done++; }, function () { failed.push(f.name); });
       });
     }, Promise.resolve()).then(function () {
       q('dmUpload').disabled = false; q('dmFiles').value = ''; q('dmNew').value = '';
@@ -83,7 +93,7 @@
       load();
     });
   });
-  function open(id, name) { cur = { id: id, name: name }; q('dmTitle').textContent = name; msg(''); q('dmFiles').value = ''; q('dmNew').value = ''; wrap.hidden = false; load(); }
+  function open(id, name) { cur = { id: id, name: name }; q('dmTitle').textContent = name; q('dmHint').textContent = tx('hint'); q('dmFilesLbl').textContent = tx('files'); msg(''); q('dmFiles').value = ''; q('dmNew').value = ''; wrap.hidden = false; load(); }
 
   // ---- room cards: add the Documents button, hide the storage path ----
   function enhance() {
