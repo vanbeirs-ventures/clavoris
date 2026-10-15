@@ -228,7 +228,7 @@ async function formalGreeting(to: string, text: string, L: Lang): Promise<string
 // CLAVORIS_SMTP_ALT_PASS (an application password of the clavoris.com mailbox); optional
 // CLAVORIS_SMTP_ALT_MX (MX suffixes, comma separated; default "mailbox.org"). Without them all mail uses Brevo.
 const mxCache = new Map<string, string[]>();
-async function mxHosts(domain: string): Promise<string[]> {
+export async function mxHosts(domain: string): Promise<string[]> {
   if (mxCache.has(domain)) return mxCache.get(domain)!;
   let hosts: string[] = [];
   try { hosts = (await Deno.resolveDns(domain, "MX")).map((r) => String(r.exchange).toLowerCase().replace(/\.$/, "")); }
@@ -264,7 +264,9 @@ async function postmarkSend(token: string, to: string, subject: string, body: st
   return String(j.MessageID || "");
 }
 
-export async function sendMail(to: string, subject: string, text: string, lang: Lang | string = "en", cta?: Cta | Cta[]): Promise<boolean> {
+// opt.html === false sends plain text only (used by the delivery test).
+export async function sendMail(to: string, subject: string, text: string, lang: Lang | string = "en", cta?: Cta | Cta[], opt: { html?: boolean } = {}): Promise<boolean> {
+  const withHtml = MAIL_HTML && opt.html !== false;
   const pmToken = Deno.env.get("CLAVORIS_POSTMARK_TOKEN");
   if ((!Deno.env.get("CLAVORIS_SMTP_HOST") && !pmToken) || !to) return false;
   if (pmToken) {
@@ -273,7 +275,7 @@ export async function sendMail(to: string, subject: string, text: string, lang: 
     text = await formalGreeting(to, text, L);
     const body = text + "\n\n" + mailFooter(L);
     try {
-      const id = await postmarkSend(pmToken, to, subject, body, MAIL_HTML ? textToHtml(text, cta, L) : undefined);
+      const id = await postmarkSend(pmToken, to, subject, body, withHtml ? textToHtml(text, cta, L) : undefined);
       console.log("mail sent: [postmark]", to, "|", subject.replace(/\b\d{6}\b/g, "******"), "|", id);
       return true;
     } catch (e) {
@@ -297,8 +299,7 @@ export async function sendMail(to: string, subject: string, text: string, lang: 
     // Own SMTP submission (_shared/smtp.ts): standard headers (Message-ID, Date), one multipart/alternative.
     const r = await smtpSend({ host, port, user, pass, helo: "clavoris.com" }, {
       fromName: "Clavoris", from: MAIL_FROM, to: to.trim(), replyTo: MAIL_REPLY_TO, subject,
-      // Test: plain text only on the mailbox.org route (its outgoing filter dropped the HTML version before).
-      text: body, html: MAIL_HTML && !alt ? textToHtml(text, cta, L) : undefined,
+      text: body, html: withHtml ? textToHtml(text, cta, L) : undefined,
       // Standard unsubscribe header (shown by Gmail and Outlook as "Unsubscribe"); expected on automated mail.
       headers: { "List-Unsubscribe": `<mailto:${MAIL_REPLY_TO}?subject=unsubscribe>, <${UNSUB_URL()}>` },
     });
@@ -310,7 +311,7 @@ export async function sendMail(to: string, subject: string, text: string, lang: 
     // mailbox.org route refused (e.g. wrong application password): fall back to Brevo.
     const r = await smtpSend({ host: Deno.env.get("CLAVORIS_SMTP_HOST")!, port: Number(Deno.env.get("CLAVORIS_SMTP_PORT") || 465), user: Deno.env.get("CLAVORIS_SMTP_USER") || MAIL_FROM, pass: Deno.env.get("CLAVORIS_SMTP_PASS") || "", helo: "clavoris.com" }, {
       fromName: "Clavoris", from: MAIL_FROM, to: to.trim(), replyTo: MAIL_REPLY_TO, subject,
-      text: body, html: MAIL_HTML ? textToHtml(text, cta, L) : undefined,
+      text: body, html: withHtml ? textToHtml(text, cta, L) : undefined,
       headers: { "List-Unsubscribe": `<mailto:${MAIL_REPLY_TO}?subject=unsubscribe>, <${UNSUB_URL()}>` },
     });
     console.log("mail sent: [brevo fallback]", to, "|", subject.replace(/\b\d{6}\b/g, "******"), "|", r.messageId, "|", r.reply.replace(/\s+/g, " ").slice(0, 120));
