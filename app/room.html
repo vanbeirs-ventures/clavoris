@@ -116,6 +116,9 @@
 (function () {
   'use strict';
   var A = window.ClavorisAccess, S = window.ClavorisShell, I = window.ClavorisI18n, esc = S.esc;
+  I.add('en', { 'room.member.noname': 'Name not yet provided' });
+  I.add('nl', { 'room.member.noname': 'Naam nog niet ingevuld' });
+  I.add('fr', { 'room.member.noname': 'Nom pas encore renseigné' });
   function q(id) { return document.getElementById(id); }
   var roomId = new URLSearchParams(location.search).get('id');
   var state = null;
@@ -199,7 +202,9 @@
     }
     var m = r.members || [];
     q('members').innerHTML = m.length ? m.map(function (x) {
-      return '<li><div class="nm"><span class="pres ' + esc(x.presence || 'never') + '" title="' + esc(x.last_seen ? I.t('room.last_seen', { date: S.fmtDate(x.last_seen) }) : I.t('room.never_visited')) + '"></span>' + esc(x.name || '—') + '</div><div class="org">' + esc(x.company || '—') + (x.job_title ? ' · ' + esc(x.job_title) : '') + '</div>'
+      return '<li><div class="nm"><span class="pres ' + esc(x.presence || 'never') + '" title="' + esc(x.last_seen ? I.t('room.last_seen', { date: S.fmtDate(x.last_seen) }) : I.t('room.never_visited')) + '"></span>' + (x.name ? esc(x.name) : x.email ? '<span class="mono" style="font-weight:400">' + esc(x.email) + '</span>' : '<span style="font-weight:400;color:var(--fg-3)">' + esc(I.t('room.member.noname')) + '</span>') + '</div>'
+        + (x.company || x.job_title ? '<div class="org">' + esc([x.company, x.job_title].filter(Boolean).join(' · ')) + '</div>' : '')
+        + (x.name && x.email ? '<div class="mono" style="font-size:11px;color:var(--fg-3)">' + esc(x.email) + '</div>' : '')
         + '<div style="margin-top:4px">' + (x.verified ? '<span class="chip verified">KYC</span> ' : '') + (x.nda_signed ? '<span class="chip info">NDA</span>' : '') + '</div></li>';
     }).join('') : '<li style="color:var(--fg-3)">' + I.t('room.members.none') + '</li>';
   }

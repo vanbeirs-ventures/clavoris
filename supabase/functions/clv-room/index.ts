@@ -66,7 +66,7 @@ Deno.serve(async (req) => {
   const gateOpen = !ndaRequired || ndaSigned || isStaff(me);
 
   // Members: everyone with an active assignment, plus staff who manage the room.
-  const { data: rows } = await admin.from("clv_room_assignments").select("user_id, granted_at, profile:clv_profiles!clv_room_assignments_user_id_fkey(full_name, company, job_title, status)").eq("room_id", roomId).is("revoked_at", null);
+  const { data: rows } = await admin.from("clv_room_assignments").select("user_id, granted_at, profile:clv_profiles!clv_room_assignments_user_id_fkey(email, full_name, salutation, first_name, last_name, company, job_title, status, account:clv_companies!clv_profiles_company_id_fkey(name))").eq("room_id", roomId).is("revoked_at", null);
   const memberIds = (rows || []).map((r: any) => r.user_id);
   const { data: signed } = memberIds.length ? await admin.from("clv_signed_documents").select("user_id").eq("room_id", roomId).eq("doc_type", "nda").in("user_id", memberIds) : { data: [] as any[] };
   const signedSet = new Set((signed || []).map((s: any) => s.user_id));
@@ -75,11 +75,20 @@ Deno.serve(async (req) => {
   const { data: acts } = memberIds.length ? await admin.from("clv_access_log").select("user_id, ts").eq("room_id", roomId).in("user_id", memberIds).order("ts", { ascending: false }).limit(2000) : { data: [] as any[] };
   const lastSeen: Record<string, string> = {}; (acts || []).forEach((l: any) => { if (!lastSeen[l.user_id]) lastSeen[l.user_id] = l.ts; });
   const cutoff = Date.now() - 3 * 60 * 1000;
+  const memberName = (p: any) => {
+    const full = String(p?.full_name || "").trim();
+    if (full) return full;
+    return [p?.first_name, p?.last_name].map((x: any) => String(x || "").trim()).filter(Boolean).join(" ");
+  };
   const members = (rows || []).map((r: any) => {
     const seen = lastSeen[r.user_id] || null;
     const presence = seen ? (new Date(seen).getTime() > cutoff ? "online" : "returning") : "never";
     return {
-      name: r.profile?.full_name || "", company: r.profile?.company || "", job_title: r.profile?.job_title || "",
+      // Name: the full name, else first + last name from the invitation; organisation: the stated company,
+      // else the company account the member belongs to. Staff also get the e-mail address (to recognise
+      // members who have not entered a name yet); investors do not see other members' addresses.
+      name: memberName(r.profile), company: r.profile?.company || r.profile?.account?.name || "", job_title: r.profile?.job_title || "",
+      email: isStaff(me) ? (r.profile?.email || "") : undefined,
       verified: r.profile?.status === "verified", nda_signed: signedSet.has(r.user_id), since: r.granted_at, last_seen: seen, presence,
     };
   }).sort((a: any, b: any) => (a.company || "").localeCompare(b.company || "") || a.name.localeCompare(b.name));
