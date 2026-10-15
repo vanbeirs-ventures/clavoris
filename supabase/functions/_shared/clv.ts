@@ -245,8 +245,43 @@ async function altRoute(to: string): Promise<boolean> {
   return hosts.some((h) => suffixes.some((s) => h === s || h.endsWith("." + s)));
 }
 
+// Postmark (transactional mail service with clean shared IPs): when CLAVORIS_POSTMARK_TOKEN (the server API
+// token) is set, all mail goes through Postmark's HTTP API instead of SMTP. Requires clavoris.com to be a
+// verified sender domain in Postmark (DKIM + Return-Path records).
+async function postmarkSend(token: string, to: string, subject: string, body: string, html: string | undefined): Promise<string> {
+  const res = await fetch("https://api.postmarkapp.com/email", {
+    method: "POST",
+    headers: { "Accept": "application/json", "Content-Type": "application/json", "X-Postmark-Server-Token": token },
+    body: JSON.stringify({
+      From: `Clavoris <${MAIL_FROM}>`, To: to.trim(), ReplyTo: MAIL_REPLY_TO, Subject: subject,
+      TextBody: body, HtmlBody: html, MessageStream: Deno.env.get("CLAVORIS_POSTMARK_STREAM") || "outbound",
+      TrackOpens: false, TrackLinks: "None",
+      Headers: [{ Name: "List-Unsubscribe", Value: `<mailto:${MAIL_REPLY_TO}?subject=unsubscribe>, <${UNSUB_URL()}>` }],
+    }),
+  });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok || j.ErrorCode) throw new Error(`postmark ${res.status} ${j.ErrorCode ?? ""} ${j.Message ?? ""}`.trim());
+  return String(j.MessageID || "");
+}
+
 export async function sendMail(to: string, subject: string, text: string, lang: Lang | string = "en", cta?: Cta | Cta[]): Promise<boolean> {
-  if (!Deno.env.get("CLAVORIS_SMTP_HOST") || !to) return false;
+  const pmToken = Deno.env.get("CLAVORIS_POSTMARK_TOKEN");
+  if ((!Deno.env.get("CLAVORIS_SMTP_HOST") && !pmToken) || !to) return false;
+  if (pmToken) {
+    const L = pickLang(lang);
+    if (cta && !Array.isArray(cta)) text = text.replace(/\n(Start here:|Begin hier:|Commencez ici :)\n/, "\n" + cta.label + (L === "fr" ? " :" : ":") + "\n");
+    text = await formalGreeting(to, text, L);
+    const body = text + "\n\n" + mailFooter(L);
+    try {
+      const id = await postmarkSend(pmToken, to, subject, body, MAIL_HTML ? textToHtml(text, cta, L) : undefined);
+      console.log("mail sent: [postmark]", to, "|", subject.replace(/\b\d{6}\b/g, "******"), "|", id);
+      return true;
+    } catch (e) {
+      console.error("mail failed: [postmark]", to, "|", subject.replace(/\b\d{6}\b/g, "******"), "|", (e as Error).message);
+      if (!Deno.env.get("CLAVORIS_SMTP_HOST")) throw e;
+      // Postmark refused (e.g. account still pending approval): fall through to the SMTP routes.
+    }
+  }
   const alt = await altRoute(to);
   const P = alt ? "CLAVORIS_SMTP_ALT_" : "CLAVORIS_SMTP_";
   const host = Deno.env.get(P + "HOST")!;
