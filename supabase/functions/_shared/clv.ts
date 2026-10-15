@@ -17,8 +17,24 @@ export function adminClient(): SupabaseClient {
 
 export type Caller = { id: string; email: string; role: "user" | "admin" | "super"; company_id?: string | null };
 
-// Resolve the caller from the JWT and require a Clavoris admin or super role.
-export async function requireAdmin(admin: SupabaseClient, req: Request): Promise<Caller | Response> {
+// ---- two-factor sign-in ----
+// Claims of a JWT that auth.getUser() has already validated (session_id, aal, amr).
+export function jwtClaims(jwt: string): Record<string, any> {
+  try { const b = jwt.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"); return JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(b + "===".slice((b.length + 3) % 4)), (c) => c.charCodeAt(0)))); } catch { return {}; }
+}
+// Has this session passed the second factor? Same rule as the database (clv_mfa_ok_for): authenticator
+// code (aal2), an e-mailed code verified for this session, or a session opened from an e-mailed link.
+export async function mfaOk(admin: SupabaseClient, jwt: string, userId: string): Promise<boolean> {
+  const c = jwtClaims(jwt);
+  const { data, error } = await admin.rpc("clv_mfa_ok_for", { p_user: userId, p_session: c.session_id || null, p_aal: c.aal || null, p_amr: c.amr || [] });
+  if (error) { console.error("mfa check:", error.message); return false; }
+  return data === true;
+}
+export type AuthOpts = { mfa?: boolean };
+const MFA_REQUIRED = () => json({ error: "mfa-required" }, 401);
+
+// Resolve the caller from the JWT and require a Clavoris admin or super role (and the second factor).
+export async function requireAdmin(admin: SupabaseClient, req: Request, opts: AuthOpts = {}): Promise<Caller | Response> {
   const jwt = (req.headers.get("authorization") || "").replace("Bearer ", "");
   if (!jwt) return json({ error: "unauthorized" }, 401);
   const { data } = await admin.auth.getUser(jwt);
@@ -26,13 +42,14 @@ export async function requireAdmin(admin: SupabaseClient, req: Request): Promise
   if (!user) return json({ error: "unauthorized" }, 401);
   const { data: p } = await admin.from("clv_profiles").select("role, status, company_id").eq("id", user.id).single();
   if (!p || !["admin", "super"].includes(p.role) || p.status === "suspended") return json({ error: "forbidden" }, 403);
+  if (opts.mfa !== false && !(await mfaOk(admin, jwt, user.id))) return MFA_REQUIRED();
   return { id: user.id, email: user.email || "", role: p.role, company_id: p.company_id || null };
 }
 
 // Resolve the caller from the JWT: any enrolled, non-suspended Clavoris user.
 export type Features = { market?: boolean; trading?: boolean; products?: string[] | null };
 export type Profile = { id: string; email: string; full_name: string | null; company: string | null; job_title: string | null; legal_rep: boolean | null; company_id: string | null; role: "user" | "admin" | "super"; status: string; lang: string | null; features: Features; sumsub_applicant_id: string | null; kyc_provider: string | null; kyc_session_id: string | null; kyc_reviewed_at: string | null };
-export async function requireUser(admin: SupabaseClient, req: Request): Promise<Profile | Response> {
+export async function requireUser(admin: SupabaseClient, req: Request, opts: AuthOpts = {}): Promise<Profile | Response> {
   const jwt = (req.headers.get("authorization") || "").replace("Bearer ", "");
   if (!jwt) return json({ error: "unauthorized" }, 401);
   const { data } = await admin.auth.getUser(jwt);
@@ -40,6 +57,7 @@ export async function requireUser(admin: SupabaseClient, req: Request): Promise<
   if (!user) return json({ error: "unauthorized" }, 401);
   const { data: p } = await admin.from("clv_profiles").select("id, email, full_name, company, job_title, legal_rep, company_id, role, status, lang, features, sumsub_applicant_id, kyc_provider, kyc_session_id, kyc_reviewed_at").eq("id", user.id).single();
   if (!p || p.status === "suspended" || p.status === "rejected") return json({ error: "forbidden" }, 403);
+  if (opts.mfa !== false && !(await mfaOk(admin, jwt, user.id))) return MFA_REQUIRED();
   if (!p.features || typeof p.features !== "object") p.features = {};
   return p as Profile;
 }
