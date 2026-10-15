@@ -8,6 +8,7 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { APP_URL, sendMail } from "./clv.ts";
 import { type Lang, pickLang } from "./mail-i18n.ts";
+import { raiseRedFlag } from "./alerts.ts";
 
 export const DIDIT_URL = "https://verification.didit.me";
 
@@ -66,6 +67,13 @@ export function kycName(idv: Record<string, unknown>, invited: { first_name?: st
   return { first_name: [first, ...given.split(" ").slice(1)].join(" "), last_name: family, full_name: `${first} ${family}` };
 }
 
+// Outcome of each check only (no names, dates or document data), for the staff alert.
+function checks(sm: unknown): string {
+  const o = (sm || {}) as Record<string, Record<string, unknown> | undefined>;
+  const part = (label: string, k: string) => (o[k]?.status ? `${label}: ${o[k]!.status}` : "");
+  return [part("ID document", "id_verification"), part("liveness", "liveness"), part("face match", "face_match"), part("AML", "aml")].filter(Boolean).join(" · ") || "—";
+}
+
 // Apply a Didit session status to the user's profile. Returns the new profile status (or null when
 // the user is unknown). On the transition to "verified" the user gets the confirmation mail.
 export async function applyKycStatus(admin: SupabaseClient, userId: string, sessionId: string, status: string, decision?: Decision): Promise<string | null> {
@@ -91,6 +99,10 @@ export async function applyKycStatus(admin: SupabaseClient, userId: string, sess
   const { error } = await admin.from("clv_profiles").update(upd).eq("id", p.id);
   if (error) { console.error("profile update:", error.message); return p.status; }
   const now = String(upd.status || p.status);
+  // A declined verification is a red flag for the staff concerned (once per verification session).
+  if (status === "Declined") {
+    await raiseRedFlag(admin, "kyc", { userId: p.id, key: `kyc:${sessionId || p.id}`, dedupeHours: 24 * 365, vars: { provider: "Didit", session: sessionId || "n/a", summary: checks(upd.kyc_summary) } }).catch((e: Error) => console.error("red flag:", e.message));
+  }
   if (now === "verified" && p.status !== "verified" && p.email) {
     const L = pickLang(p.lang);
     const v = { name: String(upd.full_name || p.full_name || "") || FALLBACK[L], link: `${APP_URL}/login.html` };

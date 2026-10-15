@@ -3,11 +3,13 @@
 //   1. Mail goes out as branded HTML (+ text alternative); it is recorded in clv_mail_log.
 //   2. Delivery event -> status "delivered". Nothing else happens.
 //   3. Bounce of the HTML attempt -> status "resent_text"; the same mail is re-sent once as plain text only.
-//   4. Bounce of the plain-text attempt (or a failed re-send) -> status "failed" with red_flag = true, for reporting.
+//   4. Bounce of the plain-text attempt (or a failed re-send) -> status "failed" with red_flag = true, and the staff
+//      concerned are alerted by e-mail (once a day per address; see _shared/alerts.ts). A bounced alert is not re-alerted.
 // Message bodies (which may hold one-time codes) are erased once a message reaches a final status.
 // Called by Postmark only: the URL carries ?key=..., whose SHA-256 must be in clv_mail_webhook_keys.
 // Deploy: supabase functions deploy clv-mail-events --no-verify-jwt
 import { adminClient, cors, json, sendMail } from "../_shared/clv.ts";
+import { isAlertSubject, raiseRedFlag } from "../_shared/alerts.ts";
 
 async function sha256(s: string): Promise<string> {
   const h = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
@@ -49,10 +51,12 @@ Deno.serve(async (req) => {
     } catch (e) {
       await admin.from("clv_mail_log").update({ status: "failed", red_flag: true, detail: `${detail} | retry failed: ${(e as Error).message}`.slice(0, 900), subject: mask(row.subject), body: null, updated_at: now }).eq("id", row.id);
       console.error("mail RED FLAG (retry failed):", row.recipient, "|", mask(row.subject));
+      await raiseRedFlag(admin, "mail", { email: row.recipient, key: String(row.recipient).toLowerCase(), silent: isAlertSubject(row.subject), vars: { subject: mask(row.subject), reason: `${detail} | retry failed: ${(e as Error).message}`.slice(0, 400) } }).catch((x: Error) => console.error("red flag:", x.message));
       return json({ ok: true, red_flag: row.recipient });
     }
   }
   await admin.from("clv_mail_log").update({ status: "failed", red_flag: true, detail, subject: mask(row.subject), body: null, updated_at: now }).eq("id", row.id);
   console.error("mail RED FLAG:", row.recipient, "|", mask(row.subject), "|", detail);
+  await raiseRedFlag(admin, "mail", { email: row.recipient, key: String(row.recipient).toLowerCase(), silent: isAlertSubject(row.subject), vars: { subject: mask(row.subject), reason: detail.slice(0, 400) } }).catch((x: Error) => console.error("red flag:", x.message));
   return json({ ok: true, red_flag: row.recipient });
 });
