@@ -66,7 +66,7 @@ Deno.serve(async (req) => {
   const gateOpen = !ndaRequired || ndaSigned || isStaff(me);
 
   // Members: everyone with an active assignment, plus staff who manage the room.
-  const { data: rows } = await admin.from("clv_room_assignments").select("user_id, granted_at, profile:clv_profiles!clv_room_assignments_user_id_fkey(email, full_name, salutation, first_name, last_name, company, job_title, status, account:clv_companies!clv_profiles_company_id_fkey(name))").eq("room_id", roomId).is("revoked_at", null);
+  const { data: rows } = await admin.from("clv_room_assignments").select("user_id, granted_at, profile:clv_profiles!clv_room_assignments_user_id_fkey(email, full_name, salutation, first_name, last_name, company, job_title, status, member_private, account:clv_companies!clv_profiles_company_id_fkey(name))").eq("room_id", roomId).is("revoked_at", null);
   const memberIds = (rows || []).map((r: any) => r.user_id);
   const { data: signed } = memberIds.length ? await admin.from("clv_signed_documents").select("user_id").eq("room_id", roomId).eq("doc_type", "nda").in("user_id", memberIds) : { data: [] as any[] };
   const signedSet = new Set((signed || []).map((s: any) => s.user_id));
@@ -87,11 +87,16 @@ Deno.serve(async (req) => {
       // Name: the full name, else first + last name from the invitation; organisation: the stated company,
       // else the company account the member belongs to. Staff also get the e-mail address (to recognise
       // members who have not entered a name yet); investors do not see other members' addresses.
-      name: memberName(r.profile), company: r.profile?.company || r.profile?.account?.name || "", job_title: r.profile?.job_title || "",
+      // A member who chose private participation is shown to the other investors as "Private member"
+      // (no name, organisation or role); the company running the room and the member themself see it all.
+      ...(r.profile?.member_private && !isStaff(me) && r.user_id !== me.id
+        ? { name: "", company: "", job_title: "", private: true }
+        : { name: memberName(r.profile), company: r.profile?.company || r.profile?.account?.name || "", job_title: r.profile?.job_title || "", private: !!r.profile?.member_private }),
+      self: r.user_id === me.id,
       email: isStaff(me) ? (r.profile?.email || "") : undefined,
       verified: r.profile?.status === "verified", nda_signed: signedSet.has(r.user_id), since: r.granted_at, last_seen: seen, presence,
     };
-  }).sort((a: any, b: any) => (a.company || "").localeCompare(b.company || "") || a.name.localeCompare(b.name));
+  }).sort((a: any, b: any) => Number(!!a.private && !a.name) - Number(!!b.private && !b.name) || (a.company || "").localeCompare(b.company || "") || a.name.localeCompare(b.name));
 
   // Folder tree (only once the gate is open). _users/ holds the signed NDAs and is never listed.
   let tree: any[] = [];
