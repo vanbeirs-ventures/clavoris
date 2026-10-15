@@ -184,7 +184,7 @@
       A.verifyPassword(q('curPw').value).then(function (ok) {
         if (!ok) { m.className = 'msg err'; m.textContent = I.t('account.pw_wrong'); q('pwBtn').disabled = false; return; }
         return A.updatePassword(q('newPw').value).then(function (r) {
-          m.className = r.ok ? 'msg ok' : 'msg err'; m.textContent = r.ok ? I.t('account.pw_ok') : (r.error || I.t('account.pw_fail'));
+          m.className = r.ok ? 'msg ok' : 'msg err'; m.textContent = r.ok ? I.t(r.same ? 'pw.same' : 'account.pw_ok') : (r.error || I.t('account.pw_fail'));
           if (r.ok) { q('curPw').value = ''; q('newPw').value = ''; q('newPw2').value = ''; }
         });
       });
