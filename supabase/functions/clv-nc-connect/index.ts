@@ -44,8 +44,9 @@ Deno.serve(async (req) => {
     const v = storedV;
     if (!v.user || !v.pass) return json({ ok: true, connected: false, url: NC_URL });
     // Live check: PROPFIND depth 0 on the user's root.
+    // The path takes the account id; authentication takes the login name the app password belongs to.
     const check = async (user: string) => {
-      const r = await fetch(`${v.url}/remote.php/dav/files/${encodeURIComponent(user)}/`, { method: "PROPFIND", headers: { authorization: "Basic " + btoa(`${user}:${v.pass}`), depth: "0" } });
+      const r = await fetch(`${v.url}/remote.php/dav/files/${encodeURIComponent(user)}/`, { method: "PROPFIND", headers: { authorization: "Basic " + btoa(`${v.login || user}:${v.pass}`), depth: "0" } });
       return r.status;
     };
     let checked = false, error: string | null = null;

@@ -5,7 +5,9 @@
 // (path relative to the connected user's root).
 import { adminClient } from "./clv.ts";
 
-export type NcCreds = { url: string; user: string; pass: string };
+// user = the Nextcloud account id (used in WebDAV paths); login = the name the app password was issued to
+// (used to authenticate). They differ when the account signs in with an e-mail address.
+export type NcCreds = { url: string; user: string; pass: string; login?: string };
 // Credentials are cached briefly so a (re)connection made in the admin panel is picked up
 // without a redeploy; a missing connection is never cached.
 let cached: { creds: NcCreds; at: number } | null = null;
@@ -16,7 +18,7 @@ export async function ncCreds(): Promise<NcCreds | null> {
   const { data } = await adminClient().from("clv_settings").select("value").eq("key", "nc").maybeSingle();
   const v = (data?.value || {}) as Partial<NcCreds>;
   let creds: NcCreds | null = null;
-  if (v.url && v.user && v.pass) creds = { url: v.url.replace(/\/$/, ""), user: v.user, pass: v.pass };
+  if (v.url && v.user && v.pass) creds = { url: v.url.replace(/\/$/, ""), user: v.user, pass: v.pass, login: v.login || v.user };
   else {
     const url = (Deno.env.get("NC_URL") || "").replace(/\/$/, ""), user = Deno.env.get("NC_USER") || "", pass = Deno.env.get("NC_PASS") || "";
     if (url && user && pass) creds = { url, user, pass };
@@ -26,7 +28,8 @@ export async function ncCreds(): Promise<NcCreds | null> {
 }
 export async function ncConfigured(): Promise<boolean> { return !!(await ncCreds()); }
 
-function auth(c: NcCreds): string { return "Basic " + btoa(`${c.user}:${c.pass}`); }
+// An app password is only accepted together with the login name it was issued to, not the account id.
+function auth(c: NcCreds): string { return "Basic " + btoa(`${c.login || c.user}:${c.pass}`); }
 export function encPath(p: string): string {
   return p.split("/").filter(Boolean).map(encodeURIComponent).join("/");
 }
