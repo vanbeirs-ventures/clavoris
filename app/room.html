@@ -152,6 +152,7 @@
         <section class="card" style="padding:18px 20px">
           <p class="eyebrow" data-i18n="room.ndabox.title">Your NDA</p>
           <div id="ndaBox" style="margin-top:8px;font-size:13px;color:var(--fg-2);line-height:1.6"></div>
+          <div id="csBox" hidden style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);font-size:13px;color:var(--fg-2);line-height:1.6"></div>
         </section>
         <section class="card" style="padding:18px 20px;margin-top:16px">
           <p class="eyebrow" data-i18n="room.members">Members</p>
@@ -211,6 +212,7 @@
     q('roomGrid').hidden = gate;
     if (gate && r.me.verified && complete) loadNda();
     if (!gate) { renderTree(); renderSide(); qaLoad(); renderIdentity(); }
+    if (r.me.staff && !state._csLoaded) { state._csLoaded = true; csLoad(); }
   }
 
   function renderAccess() {
@@ -248,6 +250,52 @@
         S.downloadFn('clv-room-file', { room_id: roomId, path: b.getAttribute('data-dl') }, b.getAttribute('data-dl').split('/').pop()).then(function (r) {
           b.disabled = false; b.textContent = I.t(r.ok ? 'common.download' : 'common.failed');
           if (!r.ok) q('err').textContent = r.error === 'nda-required' ? I.t('room.dl.nda_required') : r.error === 'download-not-allowed' ? I.t('room.dl.not_allowed') : r.error === 'expired' ? I.t('room.expired.title') : I.t('room.dl.failed', { err: r.error });
+        });
+      });
+    });
+  }
+
+  // Countersignature of the Disclosing Party: an identity-verified administrator of the company that runs the
+  // room signs the room's NDA once (per NDA version); Clavoris adds that signature to every member's signed copy.
+  var CSX = ({
+    en: { title: 'Countersignature', done: 'Countersigned by {name} ({cap}) on {date}. The signature is applied to every copy of this NDA version signed in this room.', open: '{n} signed cop(y/ies) still to be countersigned.', intro: 'Sign this NDA once for {company}. Your signature is then applied automatically to every copy signed by members of this room, including the {n} already signed.', intro0: 'Sign this NDA once for {company}. Your signature is then applied automatically to every copy signed by members of this room.', btn: 'Countersign the NDA', cap: 'Capacity (as it will appear on the countersignature)', capPh: 'e.g. Permanent representative of Van Beirs Consult BV, director of {company}', stmt: 'I sign this non-disclosure agreement (version {v}) as authorised representative of {company}. My signature is validly applied to every copy of this version signed by users of this data room, including the copies already signed.', typed: 'Type your full name to sign:', go: 'Sign as {name}', ok: 'Countersigned. {n} existing cop(y/ies) countersigned.', fail: 'The countersignature failed: {e}', notAdmin: 'Only an identity-verified administrator account of {company} can countersign this NDA.', kyc: 'Verify your identity first (Account › Identity verification) to countersign.', mismatch: 'The name does not match the name on your profile.' },
+    nl: { title: 'Tegenhandtekening', done: 'Tegengetekend door {name} ({cap}) op {date}. De handtekening wordt aangebracht op elk exemplaar van deze NDA-versie dat in deze dataroom wordt ondertekend.', open: '{n} ondertekend(e) exempla(a)r(en) nog tegen te tekenen.', intro: 'Onderteken deze NDA eenmaal voor {company}. Uw handtekening wordt daarna automatisch aangebracht op elk exemplaar dat leden van deze dataroom ondertekenen, ook op de {n} die al ondertekend zijn.', intro0: 'Onderteken deze NDA eenmaal voor {company}. Uw handtekening wordt daarna automatisch aangebracht op elk exemplaar dat leden van deze dataroom ondertekenen.', btn: 'NDA tegentekenen', cap: 'Hoedanigheid (zoals vermeld op de tegenhandtekening)', capPh: 'bv. Vaste vertegenwoordiger van Van Beirs Consult BV, bestuurder van {company}', stmt: 'Ik onderteken deze geheimhoudingsovereenkomst (versie {v}) als bevoegd vertegenwoordiger van {company}. Mijn handtekening wordt rechtsgeldig aangebracht op elk exemplaar van deze versie dat gebruikers van deze dataroom ondertekenen, ook op de exemplaren die al ondertekend zijn.', typed: 'Typ uw volledige naam om te ondertekenen:', go: 'Ondertekenen als {name}', ok: 'Tegengetekend. {n} bestaand(e) exempla(a)r(en) tegengetekend.', fail: 'De tegenhandtekening is mislukt: {e}', notAdmin: 'Enkel een beheerdersaccount van {company} met geverifieerde identiteit kan deze NDA tegentekenen.', kyc: 'Verifieer eerst uw identiteit (Account › Identiteitsverificatie) om te kunnen tegentekenen.', mismatch: 'De naam komt niet overeen met de naam op uw profiel.' },
+    fr: { title: 'Contre-signature', done: 'Contresigné par {name} ({cap}) le {date}. La signature est apposée sur chaque exemplaire de cette version du NDA signé dans cette data room.', open: '{n} exemplaire(s) signé(s) encore à contresigner.', intro: 'Signez ce NDA une seule fois pour {company}. Votre signature est ensuite apposée automatiquement sur chaque exemplaire signé par les membres de cette data room, y compris les {n} déjà signés.', intro0: 'Signez ce NDA une seule fois pour {company}. Votre signature est ensuite apposée automatiquement sur chaque exemplaire signé par les membres de cette data room.', btn: 'Contresigner le NDA', cap: 'Qualité (telle qu\'elle figurera sur la contre-signature)', capPh: 'p. ex. Représentant permanent de Van Beirs Consult BV, administrateur de {company}', stmt: 'Je signe cet accord de confidentialité (version {v}) en qualité de représentant autorisé de {company}. Ma signature est valablement apposée sur chaque exemplaire de cette version signé par les utilisateurs de cette data room, y compris les exemplaires déjà signés.', typed: 'Saisissez votre nom complet pour signer :', go: 'Signer en tant que {name}', ok: 'Contresigné. {n} exemplaire(s) existant(s) contresigné(s).', fail: 'La contre-signature a échoué : {e}', notAdmin: 'Seul un compte administrateur de {company} à l\'identité vérifiée peut contresigner ce NDA.', kyc: 'Vérifiez d\'abord votre identité (Compte › Vérification d\'identité) pour contresigner.', mismatch: 'Le nom ne correspond pas au nom de votre profil.' }
+  })[I.lang] || null;
+  function csText(k, v) { var t = (CSX || { })[k] || ''; Object.keys(v || {}).forEach(function (x) { t = t.split('{' + x + '}').join(v[x]); }); return t; }
+  function csLoad() {
+    if (!CSX || !state.nda.required) return;
+    A.callFn('clv-room-nda', { action: 'countersign_status', room_id: roomId }).then(function (c) {
+      if (!c || !c.ok) return;
+      var box = q('csBox'), company = state.room.company || '';
+      box.hidden = false;
+      var h = '<p class="eyebrow" style="margin-bottom:6px">' + esc(CSX.title) + '</p>';
+      if (c.countersignature) {
+        h += '<p>' + esc(csText('done', { name: c.countersignature.typed_name, cap: c.countersignature.capacity, date: S.fmtDate(c.countersignature.signed_at) })) + '</p>';
+        if (c.not_countersigned) h += '<p style="color:var(--fg-3)">' + esc(csText('open', { n: c.not_countersigned })) + '</p>';
+      } else if (c.can_sign) {
+        h += '<p>' + esc(csText(c.signed_total ? 'intro' : 'intro0', { company: company, n: c.signed_total })) + '</p>'
+          + '<button class="btn" type="button" id="csOpen" style="margin-top:8px">' + esc(CSX.btn) + '</button>'
+          + '<form id="csForm" hidden onsubmit="return false;" style="margin-top:10px">'
+          + '<div class="field"><label for="csCap">' + esc(CSX.cap) + '</label><textarea id="csCap" rows="2" maxlength="300" style="width:100%;font:inherit;font-size:13px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r-md);resize:vertical" placeholder="' + esc(csText('capPh', { company: company })) + '"></textarea></div>'
+          + '<label class="check" style="display:flex;gap:8px;align-items:flex-start;text-transform:none;letter-spacing:0;font-size:12.5px;color:var(--fg-1)"><input type="checkbox" id="csAccept" style="margin-top:3px;flex:none"><span>' + esc(csText('stmt', { v: c.version, company: company })) + '</span></label>'
+          + '<div class="field" style="margin-top:10px"><label for="csTyped">' + esc(CSX.typed) + ' <b style="text-transform:none;letter-spacing:0;color:var(--clavis-navy)">' + esc(c.signer_name || '') + '</b></label><input id="csTyped" type="text" autocomplete="off" spellcheck="false"></div>'
+          + '<p class="msg" id="csMsg" role="status"></p>'
+          + '<button class="btn btn-primary" type="submit" id="csGo" disabled>' + esc(csText('go', { name: c.signer_name || '' })) + '</button></form>';
+      } else {
+        h += '<p style="color:var(--fg-3)">' + esc(c.reason === 'kyc-required' ? CSX.kyc : csText('notAdmin', { company: company })) + '</p>';
+      }
+      box.innerHTML = h;
+      var open = q('csOpen'); if (!open) return;
+      open.addEventListener('click', function () { q('csForm').hidden = false; open.hidden = true; q('csCap').focus(); });
+      function ready() { q('csGo').disabled = !(q('csAccept').checked && q('csCap').value.trim() && A.sameName(q('csTyped').value, c.signer_name || '')); }
+      ['csCap', 'csTyped'].forEach(function (id) { q(id).addEventListener('input', ready); }); q('csAccept').addEventListener('change', ready);
+      q('csForm').addEventListener('submit', function () {
+        var m = q('csMsg'); m.className = 'msg'; m.textContent = ''; q('csGo').disabled = true;
+        A.callFn('clv-room-nda', { action: 'countersign', room_id: roomId, accept: true, typed_name: q('csTyped').value, capacity: q('csCap').value }).then(function (r) {
+          if (r && r.ok) { m.className = 'msg ok'; m.textContent = csText('ok', { n: r.copies || 0 }); setTimeout(csLoad, 1200); return; }
+          var e = r && r.error; q('csGo').disabled = false; m.className = 'msg err';
+          m.textContent = e === 'name-mismatch' ? CSX.mismatch : e === 'kyc-required' ? CSX.kyc : e === 'not-company-admin' ? csText('notAdmin', { company: company }) : csText('fail', { e: e || '' });
         });
       });
     });
