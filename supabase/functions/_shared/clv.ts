@@ -135,6 +135,8 @@ const CTA: Record<string, Record<Lang, string>> = {
   fallback: { en: "If the button does not work, copy this address into your browser:", nl: "Werkt de knop niet? Kopieer dan dit adres in uw browser:", fr: "Si le bouton ne fonctionne pas, copiez cette adresse dans votre navigateur :" },
 };
 export function ctaLabel(lang: Lang | string, key: "activate" | "reset" | "fallback"): string { const L = pickLang(lang); return CTA[key][L] || CTA[key].en; }
+const OPEN_ROOM: Record<string, string> = { en: "Click here to open the data room:", nl: "Klik hier om de dataroom te openen:", fr: "Cliquez ici pour ouvrir la data room :" };
+const CLICK_HERE: Record<string, string> = { en: "Click here", nl: "Klik hier", fr: "Cliquez ici" };
 const FONT_UI = "Poppins,'Helvetica Neue',Helvetica,Arial,sans-serif";
 const FONT_DISPLAY = "'EB Garamond',Garamond,Georgia,'Times New Roman',serif";
 const FROM_CAPTION: Record<string, string> = { en: "Message from", nl: "Bericht van", fr: "Message de" };
@@ -151,6 +153,9 @@ export function textToHtml(text: string, cta?: Cta | Cta[], lang: Lang = "en"): 
   let sender = "";
   const fm = (src[0] || "").match(/^(Message from|Bericht van|Message de) (.+)$/);
   if (fm) { sender = fm[2].trim(); src = src.slice(1); while (src.length && !src[0].trim()) src.shift(); }
+  // The data room named in the mail ("Minerva Luxury Motors 1" / « … »), used as the link text.
+  const rm = text.match(/"([^"\n]{2,120})"|«\s*([^»\n]{2,120}?)\s*»/);
+  const roomName = rm ? (rm[1] || rm[2] || "").trim() : "";
   const blocks: string[] = [];
   let para: string[] = [];
   const flush = () => { if (para.length) { blocks.push(`<p style="margin:0 0 20px;font-family:${FONT_UI};font-size:15px;line-height:1.7;color:#1F2933">${para.join("<br>")}</p>`); para = []; } };
@@ -178,6 +183,17 @@ export function textToHtml(text: string, cta?: Cta | Cta[], lang: Lang = "en"): 
         + `<td align="center" bgcolor="#F7F3EC" style="background:#F7F3EC;border:1px solid #E6DFD1;border-top:3px solid #B8860B;border-radius:6px;padding:18px 30px">`
         + `<span style="font-family:'SFMono-Regular',Menlo,Consolas,'Courier New',monospace;font-size:38px;line-height:44px;font-weight:700;letter-spacing:12px;color:#1A3A5C;white-space:nowrap">${t}</span>`
         + `</td></tr></table>`);
+      return;
+    }
+    // A bare address on its own line is never shown as such: the lead-in line above it becomes the link
+    // ("Sign in to Clavoris" underlined) and a data-room address reads "Click here to open the data room:
+    // <room name>" with the room name as the link. The plain-text part keeps the address.
+    if (/^https?:\/\/\S+$/.test(t)) {
+      const lead = para.length && /:\s*$/.test(src[i - 1] || "") ? para.pop()! : "";
+      const room = /\/room\.html\?id=/.test(t) ? roomName : "";
+      if (room) para.push(esc(OPEN_ROOM[lang] || OPEN_ROOM.en) + " " + `<a href="${esc(t)}" style="color:#1A3A5C;text-decoration:underline;font-weight:600">${esc(room)}</a>`);
+      else if (lead) para.push(`<a href="${esc(t)}" style="color:#1A3A5C;text-decoration:underline">${lead.replace(/\s*:\s*$/, "")}</a>`);
+      else para.push(link(t, CLICK_HERE[lang] || CLICK_HERE.en));
       return;
     }
     para.push(esc(line).replace(/(https?:\/\/[^\s&]+(?:&amp;[^\s&]+)*)/g, (u) => link(u.replace(/&amp;/g, "&"), u.replace(/&amp;/g, "&"))).replace(/([\w.+-]+@clavoris\.com)/g, (m) => link("mailto:" + m, m)));
