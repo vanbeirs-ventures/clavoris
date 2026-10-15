@@ -4,8 +4,10 @@
 // answer it. Questions are private between the asker and the answerers; an answerer can share a question
 // with its answers with every member of the room (the asker's identity stays hidden there).
 // Every new question mails the answerer(s); every answer mails the asker (setting "qa", on by default).
+// Comments on the NDA (topic "nda") are open before the NDA is signed: a member who has not signed yet can
+// only ask NDA-topic questions and only sees NDA-topic questions (own ones, and those the company shared).
 //   { action: "list", room_id }                                        -> questions visible to the caller
-//   { action: "ask", room_id, body, directed_to?, file_name? }         -> new question
+//   { action: "ask", room_id, body, directed_to?, file_name?, topic? } -> new question (topic "nda": on the NDA)
 //   { action: "answer", question_id, body, share? }                    -> answer (answerers / staff)
 //   { action: "share", question_id, shared }                           -> share with all members or not
 // Deploy: supabase functions deploy clv-room-qa --no-verify-jwt
@@ -26,6 +28,7 @@ const MAIL: Record<string, Record<Lang, { s: string; t: string }>> = {
   },
 };
 const FILE_PART: Record<Lang, string> = { en: " about the file {f}", nl: " over het bestand {f}", fr: " au sujet du fichier {f}" };
+const NDA_PART: Record<Lang, string> = { en: " about the non-disclosure agreement (NDA)", nl: " over de geheimhoudingsovereenkomst (NDA)", fr: " au sujet de l'accord de confidentialité (NDA)" };
 const FALLBACK: Record<Lang, string> = { en: "investor", nl: "belegger", fr: "investisseur" };
 const fill = (s: string, v: Record<string, string>) => s.replace(/\{(\w+)\}/g, (_, k) => v[k] ?? "");
 const clip = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1) + "…" : s);
@@ -53,16 +56,18 @@ Deno.serve(async (req) => {
   if (!room) return json({ error: "not-found" }, 404);
   const owner = (room as any).company?.name || "Clavoris";
 
-  // Who may take part: staff, or a member with an active, unexpired assignment and (when required) a signed NDA.
+  // Who may take part: staff, or a member with an active, unexpired assignment. Without the required signed
+  // NDA the member is limited to comments and questions on the NDA itself (ndaOnly).
   const staff = isStaff(me) && (me.role === "super" || me.company_id === room.company_id);
   const { data: asg } = await admin.from("clv_room_assignments").select("user_id, expires_at, answers_questions, revoked_at").eq("room_id", roomId).is("revoked_at", null);
   const mine = (asg || []).find((a: any) => a.user_id === me.id);
+  let ndaOnly = false;
   if (!staff && !isStaff(me)) {
     if (!mine) return json({ error: "forbidden" }, 403);
     if (mine.expires_at && new Date(mine.expires_at) < new Date()) return json({ error: "expired" }, 403);
     if (room.qes_nda_required) {
       const { data: nda } = await admin.from("clv_signed_documents").select("id").eq("room_id", roomId).eq("user_id", me.id).eq("doc_type", "nda").maybeSingle();
-      if (!nda) return json({ error: "nda-required" }, 403);
+      if (!nda) ndaOnly = true;
     }
   }
   // Answerers: members tagged in the admin console; without any, the company's admins answer.
@@ -86,19 +91,20 @@ Deno.serve(async (req) => {
   if (action === "list") {
     let q = admin.from("clv_room_questions").select("*").eq("room_id", roomId).order("created_at", { ascending: false }).limit(300);
     if (!canAnswer) q = q.or(`asker_id.eq.${me.id},shared.eq.true`);
+    if (ndaOnly && !canAnswer) q = q.eq("topic", "nda");
     const { data: qs } = await q;
     const ids = (qs || []).map((x: any) => x.id);
     const { data: ans } = ids.length ? await admin.from("clv_room_answers").select("*").in("question_id", ids).order("created_at", { ascending: true }) : { data: [] as any[] };
     const P = await profiles([...(qs || []).map((x: any) => x.asker_id), ...(qs || []).map((x: any) => x.directed_to), ...(ans || []).map((a: any) => a.author_id), ...(tagged ? answererIds : [])]);
     return json({
-      ok: true, can_answer: canAnswer, me: me.id,
+      ok: true, can_answer: canAnswer, me: me.id, nda_only: ndaOnly && !canAnswer,
       answerers: tagged ? answererIds.map((id: string) => ({ user_id: id, name: nameOf(P[id], id) })) : [],
       questions: (qs || []).map((x: any) => {
         const own = x.asker_id === me.id;
         // Other members see a shared question without the asker's identity; answerers always see who asked.
         const asker = canAnswer || own ? { name: nameOf(P[x.asker_id], x.asker_id), company: P[x.asker_id]?.company || "", self: own } : { name: "", company: "", self: false };
         return {
-          id: x.id, body: x.body, file_name: x.file_name, status: x.status, shared: x.shared, created_at: x.created_at, own, asker,
+          id: x.id, body: x.body, file_name: x.file_name, topic: x.topic || null, status: x.status, shared: x.shared, created_at: x.created_at, own, asker,
           directed_to: x.directed_to ? { user_id: x.directed_to, name: nameOf(P[x.directed_to], x.directed_to) } : null,
           answers: (ans || []).filter((a: any) => a.question_id === x.id).map((a: any) => ({ id: a.id, body: a.body, created_at: a.created_at, author: nameOf(P[a.author_id], a.author_id), self: a.author_id === me.id })),
         };
@@ -113,8 +119,10 @@ Deno.serve(async (req) => {
     const { count } = await admin.from("clv_room_questions").select("id", { count: "exact", head: true }).eq("asker_id", me.id).gte("created_at", hourAgo);
     if ((count || 0) >= 30) return json({ error: "too-many" }, 429);
     const to = typeof body.directed_to === "string" && answererIds.includes(body.directed_to) && tagged ? body.directed_to : null;
-    const fileName = String(body.file_name || "").trim().slice(0, 300) || null;
-    const { data: row, error } = await admin.from("clv_room_questions").insert({ room_id: roomId, asker_id: me.id, directed_to: to, file_name: fileName, body: text }).select("id").single();
+    // Before the NDA is signed every question is a comment on the NDA, never about a document of the room.
+    const topic = ndaOnly || body.topic === "nda" ? "nda" : null;
+    const fileName = topic ? null : String(body.file_name || "").trim().slice(0, 300) || null;
+    const { data: row, error } = await admin.from("clv_room_questions").insert({ room_id: roomId, asker_id: me.id, directed_to: to, file_name: fileName, topic, body: text }).select("id").single();
     if (error) return json({ error: error.message }, 400);
     // Notify the chosen answerer, or every answerer.
     const P = await profiles(to ? [to] : answererIds);
@@ -122,7 +130,7 @@ Deno.serve(async (req) => {
       const p = P[id];
       if (!p?.email || id === me.id || p.notify?.qa === false || p.notify?.qa_question === false) continue; // "new question" switched off
       const L = pickLang(p.lang), m = MAIL.question[L];
-      const v = { name: p.full_name || FALLBACK[L], asker: `${me.full_name || me.email}${me.company ? " (" + me.company + ")" : ""}`, room: room.name, file: fileName ? fill(FILE_PART[L], { f: fileName }) : "", body: clip(text, 1500), link };
+      const v = { name: p.full_name || FALLBACK[L], asker: `${me.full_name || me.email}${me.company ? " (" + me.company + ")" : ""}`, room: room.name, file: topic ? NDA_PART[L] : fileName ? fill(FILE_PART[L], { f: fileName }) : "", body: clip(text, 1500), link };
       await sendMail(p.email, fill(m.s, v), `${FROM_LINE[L]} ${owner}\n\n` + fill(m.t, v), L).catch((e) => console.error("qa question mail:", (e as Error).message));
     }
     return json({ ok: true, id: row.id });
