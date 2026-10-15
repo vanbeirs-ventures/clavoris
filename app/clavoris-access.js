@@ -16,6 +16,9 @@
    and the engine reveals <main> only for a session that may see the page
    (data-clv-restrict="full" = any signed-in user; "verified" = KYC verified
    or staff; "admin" = admin or super). Anyone else is sent to login.html.
+   Signed in means: password AND second factor (e-mailed code or authenticator
+   app, see clv-mfa); a session without the second factor is sent back to the
+   sign-in page to finish it.
 
    Requires window.CLAVORIS_SUPABASE (app/config.js) and supabase-js v2
    loaded before this file.
@@ -47,12 +50,32 @@
   /* ---------------- cached session state ---------------- */
   var _user = null;      // supabase auth user
   var _profile = null;   // the caller's clv_profiles row
+  var _mfa = false;      // this session passed the second factor (e-mailed code or authenticator app)
   var _ready = false;
   var _waiters = [];
 
   function markReady() { _ready = true; var w = _waiters.slice(); _waiters.length = 0; w.forEach(function (f) { try { f(); } catch (e) {} }); }
   function whenReady(fn) { if (_ready) return fn(); _waiters.push(fn); }
-  function reset() { _user = null; _profile = null; }
+  function reset() { _user = null; _profile = null; _mfa = false; }
+  // Claims of the session's access token (session_id, aal, amr).
+  function claims(token) {
+    try { var b = String(token).split('.')[1].replace(/-/g, '+').replace(/_/g, '/'); return JSON.parse(decodeURIComponent(escape(atob(b + '==='.slice((b.length + 3) % 4))))); } catch (e) { return {}; }
+  }
+  // Second factor: asked once per session (the answer is kept for this tab, keyed by the session id).
+  // The server enforces it on every data request anyway; this only decides what the page shows.
+  function checkMfa(session) {
+    var sid = claims(session.access_token).session_id || '';
+    try { if (sid && sessionStorage.getItem('clv_mfa') === sid) { _mfa = true; return Promise.resolve(); } } catch (e) {}
+    return callFn('clv-mfa', { action: 'status' }).then(function (r) {
+      _mfa = !!(r && r.verified);
+      if (_mfa) { try { sessionStorage.setItem('clv_mfa', sid); } catch (e) {} }
+    }, function () { _mfa = false; });
+  }
+  // Called by the sign-in page once the code is accepted.
+  function markMfa() {
+    if (!sb) return Promise.resolve();
+    return sb.auth.getSession().then(function (r) { var s = r && r.data && r.data.session; if (s) { try { sessionStorage.setItem('clv_mfa', claims(s.access_token).session_id || ''); } catch (e) {} } _mfa = true; });
+  }
 
   // Reads the session and the caller's profile into the cache. Single-flight: concurrent callers share
   // one request. A failed read (token refresh in flight in another tab, auth lock contention, a dropped
@@ -74,6 +97,7 @@
           if (pr && pr.error) { if (!_profile) throw pr.error; return; } // keep the cached profile on a transient error
           _profile = pr && pr.data ? pr.data : null;
           writePresence();
+          return checkMfa(session);
         });
       }).catch(function (e) {
         _lastErr = (e && e.message) || String(e);
@@ -134,7 +158,7 @@
   function isVerified() { return status() === 'verified'; }
   // Clearance for a restriction level (see header).
   function clears(level) {
-    if (!_user || !_profile || isSuspended()) return false;
+    if (!_user || !_profile || isSuspended() || !_mfa) return false;
     if (level === 'admin') return isAdmin();
     if (level === 'verified') return isAdmin() || isVerified();
     return true; // 'full' — any signed-in, non-suspended user
@@ -171,13 +195,8 @@
           if (!p) return sb.auth.signOut().then(function () { return { ok: false, reason: 'no-profile' }; });
           if (p.status === 'suspended') return sb.auth.signOut().then(function () { return { ok: false, reason: 'suspended' }; });
           if (p.status === 'rejected') return sb.auth.signOut().then(function () { return { ok: false, reason: 'rejected' }; });
-          return refreshSession().then(function () {
-            // best-effort: stamp the login (own-row update policy)
-            try { sb.from('clv_profiles').update({ last_login_at: new Date().toISOString() }).eq('id', p.id).then(function () {}); } catch (e) {}
-            // audit trail: server-side login record (IP + user agent captured there)
-            try { callFn('clv-audit', { action: 'login' }).catch(function () {}); } catch (e) {}
-            return { ok: true, profile: p };
-          });
+          // The sign-in is completed (logged, last sign-in stamped) by clv-mfa once the second factor passes.
+          return refreshSession().then(function () { return { ok: true, profile: p }; });
         });
       }).catch(function () { return { ok: false, reason: 'invalid' }; });
   }
@@ -252,6 +271,8 @@
     var level = document.body && document.body.getAttribute('data-clv-restrict');
     if (!level) { document.documentElement.classList.remove('clv-checking'); return; }
     if (clears(level)) { document.documentElement.classList.remove('clv-checking'); document.documentElement.classList.add('clv-cleared'); return; }
+    // Signed in with the password but the second factor is still open: finish it on the sign-in page.
+    if (_user && _profile && !_mfa && !isSuspended()) { location.replace('login.html?mfa=1&next=' + encodeURIComponent(location.pathname.split('/').pop() + location.search)); return; }
     // A session is stored on this device but could not be read yet (auth lock held by another tab, refresh
     // in flight): keep the page hidden and try again for a few seconds before concluding "signed out".
     if ((!_user || !_profile) && hasStoredSession() && !_gateRetried) { _gateRetried = true; return refreshSession(5).then(gate); }
@@ -289,6 +310,7 @@
     clears: clears, displayName: displayName, profileComplete: profileComplete, sameName: sameName, initials: initials, homeFor: homeFor,
     signIn: signIn, signOut: signOut, requestPasswordReset: requestPasswordReset, verifyRecovery: verifyRecovery, updatePassword: updatePassword,
     verifyPassword: verifyPassword, updateProfile: updateProfile, callFn: callFn,
+    mfaVerified: function () { return _mfa; }, markMfa: markMfa,
     activeUser: activeUser, kickOthers: kickOthers
   };
 

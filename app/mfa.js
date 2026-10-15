@@ -1,0 +1,328 @@
+/* Clavoris — two-factor sign-in (screens).
+   Sign-in page: after the password, a 6-digit code e-mailed to the user (or, once activated, the code from
+   Google Authenticator), then the reminder to activate the authenticator app (every 10 sign-ins or 30 days;
+   "don't remind me again" pauses it for 6 months). Account page: activate / deactivate Google Authenticator.
+   The server (edge function clv-mfa + database rules) enforces the second factor; these screens only guide.
+   Exposes window.ClavorisMfa.start(next). Loaded after clavoris-access.js on login.html and account.html. */
+(function () {
+  'use strict';
+  var A = window.ClavorisAccess, I = window.ClavorisI18n;
+  if (!A || !I) return;
+
+  I.add('en', {
+    'mfa.pw.title': 'Confirm it is you', 'mfa.pw.email': 'To change your password, enter the 6-digit code we sent to {email}.', 'mfa.pw.totp': 'To change your password, enter the code from Google Authenticator.', 'mfa.pw.cancel': 'Cancel', 'mfa.pw.go': 'Confirm',
+    'mfa.eyebrow': 'Two-step sign-in', 'mfa.title': 'Enter your sign-in code',
+    'mfa.email.lead': 'We sent a 6-digit code to {email}. It is valid for 10 minutes.',
+    'mfa.email.sending': 'Sending your code…', 'mfa.code': 'Code', 'mfa.verify': 'Confirm',
+    'mfa.resend': 'Send a new code', 'mfa.resend_in': 'New code possible in {s} s',
+    'mfa.totp.lead': 'Open Google Authenticator on your phone and enter the 6-digit code shown for Clavoris.',
+    'mfa.use_email': 'I don\'t have my phone: send a code by e-mail', 'mfa.use_totp': 'Use Google Authenticator instead',
+    'mfa.other': 'Sign in with another account',
+    'mfa.err.wrong': 'This code is not correct.', 'mfa.err.wrong_left': 'This code is not correct ({n} attempts left).',
+    'mfa.err.expired': 'This code has expired. Send a new code.', 'mfa.err.attempts': 'Too many wrong attempts. Send a new code.',
+    'mfa.err.wait': 'Please wait a moment before requesting a new code.', 'mfa.err.too_many': 'Too many codes requested. Try again in an hour or contact access@clavoris.com.',
+    'mfa.err.mail': 'The code could not be sent. Try again or contact access@clavoris.com.', 'mfa.err.generic': 'Something went wrong. Please try again.',
+    'mfa.ok': 'Confirmed. Opening your portal…',
+    'mfa.rem.eyebrow': 'Account security', 'mfa.rem.title': 'Protect your account with Google Authenticator',
+    'mfa.rem.body': 'Instead of a code by e-mail, sign in with a code from the Google Authenticator app on your phone. It is more secure: it keeps working even if someone gains access to your mailbox. Activation takes one minute on your account page.',
+    'mfa.rem.never': 'Don\'t remind me again', 'mfa.rem.later': 'Later', 'mfa.rem.go': 'Activate now',
+    'mfa.acc.title': 'Two-step sign-in', 'mfa.acc.email_only': 'Active: a 6-digit code by e-mail at every sign-in.',
+    'mfa.acc.totp_on': 'Active: Google Authenticator. At sign-in you enter the code from the app; a code by e-mail remains available if you don\'t have your phone.',
+    'mfa.acc.offer': 'More secure: use the Google Authenticator app on your phone instead of a code by e-mail.',
+    'mfa.acc.activate': 'Activate Google Authenticator', 'mfa.acc.deactivate': 'Deactivate Google Authenticator',
+    'mfa.acc.step1': '1. Install Google Authenticator (App Store or Google Play) and tap “+” › “Scan a QR code”.',
+    'mfa.acc.step2': '2. Scan this code. Can\'t scan? Enter this key in the app instead:',
+    'mfa.acc.step3': '3. Enter the 6-digit code the app now shows for Clavoris:', 'mfa.acc.confirm': 'Confirm and activate', 'mfa.acc.cancel': 'Cancel',
+    'mfa.acc.done': 'Google Authenticator is active. From your next sign-in you enter the code from the app.',
+    'mfa.acc.off_lead': 'To deactivate, enter the current code from Google Authenticator:', 'mfa.acc.off_done': 'Google Authenticator is deactivated. You sign in with a code by e-mail.',
+    'mfa.acc.err': 'This did not work: {e}'
+  });
+  I.add('nl', {
+    'mfa.pw.title': 'Bevestig dat u het bent', 'mfa.pw.email': 'Vul om uw wachtwoord te wijzigen de code van 6 cijfers in die we naar {email} stuurden.', 'mfa.pw.totp': 'Vul om uw wachtwoord te wijzigen de code uit Google Authenticator in.', 'mfa.pw.cancel': 'Annuleren', 'mfa.pw.go': 'Bevestigen',
+    'mfa.eyebrow': 'Aanmelden in twee stappen', 'mfa.title': 'Vul uw aanmeldcode in',
+    'mfa.email.lead': 'We stuurden een code van 6 cijfers naar {email}. Ze is 10 minuten geldig.',
+    'mfa.email.sending': 'Uw code wordt verstuurd…', 'mfa.code': 'Code', 'mfa.verify': 'Bevestigen',
+    'mfa.resend': 'Stuur een nieuwe code', 'mfa.resend_in': 'Nieuwe code mogelijk over {s} s',
+    'mfa.totp.lead': 'Open Google Authenticator op uw telefoon en vul de code van 6 cijfers in die bij Clavoris staat.',
+    'mfa.use_email': 'Ik heb mijn telefoon niet bij: stuur een code per e-mail', 'mfa.use_totp': 'Gebruik Google Authenticator',
+    'mfa.other': 'Aanmelden met een ander account',
+    'mfa.err.wrong': 'Deze code is niet correct.', 'mfa.err.wrong_left': 'Deze code is niet correct (nog {n} pogingen).',
+    'mfa.err.expired': 'Deze code is verlopen. Vraag een nieuwe code aan.', 'mfa.err.attempts': 'Te veel foute pogingen. Vraag een nieuwe code aan.',
+    'mfa.err.wait': 'Wacht even voor u een nieuwe code aanvraagt.', 'mfa.err.too_many': 'Te veel codes aangevraagd. Probeer het over een uur opnieuw of contacteer access@clavoris.com.',
+    'mfa.err.mail': 'De code kon niet verstuurd worden. Probeer opnieuw of contacteer access@clavoris.com.', 'mfa.err.generic': 'Er ging iets mis. Probeer het opnieuw.',
+    'mfa.ok': 'Bevestigd. Uw portaal wordt geopend…',
+    'mfa.rem.eyebrow': 'Beveiliging van uw account', 'mfa.rem.title': 'Beveilig uw account met Google Authenticator',
+    'mfa.rem.body': 'Meld u aan met een code uit de app Google Authenticator op uw telefoon in plaats van een code per e-mail. Dat is veiliger: het blijft werken, ook als iemand toegang krijgt tot uw mailbox. Activeren duurt één minuut op uw accountpagina.',
+    'mfa.rem.never': 'Herinner me hier niet meer aan', 'mfa.rem.later': 'Later', 'mfa.rem.go': 'Nu activeren',
+    'mfa.acc.title': 'Aanmelden in twee stappen', 'mfa.acc.email_only': 'Actief: bij elke aanmelding een code van 6 cijfers per e-mail.',
+    'mfa.acc.totp_on': 'Actief: Google Authenticator. Bij het aanmelden vult u de code uit de app in; een code per e-mail blijft mogelijk als u uw telefoon niet bij hebt.',
+    'mfa.acc.offer': 'Veiliger: gebruik de app Google Authenticator op uw telefoon in plaats van een code per e-mail.',
+    'mfa.acc.activate': 'Google Authenticator activeren', 'mfa.acc.deactivate': 'Google Authenticator uitschakelen',
+    'mfa.acc.step1': '1. Installeer Google Authenticator (App Store of Google Play) en tik op “+” › “QR-code scannen”.',
+    'mfa.acc.step2': '2. Scan deze code. Lukt scannen niet? Vul dan deze sleutel in de app in:',
+    'mfa.acc.step3': '3. Vul de code van 6 cijfers in die de app nu bij Clavoris toont:', 'mfa.acc.confirm': 'Bevestigen en activeren', 'mfa.acc.cancel': 'Annuleren',
+    'mfa.acc.done': 'Google Authenticator is actief. Vanaf uw volgende aanmelding vult u de code uit de app in.',
+    'mfa.acc.off_lead': 'Vul om uit te schakelen de huidige code uit Google Authenticator in:', 'mfa.acc.off_done': 'Google Authenticator is uitgeschakeld. U meldt zich aan met een code per e-mail.',
+    'mfa.acc.err': 'Dit lukte niet: {e}'
+  });
+  I.add('fr', {
+    'mfa.pw.title': 'Confirmez votre identité', 'mfa.pw.email': 'Pour changer votre mot de passe, saisissez le code à 6 chiffres envoyé à {email}.', 'mfa.pw.totp': 'Pour changer votre mot de passe, saisissez le code de Google Authenticator.', 'mfa.pw.cancel': 'Annuler', 'mfa.pw.go': 'Confirmer',
+    'mfa.eyebrow': 'Connexion en deux étapes', 'mfa.title': 'Saisissez votre code de connexion',
+    'mfa.email.lead': 'Nous avons envoyé un code à 6 chiffres à {email}. Il est valable 10 minutes.',
+    'mfa.email.sending': 'Envoi de votre code…', 'mfa.code': 'Code', 'mfa.verify': 'Confirmer',
+    'mfa.resend': 'Envoyer un nouveau code', 'mfa.resend_in': 'Nouveau code possible dans {s} s',
+    'mfa.totp.lead': 'Ouvrez Google Authenticator sur votre téléphone et saisissez le code à 6 chiffres affiché pour Clavoris.',
+    'mfa.use_email': 'Je n\'ai pas mon téléphone : envoyer un code par e-mail', 'mfa.use_totp': 'Utiliser Google Authenticator',
+    'mfa.other': 'Se connecter avec un autre compte',
+    'mfa.err.wrong': 'Ce code n\'est pas correct.', 'mfa.err.wrong_left': 'Ce code n\'est pas correct (encore {n} essais).',
+    'mfa.err.expired': 'Ce code a expiré. Demandez un nouveau code.', 'mfa.err.attempts': 'Trop d\'essais erronés. Demandez un nouveau code.',
+    'mfa.err.wait': 'Patientez un instant avant de demander un nouveau code.', 'mfa.err.too_many': 'Trop de codes demandés. Réessayez dans une heure ou contactez access@clavoris.com.',
+    'mfa.err.mail': 'Le code n\'a pas pu être envoyé. Réessayez ou contactez access@clavoris.com.', 'mfa.err.generic': 'Une erreur s\'est produite. Veuillez réessayer.',
+    'mfa.ok': 'Confirmé. Ouverture de votre portail…',
+    'mfa.rem.eyebrow': 'Sécurité du compte', 'mfa.rem.title': 'Protégez votre compte avec Google Authenticator',
+    'mfa.rem.body': 'Au lieu d\'un code par e-mail, connectez-vous avec un code de l\'application Google Authenticator sur votre téléphone. C\'est plus sûr : cela reste efficace même si quelqu\'un accède à votre boîte mail. L\'activation prend une minute sur votre page de compte.',
+    'mfa.rem.never': 'Ne plus me le rappeler', 'mfa.rem.later': 'Plus tard', 'mfa.rem.go': 'Activer maintenant',
+    'mfa.acc.title': 'Connexion en deux étapes', 'mfa.acc.email_only': 'Active : un code à 6 chiffres par e-mail à chaque connexion.',
+    'mfa.acc.totp_on': 'Active : Google Authenticator. À la connexion, vous saisissez le code de l\'application ; un code par e-mail reste possible si vous n\'avez pas votre téléphone.',
+    'mfa.acc.offer': 'Plus sûr : utilisez l\'application Google Authenticator sur votre téléphone au lieu d\'un code par e-mail.',
+    'mfa.acc.activate': 'Activer Google Authenticator', 'mfa.acc.deactivate': 'Désactiver Google Authenticator',
+    'mfa.acc.step1': '1. Installez Google Authenticator (App Store ou Google Play) et touchez « + » › « Scanner un code QR ».',
+    'mfa.acc.step2': '2. Scannez ce code. Impossible de scanner ? Saisissez cette clé dans l\'application :',
+    'mfa.acc.step3': '3. Saisissez le code à 6 chiffres que l\'application affiche maintenant pour Clavoris :', 'mfa.acc.confirm': 'Confirmer et activer', 'mfa.acc.cancel': 'Annuler',
+    'mfa.acc.done': 'Google Authenticator est actif. Dès votre prochaine connexion, vous saisissez le code de l\'application.',
+    'mfa.acc.off_lead': 'Pour désactiver, saisissez le code actuel de Google Authenticator :', 'mfa.acc.off_done': 'Google Authenticator est désactivé. Vous vous connectez avec un code par e-mail.',
+    'mfa.acc.err': 'Cela n\'a pas fonctionné : {e}'
+  });
+
+  function q(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (m) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[m]; }); }
+  function t(k, v) { return I.t(k, v); }
+  function sb() { return A.client(); }
+  function codeInput(id) { return '<input id="' + id + '" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]*" class="mono" style="font-size:22px;letter-spacing:.35em;text-align:center">'; }
+  function digits(v) { return String(v || '').replace(/\D/g, '').slice(0, 6); }
+  function totpFactor() {
+    return sb().auth.mfa.listFactors().then(function (r) { var f = (r && r.data && r.data.totp) || []; return f.filter(function (x) { return x.status === 'verified'; })[0] || null; });
+  }
+
+  /* ---------------- sign-in page: second step ---------------- */
+  function start(next) {
+    var host = (q('loginForm') || {}).parentNode; if (!host) return;
+    ['loginForm', 'forgotForm'].forEach(function (id) { if (q(id)) q(id).hidden = true; });
+    var box = q('mfaForm');
+    if (!box) {
+      box = document.createElement('form'); box.id = 'mfaForm'; box.setAttribute('autocomplete', 'off'); box.setAttribute('onsubmit', 'return false;');
+      host.appendChild(box);
+    }
+    box.hidden = false;
+    box.innerHTML = '<p class="eyebrow" data-i18n="mfa.eyebrow">' + esc(t('mfa.eyebrow')) + '</p><h2 data-i18n="mfa.title">' + esc(t('mfa.title')) + '</h2>'
+      + '<p class="lead" id="mfaLead">' + esc(t('mfa.email.sending')) + '</p>'
+      + '<div class="field"><label for="mfaCode" data-i18n="mfa.code">' + esc(t('mfa.code')) + '</label>' + codeInput('mfaCode') + '</div>'
+      + '<p class="msg" id="mfaMsg" role="status"></p>'
+      + '<button class="btn btn-primary btn-block" type="submit" id="mfaBtn" disabled>' + esc(t('mfa.verify')) + '</button>'
+      + '<div style="text-align:center;margin-top:12px;display:flex;flex-direction:column;gap:6px;align-items:center">'
+      + '<button type="button" class="btn-text" id="mfaResend" hidden></button><button type="button" class="btn-text" id="mfaSwitch" hidden></button>'
+      + '<button type="button" class="btn-text" id="mfaOther">' + esc(t('mfa.other')) + '</button></div>';
+    var mode = 'email', timer = null, busy = false;
+    var code = q('mfaCode'), btn = q('mfaBtn'), msg = q('mfaMsg');
+    function say(k, v, kind) { msg.className = 'msg' + (kind ? ' ' + kind : ''); msg.textContent = k ? t(k, v) : ''; }
+    code.addEventListener('input', function () { code.value = digits(code.value); btn.disabled = code.value.length !== 6 || busy; if (code.value.length === 6 && !busy) submit(); });
+    q('mfaOther').addEventListener('click', function () { A.signOut().then(function () { location.replace('login.html' + (next ? '?next=' + encodeURIComponent(next) : '')); }); });
+    function countdown(sec) {
+      var b = q('mfaResend'); b.hidden = false; b.disabled = true; clearInterval(timer);
+      var left = sec;
+      function tick() { if (left <= 0) { clearInterval(timer); b.disabled = false; b.textContent = t('mfa.resend'); return; } b.textContent = t('mfa.resend_in', { s: left }); left -= 1; }
+      tick(); timer = setInterval(tick, 1000);
+    }
+    function sendEmail() {
+      mode = 'email'; q('mfaLead').textContent = t('mfa.email.sending'); say('');
+      A.callFn('clv-mfa', { action: 'send' }).then(function (r) {
+        if (r && r.ok) { q('mfaLead').textContent = t('mfa.email.lead', { email: r.sent_to }); countdown(30); code.focus(); return; }
+        if (r && r.error === 'wait') { q('mfaLead').textContent = t('mfa.email.lead', { email: '' }).replace(/\s+\./, '.'); countdown(r.retry_in || 30); say('mfa.err.wait', null, 'err'); return; }
+        say(r && r.error === 'too-many' ? 'mfa.err.too_many' : r && r.error === 'mail-failed' ? 'mfa.err.mail' : 'mfa.err.generic', null, 'err');
+        countdown(30);
+      });
+    }
+    function useTotp() {
+      mode = 'totp'; q('mfaLead').textContent = t('mfa.totp.lead'); say(''); q('mfaResend').hidden = true; clearInterval(timer);
+      var s = q('mfaSwitch'); s.hidden = false; s.textContent = t('mfa.use_email'); s.onclick = function () { s.textContent = t('mfa.use_totp'); s.onclick = useTotp; sendEmail(); };
+      code.focus();
+    }
+    q('mfaResend').addEventListener('click', sendEmail);
+    function done(r) {
+      A.markMfa().then(function () {
+        say('mfa.ok', null, 'ok');
+        var target = next || A.homeFor();
+        if (r && r.remind) { remind(target); return; }
+        setTimeout(function () { location.href = target; }, 500);
+      });
+    }
+    function fail(r) {
+      busy = false; btn.disabled = false; code.select();
+      var e = r && r.error;
+      if (e === 'wrong-code') say(typeof r.attempts_left === 'number' ? 'mfa.err.wrong_left' : 'mfa.err.wrong', { n: r.attempts_left }, 'err');
+      else if (e === 'expired') say('mfa.err.expired', null, 'err');
+      else if (e === 'too-many-attempts') say('mfa.err.attempts', null, 'err');
+      else say('mfa.err.generic', null, 'err');
+    }
+    function submit() {
+      var c = digits(code.value); if (c.length !== 6 || busy) return;
+      busy = true; btn.disabled = true; say('');
+      if (mode === 'email') { A.callFn('clv-mfa', { action: 'verify', code: c }).then(function (r) { if (r && r.ok) done(r); else fail(r); }); return; }
+      totpFactor().then(function (f) {
+        if (!f) return fail({ error: 'generic' });
+        return sb().auth.mfa.challengeAndVerify({ factorId: f.id, code: c }).then(function (res) {
+          if (res.error) return fail({ error: 'wrong-code' });
+          return A.callFn('clv-mfa', { action: 'totp_done' }).then(function (r) { if (r && r.ok) done(r); else fail(r); });
+        });
+      }).catch(function () { fail({ error: 'generic' }); });
+    }
+    box.addEventListener('submit', submit); btn.addEventListener('click', submit);
+    A.callFn('clv-mfa', { action: 'status' }).then(function (r) {
+      if (r && r.verified) { A.markMfa().then(function () { location.replace(next || A.homeFor()); }); return; }
+      if (r && r.totp) useTotp(); else sendEmail();
+    });
+  }
+
+  /* ---------------- reminder: activate Google Authenticator ---------------- */
+  function remind(target) {
+    var d = document.createElement('div'); d.className = 'scrim'; d.id = 'mfaRemind';
+    d.innerHTML = '<div class="modal" role="dialog" aria-modal="true"><div class="modal-head"><div><div class="e">' + esc(t('mfa.rem.eyebrow')) + '</div><div class="t">' + esc(t('mfa.rem.title')) + '</div></div></div>'
+      + '<div class="modal-body"><p style="font-size:14px;line-height:1.65">' + esc(t('mfa.rem.body')) + '</p>'
+      + '<label class="check" style="margin-top:14px"><input type="checkbox" id="remNever"> <span>' + esc(t('mfa.rem.never')) + '</span></label>'
+      + '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:18px;flex-wrap:wrap"><button class="btn btn-ghost" type="button" id="remLater">' + esc(t('mfa.rem.later')) + '</button><button class="btn btn-primary" type="button" id="remGo">' + esc(t('mfa.rem.go')) + '</button></div></div></div>';
+    document.body.appendChild(d);
+    function answer(dest) {
+      q('remLater').disabled = true; q('remGo').disabled = true;
+      var never = q('remNever').checked;
+      (never ? A.callFn('clv-mfa', { action: 'remind', never: true }) : Promise.resolve()).then(function () { location.href = dest; }, function () { location.href = dest; });
+    }
+    q('remLater').addEventListener('click', function () { answer(target); });
+    q('remGo').addEventListener('click', function () { answer('account.html#mfa'); });
+  }
+
+  /* ---------------- account page: Google Authenticator ---------------- */
+  function accountBlock() {
+    var anchor = q('idv'); if (!anchor || q('mfa')) return;
+    var sec = document.createElement('section'); sec.className = 'card'; sec.id = 'mfa'; sec.style.cssText = 'padding:22px;margin-top:24px';
+    anchor.parentNode.insertBefore(sec, anchor);
+    function render() {
+      totpFactor().then(function (f) {
+        sec.innerHTML = '<h2 style="font-family:var(--font-display);font-size:20px;color:var(--clavis-navy)">' + esc(t('mfa.acc.title')) + '</h2>'
+          + '<p style="font-size:13px;color:var(--fg-2);margin-top:8px;line-height:1.6">' + esc(t(f ? 'mfa.acc.totp_on' : 'mfa.acc.email_only')) + '</p>'
+          + (f ? '' : '<p style="font-size:13px;color:var(--fg-2);margin-top:6px;line-height:1.6">' + esc(t('mfa.acc.offer')) + '</p>')
+          + '<div id="mfaAct" style="margin-top:14px"><button class="btn ' + (f ? '' : 'btn-primary') + '" type="button" id="mfaToggle">' + esc(t(f ? 'mfa.acc.deactivate' : 'mfa.acc.activate')) + '</button></div>'
+          + '<p class="msg" id="mfaAccMsg" role="status" style="margin-top:10px"></p>';
+        q('mfaToggle').addEventListener('click', function () { if (f) deactivate(f); else activate(); });
+      });
+    }
+    function msg(k, v, kind) { var m = q('mfaAccMsg'); if (!m) return; m.className = 'msg' + (kind ? ' ' + kind : ''); m.textContent = k ? t(k, v) : ''; }
+    function activate() {
+      var client = sb();
+      // Leftovers of an earlier, unfinished activation are removed first.
+      client.auth.mfa.listFactors().then(function (r) {
+        var stale = ((r && r.data && r.data.all) || []).filter(function (x) { return x.factor_type === 'totp' && x.status !== 'verified'; });
+        return Promise.all(stale.map(function (x) { return client.auth.mfa.unenroll({ factorId: x.id }); }));
+      }).then(function () {
+        return client.auth.mfa.enroll({ factorType: 'totp', friendlyName: 'Clavoris ' + new Date().toISOString().slice(0, 10), issuer: 'Clavoris' });
+      }).then(function (res) {
+        if (res.error) { msg('mfa.acc.err', { e: res.error.message }, 'err'); return; }
+        var fid = res.data.id, qr = res.data.totp.qr_code, secret = res.data.totp.secret;
+        q('mfaAct').innerHTML = '<p style="font-size:13px;line-height:1.6">' + esc(t('mfa.acc.step1')) + '</p>'
+          + '<p style="font-size:13px;line-height:1.6;margin-top:10px">' + esc(t('mfa.acc.step2')) + '</p>'
+          + '<div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap;margin-top:8px"><img src="' + esc(qr) + '" alt="QR" width="176" height="176" style="background:#fff;padding:8px;border:1px solid var(--line)">'
+          + '<code class="mono" style="font-size:13px;word-break:break-all;max-width:260px">' + esc(secret) + '</code></div>'
+          + '<p style="font-size:13px;line-height:1.6;margin-top:12px">' + esc(t('mfa.acc.step3')) + '</p>'
+          + '<div class="field" style="max-width:220px">' + codeInput('mfaNew') + '</div>'
+          + '<div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap"><button class="btn btn-primary" type="button" id="mfaConfirm">' + esc(t('mfa.acc.confirm')) + '</button><button class="btn btn-ghost" type="button" id="mfaCancel">' + esc(t('mfa.acc.cancel')) + '</button></div>';
+        q('mfaNew').addEventListener('input', function () { q('mfaNew').value = digits(q('mfaNew').value); });
+        q('mfaCancel').addEventListener('click', function () { client.auth.mfa.unenroll({ factorId: fid }).then(render, render); });
+        q('mfaConfirm').addEventListener('click', function () {
+          var c = digits(q('mfaNew').value); if (c.length !== 6) return;
+          q('mfaConfirm').disabled = true;
+          client.auth.mfa.challengeAndVerify({ factorId: fid, code: c }).then(function (v) {
+            if (v.error) { q('mfaConfirm').disabled = false; msg('mfa.err.wrong', null, 'err'); return; }
+            A.markMfa().then(function () { render(); setTimeout(function () { msg('mfa.acc.done', null, 'ok'); }, 300); });
+          });
+        });
+      }).catch(function (e) { msg('mfa.acc.err', { e: (e && e.message) || '' }, 'err'); });
+    }
+    function deactivate(f) {
+      var client = sb();
+      q('mfaAct').innerHTML = '<p style="font-size:13px;line-height:1.6">' + esc(t('mfa.acc.off_lead')) + '</p><div class="field" style="max-width:220px">' + codeInput('mfaOff') + '</div>'
+        + '<div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap"><button class="btn" type="button" id="mfaOffGo">' + esc(t('mfa.acc.deactivate')) + '</button><button class="btn btn-ghost" type="button" id="mfaOffCancel">' + esc(t('mfa.acc.cancel')) + '</button></div>';
+      q('mfaOff').addEventListener('input', function () { q('mfaOff').value = digits(q('mfaOff').value); });
+      q('mfaOffCancel').addEventListener('click', render);
+      q('mfaOffGo').addEventListener('click', function () {
+        var c = digits(q('mfaOff').value); if (c.length !== 6) return;
+        q('mfaOffGo').disabled = true;
+        // Removing the app needs a fresh code from it (the session is raised to aal2 first).
+        client.auth.mfa.challengeAndVerify({ factorId: f.id, code: c }).then(function (v) {
+          if (v.error) { q('mfaOffGo').disabled = false; msg('mfa.err.wrong', null, 'err'); return; }
+          return client.auth.mfa.unenroll({ factorId: f.id }).then(function (u) {
+            if (u.error) { q('mfaOffGo').disabled = false; msg('mfa.acc.err', { e: u.error.message }, 'err'); return; }
+            render(); setTimeout(function () { msg('mfa.acc.off_done', null, 'ok'); }, 300);
+          });
+        });
+      });
+    }
+    render();
+    if (location.hash === '#mfa') setTimeout(function () { sec.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 300);
+  }
+
+  /* ---------------- confirming a password change ----------------
+     Resolves { code } (e-mailed code for purpose "password"), { totp: true } (authenticator code just
+     entered: the session now carries a fresh totp entry) or null when cancelled. The server checks it again. */
+  function confirmPassword() {
+    return new Promise(function (resolve) {
+      var old = q('mfaPw'); if (old) old.remove();
+      var d = document.createElement('div'); d.className = 'scrim'; d.id = 'mfaPw';
+      d.innerHTML = '<div class="modal" role="dialog" aria-modal="true"><div class="modal-head"><div><div class="e">' + esc(t('mfa.eyebrow')) + '</div><div class="t">' + esc(t('mfa.pw.title')) + '</div></div></div>'
+        + '<form class="modal-body" id="mfaPwForm" onsubmit="return false;"><p style="font-size:14px;line-height:1.6" id="mfaPwLead">' + esc(t('mfa.email.sending')) + '</p>'
+        + '<div class="field">' + codeInput('mfaPwCode') + '</div><p class="msg" id="mfaPwMsg" role="status"></p>'
+        + '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap"><button class="btn btn-ghost" type="button" id="mfaPwCancel">' + esc(t('mfa.pw.cancel')) + '</button><button class="btn btn-primary" type="submit" id="mfaPwGo" disabled>' + esc(t('mfa.pw.go')) + '</button></div>'
+        + '<div style="text-align:center;margin-top:10px;display:flex;flex-direction:column;gap:6px;align-items:center"><button type="button" class="btn-text" id="mfaPwResend" hidden></button><button type="button" class="btn-text" id="mfaPwSwitch" hidden></button></div></form></div>';
+      document.body.appendChild(d);
+      var mode = 'email', timer = null, code = q('mfaPwCode'), go = q('mfaPwGo'), factor = null;
+      function say(k, v, kind) { var m = q('mfaPwMsg'); m.className = 'msg' + (kind ? ' ' + kind : ''); m.textContent = k ? t(k, v) : ''; }
+      function finish(v) { clearInterval(timer); d.remove(); resolve(v); }
+      function countdown(sec) {
+        var b = q('mfaPwResend'); b.hidden = false; b.disabled = true; clearInterval(timer); var left = sec;
+        function tick() { if (left <= 0) { clearInterval(timer); b.disabled = false; b.textContent = t('mfa.resend'); return; } b.textContent = t('mfa.resend_in', { s: left }); left -= 1; }
+        tick(); timer = setInterval(tick, 1000);
+      }
+      function sendEmail() {
+        mode = 'email'; q('mfaPwLead').textContent = t('mfa.email.sending'); say('');
+        A.callFn('clv-mfa', { action: 'send', purpose: 'password' }).then(function (r) {
+          if (r && r.ok) { q('mfaPwLead').textContent = t('mfa.pw.email', { email: r.sent_to }); countdown(30); code.focus(); return; }
+          say(r && r.error === 'wait' ? 'mfa.err.wait' : r && r.error === 'too-many' ? 'mfa.err.too_many' : r && r.error === 'mail-failed' ? 'mfa.err.mail' : 'mfa.err.generic', null, 'err');
+          countdown((r && r.retry_in) || 30);
+        });
+      }
+      function useTotp() {
+        mode = 'totp'; q('mfaPwLead').textContent = t('mfa.pw.totp'); say(''); q('mfaPwResend').hidden = true; clearInterval(timer);
+        var s = q('mfaPwSwitch'); s.hidden = false; s.textContent = t('mfa.use_email'); s.onclick = function () { s.textContent = t('mfa.use_totp'); s.onclick = useTotp; sendEmail(); };
+        code.focus();
+      }
+      code.addEventListener('input', function () { code.value = digits(code.value); go.disabled = code.value.length !== 6; });
+      q('mfaPwCancel').addEventListener('click', function () { finish(null); });
+      q('mfaPwResend').addEventListener('click', sendEmail);
+      q('mfaPwForm').addEventListener('submit', function () {
+        var c = digits(code.value); if (c.length !== 6) return;
+        if (mode === 'email') { finish({ code: c }); return; }
+        go.disabled = true;
+        sb().auth.mfa.challengeAndVerify({ factorId: factor.id, code: c }).then(function (res) {
+          if (res.error) { go.disabled = false; say('mfa.err.wrong', null, 'err'); code.select(); return; }
+          finish({ totp: true });
+        }, function () { go.disabled = false; say('mfa.err.generic', null, 'err'); });
+      });
+      totpFactor().then(function (f) { factor = f; if (f) useTotp(); else sendEmail(); }, sendEmail);
+    });
+  }
+  // Error message key for a failed change_password answer.
+  function passwordError(e) {
+    return { 'wrong-code': 'mfa.err.wrong', 'expired': 'mfa.err.expired', 'too-many-attempts': 'mfa.err.attempts', 'no-code': 'mfa.err.expired', 'code-required': 'mfa.err.expired', 'mfa-required': 'mfa.err.generic' }[e] || null;
+  }
+
+  window.ClavorisMfa = { start: start, confirmPassword: confirmPassword, passwordError: passwordError };
+  if (q('idv')) A.ready(function () { if (A.clears('full')) accountBlock(); });
+})();
