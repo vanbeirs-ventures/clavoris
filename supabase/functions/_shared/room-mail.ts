@@ -16,6 +16,13 @@ const KYC_NOTE: Record<Lang, string> = {
   fr: "À propos de la vérification d'identité : elle est réalisée par Didit, un prestataire indépendant de vérification d'identité certifié ISO/IEC 27001:2022 et ISO/IEC 27017/27018, audité SOC 2 Type 2 et testé iBeta niveau 1 (ISO/IEC 30107-3) pour la détection du vivant. Votre pièce d'identité et les photos prises lors du contrôle sont traitées par Didit conformément au RGPD. Clavoris utilise le résultat de la vérification pour ouvrir votre accès et traite vos données d'identité de manière strictement confidentielle.",
 };
 
+// Data-room identity is private by default (clv_profiles.member_private): every invitation says so.
+const PRIVACY_NOTE: Record<Lang, string> = {
+  en: "Your identity in the data room is private: other members only see your member ID, not your name or organisation. The company running the room always knows who you are. In the data room you can choose at any time to show your name to the other members.",
+  nl: "Uw identiteit in de dataroom is privé: andere leden zien enkel uw lidnummer, niet uw naam of organisatie. De onderneming die de dataroom beheert, weet altijd wie u bent. In de dataroom kunt u op elk moment kiezen om uw naam aan de andere leden te tonen.",
+  fr: "Votre identité dans la data room est privée : les autres membres ne voient que votre numéro de membre, ni votre nom ni votre organisation. La société qui gère la data room sait toujours qui vous êtes. Dans la data room, vous pouvez à tout moment choisir d'afficher votre nom aux autres membres.",
+};
+
 // Extension request to the administrators of the company that owns the room: two buttons (accept /
 // decline) open the decision page, where the date can be adjusted and a comment added for the member.
 export const EXT_CTA: Record<Lang, { accept: string; reject: string }> = {
@@ -44,6 +51,7 @@ export function mail(lang: Lang, key: string, vars: V = {}): { subject: string; 
     const note = KYC_NOTE[lang] || KYC_NOTE.en;
     body = START.test(body) ? body.replace(START, (m0) => "\n\n" + note + m0) : body + "\n\n" + note;
   }
+  if (key === "room_invite_new" || key === "room_invite_linked" || key === "room_invite_existing") body = body + "\n\n" + (PRIVACY_NOTE[lang] || PRIVACY_NOTE.en);
   const owner = String(vars.owner ?? "").trim();
   return { subject: m.subject, text: owner ? `${FROM_LINE[lang] || FROM_LINE.en} ${owner}\n\n${body}` : body };
 }
