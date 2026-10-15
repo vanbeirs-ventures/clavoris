@@ -2,8 +2,9 @@
 // Streams one data room file to an entitled user. Checks: active assignment (or staff),
 // NDA signed when the room requires it, download permission. Every delivery is logged in
 // clv_access_log and clv_downloads with a unique download code and SHA-256 fingerprints.
-// Data rooms deliver PDF only: every page is stamped with the user's identity, the time and
-// the download code (other file types placed in the folder are refused). Delivered documents carry
+// Data rooms deliver PDF, JPEG and PNG: every page is stamped with the user's identity, the time and
+// the download code (other file types placed in the folder are refused). A JPEG or PNG is delivered
+// inside a one-page PDF carrying the same stamp and protections, so an image never leaves unmarked. Delivered documents carry
 // PDF permissions that switch off printing, copying text and editing (owner password random, never
 // stored); they still open without a password. The member's own signed NDA stays printable.
 // The user's first download triggers a confirmation mail (audit trail + confidentiality).
@@ -22,6 +23,20 @@ function genCode(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; const r = crypto.getRandomValues(new Uint8Array(10));
   let s = ""; for (let i = 0; i < 10; i++) { s += chars[r[i] % chars.length]; if (i === 4) s += "-"; }
   return s;
+}
+
+const IMAGE = /\.(jpe?g|png)$/i;
+// One page sized to the image (longest side 842 pt, A4 height), the image filling the page.
+async function imageToPdf(bytes: Uint8Array, png: boolean): Promise<Uint8Array | null> {
+  try {
+    const pdf = await PDFDocument.create();
+    const img = png ? await pdf.embedPng(bytes) : await pdf.embedJpg(bytes);
+    const k = 842 / Math.max(img.width, img.height);
+    const w = Math.max(200, img.width * k), h = Math.max(200, img.height * k);
+    const page = pdf.addPage([w, h]);
+    page.drawImage(img, { x: 0, y: 0, width: w, height: h });
+    return await pdf.save();
+  } catch { return null; }
 }
 
 async function stampPdf(bytes: Uint8Array, line: string): Promise<Uint8Array | null> {
@@ -74,13 +89,21 @@ Deno.serve(async (req) => {
     const rel = String(body.path || "").replace(/^\/+/, "");
     if (!rel || rel.includes("..") || /^_(users|nda)(\/|$)/.test(rel)) return json({ error: "bad-path" }, 400);
     target = `${room.nextcloud_folder}/${rel}`; fileName = rel.split("/").pop() || "file"; action = body.view === true ? "view" : "download";
-    if (!/\.pdf$/i.test(fileName)) return json({ error: "pdf-only" }, 400); // data rooms deliver watermarked PDFs only
+    if (!/\.(pdf|jpe?g|png)$/i.test(fileName)) return json({ error: "pdf-only" }, 400); // data rooms deliver watermarked PDF, JPEG and PNG only
   }
 
   let res: Response;
   try { res = await ncGet(target); } catch (e) { return json({ error: "file-unavailable", detail: (e as Error).message }, 404); }
   const source = new Uint8Array(await res.arrayBuffer());
   const shaSource = await sha256Hex(source);
+  // An image is placed in a one-page PDF first, so it gets the same stamp and protections as a PDF.
+  const isImage = action !== "download-nda" && IMAGE.test(fileName);
+  let pdfSource = source;
+  if (isImage) {
+    const wrapped = await imageToPdf(source, /\.png$/i.test(fileName));
+    if (!wrapped) return json({ error: "file-unreadable" }, 422);
+    pdfSource = wrapped;
+  }
   const ip = clientIp(req), ua = req.headers.get("user-agent") || "";
   const now = new Date();
   await admin.from("clv_access_log").insert({ user_id: me.id, room_id: roomId, file_path: target, action, ip, user_agent: ua }).then(() => {}, () => {});
@@ -88,20 +111,25 @@ Deno.serve(async (req) => {
   let delivered = source, deliveredAs = "original", outName = fileName;
   if (action === "view") {
     // Reading in the browser: the same stamp (identity, time, a view code); no download record or mail.
-    const stamped = room.watermark !== false ? await stampPdf(source, `Clavoris · ${room.name} · ${me.full_name || me.email} (${me.email}) · ${now.toISOString().slice(0, 16).replace("T", " ")} UTC · view ${genCode()}`) : null;
-    if (stamped) delivered = stamped;
+    const stamped = room.watermark !== false || isImage ? await stampPdf(pdfSource, `Clavoris · ${room.name} · ${me.full_name || me.email} (${me.email}) · ${now.toISOString().slice(0, 16).replace("T", " ")} UTC · view ${genCode()}`) : null;
+    delivered = stamped || pdfSource;
     return new Response(delivered, { status: 200, headers: { ...cors, "content-type": "application/pdf", "content-disposition": `inline; filename="${fileName.replace(/"/g, "")}"`, "cache-control": "no-store" } });
   }
   if (action === "download") {
     const code = genCode();
     const stampLine = `Clavoris · ${room.name} · ${me.full_name || me.email} (${me.email}) · ${now.toISOString().slice(0, 16).replace("T", " ")} UTC · download ${code}`;
     const isPdf = /\.pdf$/i.test(fileName) || (res.headers.get("content-type") || "").includes("pdf");
-    if (room.watermark !== false && isPdf) {
+    if (isImage) {
+      // Always stamped, also when the room's watermark is switched off: the PDF page is the only form an image leaves in.
+      const stamped = await stampPdf(pdfSource, stampLine);
+      delivered = stamped || pdfSource; deliveredAs = stamped ? "image-pdf-watermarked" : "image-pdf";
+    } else if (room.watermark !== false && isPdf) {
       const stamped = await stampPdf(source, stampLine);
       if (stamped) { delivered = stamped; deliveredAs = "pdf-watermarked"; }
     }
     const dot = fileName.lastIndexOf(".");
-    outName = dot > 0 ? `${fileName.slice(0, dot)}__${code}${fileName.slice(dot)}` : `${fileName}__${code}`;
+    // An image arrives as a PDF: "photo.jpg" -> "photo__CODE.pdf".
+    outName = isImage ? `${fileName.slice(0, dot)}__${code}.pdf` : dot > 0 ? `${fileName.slice(0, dot)}__${code}${fileName.slice(dot)}` : `${fileName}__${code}`;
     const shaDelivered = await sha256Hex(delivered);
     const { count } = await admin.from("clv_downloads").select("id", { count: "exact", head: true }).eq("user_id", me.id);
     await admin.from("clv_downloads").insert({
@@ -117,5 +145,5 @@ Deno.serve(async (req) => {
       sendMail(me.email, m.subject, m.text, L).catch((e) => console.error("clv-room-file: first-download mail failed", e));
     }
   }
-  return new Response(delivered, { status: 200, headers: { ...cors, "content-type": res.headers.get("content-type") || "application/octet-stream", "content-disposition": `attachment; filename="${outName.replace(/"/g, "")}"`, "access-control-expose-headers": "content-disposition, x-clavoris-sha256", "x-clavoris-sha256": await sha256Hex(delivered) } });
+  return new Response(delivered, { status: 200, headers: { ...cors, "content-type": isImage ? "application/pdf" : res.headers.get("content-type") || "application/octet-stream", "content-disposition": `attachment; filename="${outName.replace(/"/g, "")}"`, "access-control-expose-headers": "content-disposition, x-clavoris-sha256", "x-clavoris-sha256": await sha256Hex(delivered) } });
 });
