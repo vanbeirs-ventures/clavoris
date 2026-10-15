@@ -205,7 +205,13 @@
   // Set a new password for the current session (after recovery link or from account page).
   function updatePassword(newPw) {
     if (!sb) return Promise.resolve({ ok: false });
-    return sb.auth.updateUser({ password: newPw }).then(function (res) { return { ok: !res.error, error: res.error && res.error.message }; });
+    // Re-using the current password is allowed: the auth server refuses it as a change ("same_password"),
+    // but the password is then simply still valid, so it counts as success and the page says so.
+    return sb.auth.updateUser({ password: newPw }).then(function (res) {
+      var e = res.error;
+      if (e && (e.code === 'same_password' || /different from the old password/i.test(e.message || ''))) return { ok: true, same: true };
+      return { ok: !e, error: e && e.message };
+    });
   }
   // Re-authenticate (used by the account page before a password change).
   function verifyPassword(pw) {
