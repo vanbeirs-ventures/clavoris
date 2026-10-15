@@ -56,7 +56,7 @@
 <script src="config.js?v=20261014d"></script>
 <script src="i18n.js?v=20261014d"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="clavoris-access.js?v=20261015m"></script>
+<script src="clavoris-access.js?v=20261015t"></script>
 <script src="mfa.js?v=20261015m"></script>
 <script>
 (function () {
@@ -121,10 +121,13 @@
     }).then(function (r) {
       if (r && r.cancelled) { q('btn').disabled = false; return; }
       if (!r || !r.ok) { var k = r && window.ClavorisMfa.passwordError(r.error); q('btn').disabled = false; m.className = 'msg err'; m.textContent = k ? I.t(k) : (r && r.error === 'weak-password' ? I.t('reset.hint') : (r && r.error) || I.t('reset.fail')); return; }
-      A.markMfa();
+      // The password change ended the old session; the server hands back a fresh one (second factor
+      // already recorded), so the member stays signed in for the profile step.
+      var adopted = (r.session ? A.client().auth.setSession(r.session).then(function () { return A.refresh(); }, function () {}) : Promise.resolve()).then(function () { return A.markMfa(); });
       m.className = 'msg ok'; m.textContent = I.t(r.same ? 'reset.same' : 'reset.ok');
       var welcome = params.get('welcome') === '1' || sessionStorage.getItem('clv_welcome') === '1';
-      setTimeout(function () { location.href = welcome ? 'account.html?welcome=1' : A.homeFor(); }, r.same ? 3500 : 1200);
+      var go = function () { location.href = welcome ? 'account.html?welcome=1' : A.homeFor(); };
+      Promise.all([adopted, new Promise(function (res) { setTimeout(res, r.same ? 3500 : 1200); })]).then(go, go);
     });
   });
 })();

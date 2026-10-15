@@ -217,7 +217,18 @@ Deno.serve(async (req) => {
     const { error } = await admin.auth.admin.updateUserById(me.id, { password });
     if (error) return json({ error: error.message }, 400);
     await admin.from("clv_audit").insert({ actor: me.id, actor_email: me.email, event_type: "password-changed", target: me.email, detail: { first, recovery, ip: clientIp(req) } }).then(() => {}, () => {});
-    return json({ ok: true });
+    // Changing the password ends every session of the user, including the one in this browser. A fresh
+    // session is opened here with the new password and marked as having passed the second factor (the user
+    // just proved it, or came through the e-mailed link), so the page carries on signed in: the profile
+    // can be saved straight after choosing a first password.
+    const c = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, { auth: { persistSession: false, autoRefreshToken: false } });
+    const { data: s } = await c.auth.signInWithPassword({ email: me.email, password }).catch(() => ({ data: null as any }));
+    const sess = s?.session;
+    if (!sess) return json({ ok: true });
+    const sid = jwtClaims(sess.access_token).session_id;
+    if (sid) await admin.from("clv_mfa_sessions").upsert({ session_id: sid, user_id: me.id, method: "password-set", verified_at: new Date().toISOString() });
+    await admin.from("clv_profiles").update({ last_login_at: new Date().toISOString() }).eq("id", me.id);
+    return json({ ok: true, session: { access_token: sess.access_token, refresh_token: sess.refresh_token } });
   }
 
   return json({ error: "bad-action" }, 400);
