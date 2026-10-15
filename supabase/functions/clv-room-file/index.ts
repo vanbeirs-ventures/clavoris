@@ -62,12 +62,12 @@ Deno.serve(async (req) => {
     if (expired && body.nda !== true) return json({ error: "expired" }, 403);
     canDownload = !!a.can_download && !!room.downloads_allowed;
   }
-  const { data: nda } = await admin.from("clv_signed_documents").select("nextcloud_path").eq("room_id", roomId).eq("user_id", me.id).eq("doc_type", "nda").maybeSingle();
+  const { data: nda } = await admin.from("clv_signed_documents").select("nextcloud_path, countersigned_path").eq("room_id", roomId).eq("user_id", me.id).eq("doc_type", "nda").maybeSingle();
 
   let target: string, fileName: string, action: string;
   if (body.nda === true) {
     if (!nda?.nextcloud_path) return json({ error: "no-nda" }, 404);
-    target = nda.nextcloud_path; fileName = target.split("/").pop() || "NDA.pdf"; action = "download-nda";
+    target = nda.countersigned_path || nda.nextcloud_path; fileName = target.split("/").pop() || "NDA.pdf"; action = "download-nda";
   } else {
     if (room.qes_nda_required && !nda && !isStaff(me)) return json({ error: "nda-required" }, 403);
     if (!canDownload && body.view !== true) return json({ error: "download-not-allowed" }, 403);
