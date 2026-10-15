@@ -166,6 +166,12 @@
   /* ---------------- sign-in page: second step ---------------- */
   function start(next) {
     var host = (q('loginForm') || {}).parentNode; if (!host) return;
+    // From here on the user is known: the second step speaks the profile language, not the browser's.
+    var pf = A.profile && A.profile();
+    if (pf && pf.lang && pf.lang !== I.lang) {
+      I.set(pf.lang);
+      [].forEach.call(document.querySelectorAll('#langSw [data-lang]'), function (b) { b.classList.toggle('active', b.getAttribute('data-lang') === I.lang); });
+    }
     ['loginForm', 'forgotForm'].forEach(function (id) { if (q(id)) q(id).hidden = true; });
     var box = q('mfaForm');
     if (!box) {
