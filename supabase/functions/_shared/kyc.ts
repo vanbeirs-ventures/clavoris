@@ -41,16 +41,43 @@ export function summarize(d: Decision | undefined, status: string): Record<strin
   };
 }
 
+// Official name from an approved identity verification. The document's given names and family name are
+// stored in first_name / last_name; the name shown everywhere on the platform (full_name) is the first given
+// name plus the family name ("Benoit Casimir Alexandre Louis" + "Morand" -> "Benoit Morand"). Names read in
+// capitals are put in normal case. When the invitation already spelled the first given name and the document
+// reading matches it except for accents or one dropped letter (a known OCR slip: "Benoî"), the invitation's
+// spelling is kept. The name is then locked: the member can no longer change it (database trigger).
+const norm = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+function tidyName(s: unknown): string {
+  const t = String(s || "").replace(/\s+/g, " ").trim();
+  if (!t || /\p{Ll}/u.test(t)) return t;
+  return t.toLowerCase().replace(/(^|[\s'\-])(\p{L})/gu, (_m, a, b) => a + b.toUpperCase());
+}
+export function kycName(idv: Record<string, unknown>, invited: { first_name?: string | null }): { first_name: string; last_name: string; full_name: string } | null {
+  const given = tidyName(idv.first_name), family = tidyName(idv.last_name);
+  if (!given || !family) return null;
+  let first = given.split(" ")[0];
+  const inv = String(invited.first_name || "").trim().split(/\s+/)[0] || "";
+  if (inv) {
+    const a = norm(inv), b = norm(first);
+    if (a === b || (a.startsWith(b) && a.length - b.length === 1)) first = inv;
+  }
+  // The corrected first given name also replaces the misread one in the stored given names.
+  return { first_name: [first, ...given.split(" ").slice(1)].join(" "), last_name: family, full_name: `${first} ${family}` };
+}
+
 // Apply a Didit session status to the user's profile. Returns the new profile status (or null when
 // the user is unknown). On the transition to "verified" the user gets the confirmation mail.
 export async function applyKycStatus(admin: SupabaseClient, userId: string, sessionId: string, status: string, decision?: Decision): Promise<string | null> {
-  const { data: p } = await admin.from("clv_profiles").select("id, email, full_name, lang, status, role, kyc_session_id").eq("id", userId).maybeSingle();
+  const { data: p } = await admin.from("clv_profiles").select("id, email, full_name, first_name, lang, status, role, kyc_session_id").eq("id", userId).maybeSingle();
   if (!p) return null;
   const upd: Record<string, unknown> = { kyc_provider: "didit", kyc_session_id: sessionId || p.kyc_session_id, kyc_level: "didit-kyc" };
   const staff = p.role !== "user";
   if (status === "Approved") {
     upd.status = "verified"; upd.kyc_review_answer = "GREEN"; upd.kyc_reject_type = null; upd.kyc_reviewed_at = new Date().toISOString();
     upd.kyc_summary = summarize(decision, status);
+    const nm = kycName(decision?.id_verifications?.[0] || {}, p);
+    if (nm) Object.assign(upd, nm, { kyc_name_at: new Date().toISOString() });
   } else if (status === "Declined" || status === "Abandoned" || status === "Expired") {
     upd.kyc_review_answer = "RED"; upd.kyc_reject_type = "RETRY"; upd.kyc_reviewed_at = new Date().toISOString();
     upd.kyc_summary = summarize(decision, status);
@@ -66,7 +93,7 @@ export async function applyKycStatus(admin: SupabaseClient, userId: string, sess
   const now = String(upd.status || p.status);
   if (now === "verified" && p.status !== "verified" && p.email) {
     const L = pickLang(p.lang);
-    const v = { name: p.full_name || FALLBACK[L], link: `${APP_URL}/login.html` };
+    const v = { name: String(upd.full_name || p.full_name || "") || FALLBACK[L], link: `${APP_URL}/login.html` };
     await sendMail(p.email, fill(VERIFIED[L].s, v), fill(VERIFIED[L].t, v), L).catch((e: Error) => console.error("kyc mail:", e.message));
   }
   return now;
