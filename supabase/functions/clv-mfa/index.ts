@@ -3,7 +3,8 @@
 // to the user, or the Google Authenticator code when the user has activated it on the account page
 // (Supabase MFA, the browser verifies it and the session becomes aal2).
 //   { action: "status" }                  -> { verified, totp, email, first_password }
-//   { action: "send", purpose? }          -> e-mails a 6-digit code (valid 10 min, 5 attempts; max 1 per 30 s, 6 per hour);
+//   { action: "send", purpose? }          -> e-mails a 6-digit code (valid 10 min; earlier codes stay valid until they expire;
+//                                            5 wrong attempts; max 1 per 30 s, 6 per hour);
 //                                            purpose "login" (default) or "password" (confirming a password change)
 //   { action: "verify", code }            -> checks a sign-in code; marks this session as verified; completes the sign-in
 //   { action: "totp_done" }               -> after an authenticator verification (aal2): completes the sign-in
@@ -116,20 +117,26 @@ Deno.serve(async (req) => {
     return json({ ok: true, verified: true, remind });
   }
 
-  // Checks an e-mailed code for this session and purpose; marks it used when correct.
+  // Checks an e-mailed code for this session and purpose. Every code that has not expired stays valid, also
+  // after "Send a new code": a code delayed by the recipient's mail server still works when it finally arrives.
+  // Wrong attempts are counted on the newest code (max 5); a correct code closes all open codes of the session.
   async function checkCode(purpose: Purpose, raw: unknown): Promise<Response | null> {
     const code = String(raw || "").replace(/\D/g, "");
     if (code.length !== 6) return json({ error: "bad-code" }, 400);
-    const { data: row } = await admin.from("clv_mfa_codes").select("id, code_hash, expires_at, attempts").eq("user_id", me.id).eq("session_id", sessionId).eq("purpose", purpose).is("used_at", null).order("created_at", { ascending: false }).limit(1).maybeSingle();
-    if (!row) return json({ error: "no-code" }, 400);
-    if (new Date(row.expires_at).getTime() < Date.now()) return json({ error: "expired" }, 400);
-    if (row.attempts >= MAX_ATTEMPTS) return json({ error: "too-many-attempts" }, 400);
-    if ((await sha256(`${me.id}:${sessionId}:${purpose}:${code}`)) !== row.code_hash) {
-      await admin.from("clv_mfa_codes").update({ attempts: row.attempts + 1 }).eq("id", row.id);
+    const { data: rows } = await admin.from("clv_mfa_codes").select("id, code_hash, expires_at, attempts").eq("user_id", me.id).eq("session_id", sessionId).eq("purpose", purpose).is("used_at", null).order("created_at", { ascending: false }).limit(10);
+    if (!rows || !rows.length) return json({ error: "no-code" }, 400);
+    // At most the 3 newest unexpired codes count, which keeps guessing a code impractical.
+    const live = rows.filter((r: any) => new Date(r.expires_at).getTime() >= Date.now()).slice(0, 3);
+    if (!live.length) return json({ error: "expired" }, 400);
+    const newest = live[0];
+    if (newest.attempts >= MAX_ATTEMPTS) return json({ error: "too-many-attempts" }, 400);
+    const h = await sha256(`${me.id}:${sessionId}:${purpose}:${code}`);
+    if (!live.some((r: any) => r.code_hash === h)) {
+      await admin.from("clv_mfa_codes").update({ attempts: newest.attempts + 1 }).eq("id", newest.id);
       await admin.from("clv_audit").insert({ actor: me.id, actor_email: me.email, event_type: "mfa-failed", target: me.email, detail: { method: "email", purpose } }).then(() => {}, () => {});
-      return json({ error: "wrong-code", attempts_left: Math.max(0, MAX_ATTEMPTS - row.attempts - 1) }, 400);
+      return json({ error: "wrong-code", attempts_left: Math.max(0, MAX_ATTEMPTS - newest.attempts - 1) }, 400);
     }
-    await admin.from("clv_mfa_codes").update({ used_at: new Date().toISOString() }).eq("id", row.id);
+    await admin.from("clv_mfa_codes").update({ used_at: new Date().toISOString() }).eq("user_id", me.id).eq("session_id", sessionId).eq("purpose", purpose).is("used_at", null);
     return null;
   }
 
@@ -160,8 +167,7 @@ Deno.serve(async (req) => {
     if (recent && recent.length && Date.now() - new Date(recent[0].created_at).getTime() < RESEND_MS) return json({ error: "wait", retry_in: Math.ceil((RESEND_MS - (Date.now() - new Date(recent[0].created_at).getTime())) / 1000) }, 429);
     if (recent && recent.length >= MAX_PER_HOUR) return json({ error: "too-many" }, 429);
     const code = sixDigits();
-    // One live code per session and purpose: a new code replaces the previous one.
-    await admin.from("clv_mfa_codes").update({ used_at: new Date().toISOString() }).eq("user_id", me.id).eq("session_id", sessionId).eq("purpose", purpose).is("used_at", null);
+    // Earlier codes of this session stay valid until they expire (see checkCode): a slow mail still works.
     const { error } = await admin.from("clv_mfa_codes").insert({ user_id: me.id, session_id: sessionId, purpose, code_hash: await sha256(`${me.id}:${sessionId}:${purpose}:${code}`), expires_at: new Date(Date.now() + CODE_TTL_MS).toISOString() });
     if (error) return json({ error: error.message }, 500);
     const L = pickLang(me.lang);
