@@ -5,7 +5,9 @@
 // Data rooms deliver PDF only: every page is stamped with the user's identity, the time and
 // the download code (other file types placed in the folder are refused).
 // The user's first download triggers a confirmation mail (audit trail + confidentiality).
-//   { room_id, path }          -> a file inside the room folder
+//   { room_id, path }          -> a file inside the room folder (download)
+//   { room_id, path, view: true } -> the same file to read in the browser: watermarked the same way and logged
+//                                    as a "view"; allowed also where downloads are switched off
 //   { room_id, nda: true }     -> the caller's own signed NDA
 // Deploy: supabase functions deploy clv-room-file --no-verify-jwt
 import { PDFDocument, StandardFonts, rgb } from "https://esm.sh/pdf-lib@1.17.1";
@@ -64,10 +66,10 @@ Deno.serve(async (req) => {
     target = nda.nextcloud_path; fileName = target.split("/").pop() || "NDA.pdf"; action = "download-nda";
   } else {
     if (room.qes_nda_required && !nda && !isStaff(me)) return json({ error: "nda-required" }, 403);
-    if (!canDownload) return json({ error: "download-not-allowed" }, 403);
+    if (!canDownload && body.view !== true) return json({ error: "download-not-allowed" }, 403);
     const rel = String(body.path || "").replace(/^\/+/, "");
     if (!rel || rel.includes("..") || /^_(users|nda)(\/|$)/.test(rel)) return json({ error: "bad-path" }, 400);
-    target = `${room.nextcloud_folder}/${rel}`; fileName = rel.split("/").pop() || "file"; action = "download";
+    target = `${room.nextcloud_folder}/${rel}`; fileName = rel.split("/").pop() || "file"; action = body.view === true ? "view" : "download";
     if (!/\.pdf$/i.test(fileName)) return json({ error: "pdf-only" }, 400); // data rooms deliver watermarked PDFs only
   }
 
@@ -80,6 +82,12 @@ Deno.serve(async (req) => {
   await admin.from("clv_access_log").insert({ user_id: me.id, room_id: roomId, file_path: target, action, ip, user_agent: ua }).then(() => {}, () => {});
 
   let delivered = source, deliveredAs = "original", outName = fileName;
+  if (action === "view") {
+    // Reading in the browser: the same stamp (identity, time, a view code); no download record or mail.
+    const stamped = room.watermark !== false ? await stampPdf(source, `Clavoris · ${room.name} · ${me.full_name || me.email} (${me.email}) · ${now.toISOString().slice(0, 16).replace("T", " ")} UTC · view ${genCode()}`) : null;
+    if (stamped) delivered = stamped;
+    return new Response(delivered, { status: 200, headers: { ...cors, "content-type": "application/pdf", "content-disposition": `inline; filename="${fileName.replace(/"/g, "")}"`, "cache-control": "no-store" } });
+  }
   if (action === "download") {
     const code = genCode();
     const stampLine = `Clavoris · ${room.name} · ${me.full_name || me.email} (${me.email}) · ${now.toISOString().slice(0, 16).replace("T", " ")} UTC · download ${code}`;
