@@ -11,6 +11,7 @@
 //   { action: "set_expiry", room_id, user_id, expires_at } -> change the access end date
 //   { action: "decide_extension", request_id, accept, until?, note? } -> accept / reject an extension request (mails the user)
 //   { action: "revoke" | "reactivate" | "remind", room_id, user_id }
+//   { action: "set_answerer", room_id, user_id, on }      -> tag a member as answering the room's Q&A questions
 // Deploy: supabase functions deploy clv-admin-rooms --no-verify-jwt
 import { adminClient, APP_URL, audit, companyScope, cors, enrolUser, fmtDay, inScope, json, requireAdmin, sendMail, ctaLabel } from "../_shared/clv.ts";
 import { mail, OPEN_CTA, pickLang, word } from "../_shared/room-mail.ts";
@@ -150,7 +151,7 @@ Deno.serve(async (req) => {
     // Every assignment, including revoked ones (tagged, with the option to reactivate), with the
     // full onboarding status: activated (first sign-in), KYC, NDA, access end date, last access,
     // last reminder and any pending extension request.
-    const { data: rows } = await admin.from("clv_room_assignments").select("id, user_id, can_download, expires_at, granted_at, revoked_at, profile:clv_profiles!clv_room_assignments_user_id_fkey(email, full_name, company, status, last_login_at, lang)").eq("room_id", roomId).order("granted_at", { ascending: false });
+    const { data: rows } = await admin.from("clv_room_assignments").select("id, user_id, can_download, expires_at, granted_at, revoked_at, answers_questions, profile:clv_profiles!clv_room_assignments_user_id_fkey(email, full_name, company, status, last_login_at, lang)").eq("room_id", roomId).order("granted_at", { ascending: false });
     const ids = (rows || []).map((r: any) => r.user_id);
     const { data: signed } = ids.length ? await admin.from("clv_signed_documents").select("user_id, signed_at").eq("room_id", roomId).eq("doc_type", "nda").in("user_id", ids) : { data: [] as any[] };
     const { data: last } = ids.length ? await admin.from("clv_access_log").select("user_id, ts, action").eq("room_id", roomId).in("user_id", ids).order("ts", { ascending: false }).limit(500) : { data: [] as any[] };
@@ -168,7 +169,7 @@ Deno.serve(async (req) => {
       // was never stamped (sign-ins before the stamp existed, or a 2FA step left unfinished).
       const activated = !!r.profile?.last_login_at || verified || nda;
       const next = r.revoked_at ? null : !activated ? "signup" : !verified ? "kyc" : !nda ? "nda" : null;
-      return { user_id: r.user_id, email: r.profile?.email, name: r.profile?.full_name, company: r.profile?.company, status: st, lang: r.profile?.lang, activated, last_login_at: r.profile?.last_login_at || null, can_download: r.can_download, expires_at: r.expires_at, granted_at: r.granted_at, revoked_at: r.revoked_at, nda_signed_at: signedAt[r.user_id] || null, last_access: lastAt[r.user_id] || null, next_step: next, reminded: remAt[r.user_id] || null, pending_request: pending[r.user_id] || null, last_request: lastReq[r.user_id] || null };
+      return { user_id: r.user_id, email: r.profile?.email, name: r.profile?.full_name, company: r.profile?.company, status: st, lang: r.profile?.lang, activated, last_login_at: r.profile?.last_login_at || null, can_download: r.can_download, answers_questions: !!r.answers_questions, expires_at: r.expires_at, granted_at: r.granted_at, revoked_at: r.revoked_at, nda_signed_at: signedAt[r.user_id] || null, last_access: lastAt[r.user_id] || null, next_step: next, reminded: remAt[r.user_id] || null, pending_request: pending[r.user_id] || null, last_request: lastReq[r.user_id] || null };
     }) });
   }
 
@@ -214,6 +215,16 @@ Deno.serve(async (req) => {
     const { data: prof } = await admin.from("clv_profiles").select("email, full_name, lang").eq("id", userId).maybeSingle();
     if (prof) { const L = pickLang(prof.lang); const open = `${APP_URL}/room.html?id=${room.id}&lang=${L}`; const m = mail(L, "room_invite_existing", { name: prof.full_name, room: room.name, company: cname, owner: cname, until: expires ? word(L, "until_line", { date: fmtDay(expires, L) }) : "", link: open }); await sendMail(prof.email, m.subject, m.text, L, { url: open, label: OPEN_CTA[L] }).catch(() => false); }
     return json({ ok: true, expires_at: expires });
+  }
+
+  if (action === "set_answerer") {
+    const userId = String(body.user_id || "");
+    const on = body.on === true;
+    const { data: a, error } = await admin.from("clv_room_assignments").update({ answers_questions: on }).eq("room_id", roomId).eq("user_id", userId).select("id").maybeSingle();
+    if (error) return json({ error: error.message }, 400);
+    if (!a) return json({ error: "not-member" }, 404);
+    await audit(admin, me, on ? "room-answerer-added" : "room-answerer-removed", userId, { room: room.slug });
+    return json({ ok: true, answers_questions: on });
   }
 
   if (action === "revoke") {
