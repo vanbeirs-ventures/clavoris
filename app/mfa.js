@@ -98,7 +98,57 @@
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (m) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[m]; }); }
   function t(k, v) { return I.t(k, v); }
   function sb() { return A.client(); }
-  function codeInput(id) { return '<input id="' + id + '" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]*" class="mono" style="font-size:22px;letter-spacing:.35em;text-align:center">'; }
+  // Six separate, large boxes for the 6-digit code. Typing moves to the next box, Backspace goes back, and a
+  // pasted or auto-filled code (SMS / e-mail one-time-code suggestion) is spread over the boxes.
+  var CSS = '.otp{display:flex;gap:8px;justify-content:center;margin-top:6px}'
+    + '.otp input{width:min(50px,13vw);height:60px;padding:0;text-align:center;font-family:var(--font-data);font-size:28px;font-weight:600;color:var(--clavis-navy);'
+    + 'background:var(--bg-raised);border:1.5px solid var(--border-strong);border-radius:10px;outline:none;caret-color:var(--seal-gold);transition:border-color .12s,box-shadow .12s}'
+    + '.otp input:focus{border-color:var(--clavis-navy);box-shadow:0 0 0 3px rgba(184,134,11,.30)}'
+    + '.otp input.filled{border-color:var(--clavis-navy)}'
+    + '.otp.err input{border-color:var(--status-alert)}';
+  (function () { if (document.getElementById('otpCss')) return; var st = document.createElement('style'); st.id = 'otpCss'; st.textContent = CSS; document.head.appendChild(st); })();
+  function codeInput(id) {
+    var h = '<div class="otp" id="' + id + '" role="group" aria-label="' + esc(t('mfa.code')) + '">';
+    for (var i = 0; i < 6; i++) h += '<input type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="' + (i ? 'off' : 'one-time-code') + '" aria-label="' + esc(t('mfa.code')) + ' ' + (i + 1) + '" data-i="' + i + '">';
+    return h + '</div>';
+  }
+  // The six boxes behave like one field: .value, .focus(), .select() (clear and start again), and 'input' events.
+  function otpBox(id) {
+    var wrap = q(id), ins = [].slice.call(wrap.querySelectorAll('input')), subs = [];
+    function val() { return ins.map(function (x) { return x.value; }).join(''); }
+    function paint() { ins.forEach(function (x) { x.classList.toggle('filled', !!x.value); }); wrap.classList.remove('err'); }
+    function fire() { paint(); subs.forEach(function (fn) { try { fn(); } catch (e) {} }); }
+    function spread(from, str) {
+      var d = digits(str).split(''), i = from;
+      d.forEach(function (c) { if (i < 6) ins[i++].value = c; });
+      return Math.min(i, 5);
+    }
+    ins.forEach(function (inp, i) {
+      inp.addEventListener('input', function () {
+        var raw = inp.value.replace(/\D/g, '');
+        if (raw.length > 1) { var last = spread(i, raw); ins[last].focus(); }
+        else { inp.value = raw; if (raw && i < 5) ins[i + 1].focus(); }
+        fire();
+      });
+      inp.addEventListener('keydown', function (e) {
+        if (e.key === 'Backspace' && !inp.value && i > 0) { ins[i - 1].value = ''; ins[i - 1].focus(); fire(); e.preventDefault(); }
+        else if (e.key === 'ArrowLeft' && i > 0) { ins[i - 1].focus(); e.preventDefault(); }
+        else if (e.key === 'ArrowRight' && i < 5) { ins[i + 1].focus(); e.preventDefault(); }
+      });
+      inp.addEventListener('paste', function (e) {
+        var txt = (e.clipboardData || window.clipboardData).getData('text'); if (!digits(txt)) return;
+        e.preventDefault(); ins.forEach(function (x) { x.value = ''; }); var last = spread(0, txt); ins[last].focus(); fire();
+      });
+      inp.addEventListener('focus', function () { try { inp.select(); } catch (e) {} });
+    });
+    return {
+      get value() { return val(); },
+      set value(v) { var d = digits(v); ins.forEach(function (x, k) { x.value = d[k] || ''; }); paint(); },
+      focus: function () { var k = val().length; (ins[Math.min(k, 5)] || ins[0]).focus(); },
+      select: function () { ins.forEach(function (x) { x.value = ''; }); paint(); wrap.classList.add('err'); ins[0].focus(); },
+      addEventListener: function (ev, fn) { if (ev === 'input') subs.push(fn); }
+    };
+  }
   function digits(v) { return String(v || '').replace(/\D/g, '').slice(0, 6); }
   function totpFactor() {
     return sb().auth.mfa.listFactors().then(function (r) { var f = (r && r.data && r.data.totp) || []; return f.filter(function (x) { return x.status === 'verified'; })[0] || null; });
@@ -116,16 +166,16 @@
     box.hidden = false;
     box.innerHTML = '<p class="eyebrow" data-i18n="mfa.eyebrow">' + esc(t('mfa.eyebrow')) + '</p><h2 data-i18n="mfa.title">' + esc(t('mfa.title')) + '</h2>'
       + '<p class="lead" id="mfaLead">' + esc(t('mfa.email.sending')) + '</p>'
-      + '<div class="field"><label for="mfaCode" data-i18n="mfa.code">' + esc(t('mfa.code')) + '</label>' + codeInput('mfaCode') + '</div>'
+      + '<div class="field"><label data-i18n="mfa.code">' + esc(t('mfa.code')) + '</label>' + codeInput('mfaCode') + '</div>'
       + '<p class="msg" id="mfaMsg" role="status"></p>'
       + '<button class="btn btn-primary btn-block" type="submit" id="mfaBtn" disabled>' + esc(t('mfa.verify')) + '</button>'
       + '<div style="text-align:center;margin-top:12px;display:flex;flex-direction:column;gap:6px;align-items:center">'
       + '<button type="button" class="btn-text" id="mfaResend" hidden></button><button type="button" class="btn-text" id="mfaSwitch" hidden></button>'
       + '<button type="button" class="btn-text" id="mfaOther">' + esc(t('mfa.other')) + '</button></div>';
     var mode = 'email', timer = null, busy = false;
-    var code = q('mfaCode'), btn = q('mfaBtn'), msg = q('mfaMsg');
+    var code = otpBox('mfaCode'), btn = q('mfaBtn'), msg = q('mfaMsg');
     function say(k, v, kind) { msg.className = 'msg' + (kind ? ' ' + kind : ''); msg.textContent = k ? t(k, v) : ''; }
-    code.addEventListener('input', function () { code.value = digits(code.value); btn.disabled = code.value.length !== 6 || busy; if (code.value.length === 6 && !busy) submit(); });
+    code.addEventListener('input', function () { btn.disabled = code.value.length !== 6 || busy; if (code.value.length === 6 && !busy) submit(); });
     q('mfaOther').addEventListener('click', function () { A.signOut().then(function () { location.replace('login.html' + (next ? '?next=' + encodeURIComponent(next) : '')); }); });
     function countdown(sec) {
       var b = q('mfaResend'); b.hidden = false; b.disabled = true; clearInterval(timer);
@@ -232,12 +282,12 @@
           + '<div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap;margin-top:8px"><img src="' + esc(qr) + '" alt="QR" width="176" height="176" style="background:#fff;padding:8px;border:1px solid var(--line)">'
           + '<code class="mono" style="font-size:13px;word-break:break-all;max-width:260px">' + esc(secret) + '</code></div>'
           + '<p style="font-size:13px;line-height:1.6;margin-top:12px">' + esc(t('mfa.acc.step3')) + '</p>'
-          + '<div class="field" style="max-width:220px">' + codeInput('mfaNew') + '</div>'
+          + '<div class="field" style="max-width:380px">' + codeInput('mfaNew') + '</div>'
           + '<div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap"><button class="btn btn-primary" type="button" id="mfaConfirm">' + esc(t('mfa.acc.confirm')) + '</button><button class="btn btn-ghost" type="button" id="mfaCancel">' + esc(t('mfa.acc.cancel')) + '</button></div>';
-        q('mfaNew').addEventListener('input', function () { q('mfaNew').value = digits(q('mfaNew').value); });
+        var newCode = otpBox('mfaNew'); newCode.focus();
         q('mfaCancel').addEventListener('click', function () { client.auth.mfa.unenroll({ factorId: fid }).then(render, render); });
         q('mfaConfirm').addEventListener('click', function () {
-          var c = digits(q('mfaNew').value); if (c.length !== 6) return;
+          var c = digits(newCode.value); if (c.length !== 6) return;
           q('mfaConfirm').disabled = true;
           client.auth.mfa.challengeAndVerify({ factorId: fid, code: c }).then(function (v) {
             if (v.error) { q('mfaConfirm').disabled = false; msg('mfa.err.wrong', null, 'err'); return; }
@@ -248,12 +298,12 @@
     }
     function deactivate(f) {
       var client = sb();
-      q('mfaAct').innerHTML = '<p style="font-size:13px;line-height:1.6">' + esc(t('mfa.acc.off_lead')) + '</p><div class="field" style="max-width:220px">' + codeInput('mfaOff') + '</div>'
+      q('mfaAct').innerHTML = '<p style="font-size:13px;line-height:1.6">' + esc(t('mfa.acc.off_lead')) + '</p><div class="field" style="max-width:380px">' + codeInput('mfaOff') + '</div>'
         + '<div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap"><button class="btn" type="button" id="mfaOffGo">' + esc(t('mfa.acc.deactivate')) + '</button><button class="btn btn-ghost" type="button" id="mfaOffCancel">' + esc(t('mfa.acc.cancel')) + '</button></div>';
-      q('mfaOff').addEventListener('input', function () { q('mfaOff').value = digits(q('mfaOff').value); });
+      var offCode = otpBox('mfaOff'); offCode.focus();
       q('mfaOffCancel').addEventListener('click', render);
       q('mfaOffGo').addEventListener('click', function () {
-        var c = digits(q('mfaOff').value); if (c.length !== 6) return;
+        var c = digits(offCode.value); if (c.length !== 6) return;
         q('mfaOffGo').disabled = true;
         // Removing the app needs a fresh code from it (the session is raised to aal2 first).
         client.auth.mfa.challengeAndVerify({ factorId: f.id, code: c }).then(function (v) {
@@ -282,7 +332,7 @@
         + '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap"><button class="btn btn-ghost" type="button" id="mfaPwCancel">' + esc(t('mfa.pw.cancel')) + '</button><button class="btn btn-primary" type="submit" id="mfaPwGo" disabled>' + esc(t('mfa.pw.go')) + '</button></div>'
         + '<div style="text-align:center;margin-top:10px;display:flex;flex-direction:column;gap:6px;align-items:center"><button type="button" class="btn-text" id="mfaPwResend" hidden></button><button type="button" class="btn-text" id="mfaPwSwitch" hidden></button></div></form></div>';
       document.body.appendChild(d);
-      var mode = 'email', timer = null, code = q('mfaPwCode'), go = q('mfaPwGo'), factor = null;
+      var mode = 'email', timer = null, code = otpBox('mfaPwCode'), go = q('mfaPwGo'), factor = null;
       function say(k, v, kind) { var m = q('mfaPwMsg'); m.className = 'msg' + (kind ? ' ' + kind : ''); m.textContent = k ? t(k, v) : ''; }
       function finish(v) { clearInterval(timer); d.remove(); resolve(v); }
       function countdown(sec) {
@@ -303,7 +353,7 @@
         var s = q('mfaPwSwitch'); s.hidden = false; s.textContent = t('mfa.use_email'); s.onclick = function () { s.textContent = t('mfa.use_totp'); s.onclick = useTotp; sendEmail(); };
         code.focus();
       }
-      code.addEventListener('input', function () { code.value = digits(code.value); go.disabled = code.value.length !== 6; });
+      code.addEventListener('input', function () { go.disabled = code.value.length !== 6; if (code.value.length === 6) q('mfaPwGo').click(); });
       q('mfaPwCancel').addEventListener('click', function () { finish(null); });
       q('mfaPwResend').addEventListener('click', sendEmail);
       q('mfaPwForm').addEventListener('submit', function () {
