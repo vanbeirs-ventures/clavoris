@@ -72,6 +72,10 @@ const T: Record<Lang, Record<string, string>> = {
 };
 // Actions recorded in clv_audit: [kind, en, nl, fr].
 const ACT: Record<string, [string, string, string, string]> = {
+  "nda-countersigned": ["nda", "NDA countersigned for the company", "NDA tegengetekend voor de onderneming", "NDA contresigné pour la société"],
+  "red-flag-mail": ["admin", "Red flag: e-mail could not be delivered", "Waarschuwing: e-mail kon niet worden bezorgd", "Alerte : e-mail non remis"],
+  "red-flag-kyc": ["admin", "Red flag: identity verification declined", "Waarschuwing: identiteitsverificatie geweigerd", "Alerte : vérification d'identité refusée"],
+  "red-flag-downloads": ["admin", "Red flag: many downloads within an hour", "Waarschuwing: veel downloads binnen het uur", "Alerte : nombreux téléchargements en une heure"],
   "terms-accepted": ["account", "General Terms and Conditions accepted", "Algemene voorwaarden aanvaard", "Conditions générales acceptées"],
   "password-changed": ["account", "Password changed", "Wachtwoord gewijzigd", "Mot de passe modifié"],
   "mfa-passed": ["login", "Second factor confirmed", "Tweede factor bevestigd", "Second facteur confirmé"],
@@ -219,9 +223,12 @@ Deno.serve(async (req) => {
   for (const a of acts.data || []) {
     const def = ACT[a.event_type];
     if (!def || a.event_type === "mfa-passed") continue; // the sign-in itself is already listed
+    if (a.event_type.startsWith("red-flag-") && !isStaff(me)) continue; // red flags are for staff only
     const d = (a.detail || {}) as Record<string, unknown>;
     const room = typeof d.room === "string" ? roomBySlug.get(d.room) || null : null;
-    const target = a.target && a.target !== a.actor && typeof a.target === "string" && !/^[0-9a-f-]{36}$/i.test(a.target) ? a.target : "";
+    const target = a.event_type.startsWith("red-flag-")
+      ? [d.room, d.n ? `${d.n} ×` : "", d.reason].filter((x) => typeof x === "string" && x).join(" · ").slice(0, 160)
+      : a.target && a.target !== a.actor && typeof a.target === "string" && !/^[0-9a-f-]{36}$/i.test(a.target) ? a.target : "";
     out.push({ ts: a.created_at, kind: def[0], title: def[LI[L]], detail: [target, typeof d.version === "string" ? "v" + d.version : "", typeof d.until === "string" ? String(d.until).slice(0, 10) : ""].filter(Boolean).join(" · "), room, ip: typeof d.ip === "string" ? d.ip : null, user: who(a.actor) });
   }
   const list = (kind ? out.filter((e) => e.kind === kind) : out).sort((a, b) => (a.ts < b.ts ? 1 : a.ts > b.ts ? -1 : 0));

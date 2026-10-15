@@ -18,6 +18,7 @@ import { PDFDocument, StandardFonts, rgb } from "npm:@cantoo/pdf-lib@2.3.2";
 import { adminClient, APP_URL, clientIp, cors, isStaff, json, requireUser, sendMail } from "../_shared/clv.ts";
 import { mail, pickLang } from "../_shared/room-mail.ts";
 import { ncConfigured, ncGet, sha256Hex } from "../_shared/nc.ts";
+import { DOWNLOAD_ALERT_PER_HOUR, raiseRedFlag } from "../_shared/alerts.ts";
 
 function genCode(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; const r = crypto.getRandomValues(new Uint8Array(10));
@@ -39,14 +40,21 @@ async function imageToPdf(bytes: Uint8Array, png: boolean): Promise<Uint8Array |
   } catch { return null; }
 }
 
-async function stampPdf(bytes: Uint8Array, line: string): Promise<Uint8Array | null> {
+// Watermark words in the member's profile language.
+const WM: Record<string, { mark: string; dl: string; view: string }> = {
+  en: { mark: "CONFIDENTIAL", dl: "download", view: "view" },
+  nl: { mark: "VERTROUWELIJK", dl: "download", view: "inzage" },
+  fr: { mark: "CONFIDENTIEL", dl: "téléchargement", view: "consultation" },
+};
+
+async function stampPdf(bytes: Uint8Array, line: string, mark = "CONFIDENTIAL"): Promise<Uint8Array | null> {
   try {
     const pdf = await PDFDocument.load(bytes, { ignoreEncryption: true });
     const font = await pdf.embedFont(StandardFonts.Helvetica);
     for (const page of pdf.getPages()) {
       const { width, height } = page.getSize();
       page.drawText(line, { x: 24, y: 14, size: 7.5, font, color: rgb(0.45, 0.45, 0.45) });
-      page.drawText("CONFIDENTIAL", { x: width / 2 - 120, y: height / 2, size: 54, font, color: rgb(0.72, 0.53, 0.04), opacity: 0.08, rotate: { type: "degrees", angle: 35 } as any });
+      page.drawText(mark, { x: width / 2 - mark.length * 10, y: height / 2, size: 54, font, color: rgb(0.72, 0.53, 0.04), opacity: 0.08, rotate: { type: "degrees", angle: 35 } as any });
     }
     pdf.encrypt({ userPassword: "", ownerPassword: crypto.randomUUID() + crypto.randomUUID(), permissions: { printing: false, modifying: false, copying: false, annotating: false, fillingForms: false, contentAccessibility: true, documentAssembly: false } });
     return await pdf.save();
@@ -106,25 +114,26 @@ Deno.serve(async (req) => {
   }
   const ip = clientIp(req), ua = req.headers.get("user-agent") || "";
   const now = new Date();
+  const wm = WM[pickLang(me.lang)] || WM.en;
   await admin.from("clv_access_log").insert({ user_id: me.id, room_id: roomId, file_path: target, action, ip, user_agent: ua }).then(() => {}, () => {});
 
   let delivered = source, deliveredAs = "original", outName = fileName;
   if (action === "view") {
     // Reading in the browser: the same stamp (identity, time, a view code); no download record or mail.
-    const stamped = room.watermark !== false || isImage ? await stampPdf(pdfSource, `Clavoris · ${room.name} · ${me.full_name || me.email} (${me.email}) · ${now.toISOString().slice(0, 16).replace("T", " ")} UTC · view ${genCode()}`) : null;
+    const stamped = room.watermark !== false || isImage ? await stampPdf(pdfSource, `Clavoris · ${room.name} · ${me.full_name || me.email} (${me.email}) · ${now.toISOString().slice(0, 16).replace("T", " ")} UTC · ${wm.view} ${genCode()}`, wm.mark) : null;
     delivered = stamped || pdfSource;
     return new Response(delivered, { status: 200, headers: { ...cors, "content-type": "application/pdf", "content-disposition": `inline; filename="${fileName.replace(/"/g, "")}"`, "cache-control": "no-store" } });
   }
   if (action === "download") {
     const code = genCode();
-    const stampLine = `Clavoris · ${room.name} · ${me.full_name || me.email} (${me.email}) · ${now.toISOString().slice(0, 16).replace("T", " ")} UTC · download ${code}`;
+    const stampLine = `Clavoris · ${room.name} · ${me.full_name || me.email} (${me.email}) · ${now.toISOString().slice(0, 16).replace("T", " ")} UTC · ${wm.dl} ${code}`;
     const isPdf = /\.pdf$/i.test(fileName) || (res.headers.get("content-type") || "").includes("pdf");
     if (isImage) {
       // Always stamped, also when the room's watermark is switched off: the PDF page is the only form an image leaves in.
-      const stamped = await stampPdf(pdfSource, stampLine);
+      const stamped = await stampPdf(pdfSource, stampLine, wm.mark);
       delivered = stamped || pdfSource; deliveredAs = stamped ? "image-pdf-watermarked" : "image-pdf";
     } else if (room.watermark !== false && isPdf) {
-      const stamped = await stampPdf(source, stampLine);
+      const stamped = await stampPdf(source, stampLine, wm.mark);
       if (stamped) { delivered = stamped; deliveredAs = "pdf-watermarked"; }
     }
     const dot = fileName.lastIndexOf(".");
@@ -139,6 +148,11 @@ Deno.serve(async (req) => {
       ip, user_agent: ua,
     }).then(() => {}, (e: unknown) => console.error("clv-room-file: download record failed", e));
 
+    // Red flag: an unusual number of downloads from this room within an hour (members only).
+    if (!isStaff(me)) {
+      const { count: lastHour } = await admin.from("clv_downloads").select("id", { count: "exact", head: true }).eq("user_id", me.id).eq("room_id", roomId).gte("created_at", new Date(Date.now() - 3600000).toISOString());
+      if ((lastHour || 0) >= DOWNLOAD_ALERT_PER_HOUR) await raiseRedFlag(admin, "downloads", { userId: me.id, roomId, key: `dl:${me.id}:${roomId}`, vars: { n: String(lastHour), room: room.name } }).catch((e: Error) => console.error("red flag:", e.message));
+    }
     if ((count || 0) === 0) {
       const L = pickLang(me.lang);
       const m = mail(L, "first_download", { name: me.full_name, room: room.name, owner: (room as any).company?.name || "", file: fileName, code, audit: `${APP_URL}/account.html#audit` });
