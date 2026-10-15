@@ -32,6 +32,27 @@
   .nda-text { white-space: pre-wrap; font-family: var(--font-display); font-size: 14.5px; line-height: 1.65; color: var(--fg-1); max-height: 46vh; overflow: auto; padding: 22px 26px; background: var(--bg-raised); border: 1px solid var(--border); border-radius: var(--r-md); }
   .check { display: flex; gap: 10px; align-items: flex-start; font-size: 13.5px; margin-top: 18px; line-height: 1.5; }
   .check input { margin-top: 3px; width: 16px; height: 16px; }
+  .tree .row .acts { display: flex; gap: 12px; align-items: center; white-space: nowrap; }
+  .tree .row .ask { font-size: 12.5px; color: var(--fg-3); }
+  .qa { margin-top: 18px; }
+  .qa > summary { list-style: none; cursor: pointer; padding: 14px 18px; display: flex; align-items: center; gap: 10px; font-weight: 500; color: var(--clavis-navy); font-size: 14px; }
+  .qa > summary::-webkit-details-marker { display: none; }
+  .qa > summary .chev { margin-left: auto; transition: transform .15s; color: var(--fg-3); }
+  .qa[open] > summary .chev { transform: rotate(90deg); }
+  .qa-body { border-top: 1px solid var(--border); padding: 6px 18px 18px; }
+  .qa-item { padding: 14px 0; border-bottom: 1px solid var(--border); font-size: 13.5px; line-height: 1.55; }
+  .qa-item:last-child { border-bottom: none; }
+  .qa-q { white-space: pre-wrap; color: var(--fg-1); }
+  .qa-meta { font-size: 11.5px; color: var(--fg-3); margin-top: 4px; }
+  .qa-a { margin: 10px 0 0 14px; padding-left: 12px; border-left: 2px solid var(--seal-gold); white-space: pre-wrap; color: var(--fg-1); }
+  .qa textarea { width: 100%; min-height: 70px; font: inherit; font-size: 13.5px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--bg-raised); resize: vertical; }
+  .qa select { font: inherit; font-size: 13px; padding: 6px 8px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--bg-raised); max-width: 100%; }
+  .qa .qa-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
+  .viewer { position: fixed; inset: 0; background: rgba(20,28,40,.72); z-index: 60; display: flex; flex-direction: column; }
+  .viewer-head { display: flex; align-items: center; gap: 12px; padding: 12px 18px; background: var(--clavis-navy); color: var(--parchment, #F7F3EC); font-size: 13.5px; }
+  .viewer-head .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .viewer-head button { background: none; border: 0; color: inherit; font-size: 22px; cursor: pointer; line-height: 1; }
+  .viewer-body { flex: 1; overflow: auto; -webkit-overflow-scrolling: touch; padding: 14px; }
 </style>
 </head>
 <body data-clv-restrict="full">
@@ -90,6 +111,21 @@
           <ul class="tree" id="tree"><li><div class="row"><span class="nm" style="color:var(--fg-3)" data-i18n="common.loading">Loading…</span></div></li></ul>
         </div>
         <p class="note" data-i18n="room.note">Documents are confidential under the signed NDA. Every view and download is logged with your identity and IP address. Downloads carry a SHA-256 fingerprint recorded by Clavoris.</p>
+        <details class="card qa" id="qa">
+          <summary><span id="qaTitle"></span> <span id="qaCount" style="font-weight:400;color:var(--fg-3);font-size:13px"></span><span class="chev">›</span></summary>
+          <div class="qa-body">
+            <div id="qaList"></div>
+            <form id="qaForm" autocomplete="off" onsubmit="return false;" style="margin-top:14px">
+              <textarea id="qaText" maxlength="4000"></textarea>
+              <div class="qa-row">
+                <select id="qaFile"></select>
+                <select id="qaTo" hidden></select>
+                <button class="btn btn-primary" type="submit" id="qaSend" style="margin-left:auto"></button>
+              </div>
+              <p class="msg" id="qaMsg" role="status"></p>
+            </form>
+          </div>
+        </details>
       </section>
       <aside>
         <section class="card" style="padding:18px 20px">
@@ -110,7 +146,7 @@
 <script src="config.js?v=20261014c"></script>
 <script src="i18n.js?v=20261014c"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="clavoris-access.js?v=20261014c"></script>
+<script src="clavoris-access.js?v=20261015t"></script>
 <script src="shell.js?v=20261014c"></script>
 <script>
 (function () {
@@ -118,6 +154,9 @@
   var A = window.ClavorisAccess, S = window.ClavorisShell, I = window.ClavorisI18n, esc = S.esc;
   I.add('en', { 'room.member.id': 'Member {id}', 'room.member.private_tag': 'private', 'room.member.you': 'you', 'room.member.noname': 'Name not yet provided' });
   I.add('nl', { 'room.member.id': 'Lid {id}', 'room.member.private_tag': 'privé', 'room.member.you': 'u', 'room.member.noname': 'Naam nog niet ingevuld' });
+  I.add('en', { 'qa.title': 'Questions & answers', 'qa.count': '{n} · {open} open', 'qa.count0': 'none yet', 'qa.empty': 'No questions yet. Ask the company anything about this data room below.', 'qa.ph': 'Your question…', 'qa.send': 'Send question', 'qa.file_any': 'General question', 'qa.file': 'About: {f}', 'qa.to_any': 'For: the company', 'qa.to': 'For: {name}', 'qa.sent': 'Question sent. You will receive an e-mail when it is answered.', 'qa.asked_by': 'Asked by {who} · {date}', 'qa.asked_you': 'Your question · {date}', 'qa.asked_member': 'Shared by the company · {date}', 'qa.about': 'About {f}', 'qa.directed': 'for {name}', 'qa.open': 'awaiting answer', 'qa.shared': 'shared with all members', 'qa.private': 'private', 'qa.answer_ph': 'Your answer…', 'qa.answer': 'Answer', 'qa.share_too': 'Share with all members', 'qa.share': 'Share with all members', 'qa.unshare': 'Make private again', 'qa.answered_by': '{who} · {date}', 'qa.ask_file': 'Ask a question about this file', 'qa.err': 'Could not send: {err}', 'qa.notice': 'Your questions are private: only the company sees them, unless it decides to share an answer with all members.', 'common.read': 'View', 'viewer.close': 'Close' });
+  I.add('nl', { 'qa.title': 'Vragen en antwoorden', 'qa.count': '{n} · {open} open', 'qa.count0': 'nog geen', 'qa.empty': 'Nog geen vragen. Stel hieronder de onderneming uw vragen over deze dataroom.', 'qa.ph': 'Uw vraag…', 'qa.send': 'Vraag versturen', 'qa.file_any': 'Algemene vraag', 'qa.file': 'Over: {f}', 'qa.to_any': 'Voor: de onderneming', 'qa.to': 'Voor: {name}', 'qa.sent': 'Vraag verstuurd. U krijgt een e-mail zodra ze beantwoord is.', 'qa.asked_by': 'Gesteld door {who} · {date}', 'qa.asked_you': 'Uw vraag · {date}', 'qa.asked_member': 'Gedeeld door de onderneming · {date}', 'qa.about': 'Over {f}', 'qa.directed': 'voor {name}', 'qa.open': 'wacht op antwoord', 'qa.shared': 'gedeeld met alle leden', 'qa.private': 'privé', 'qa.answer_ph': 'Uw antwoord…', 'qa.answer': 'Antwoorden', 'qa.share_too': 'Delen met alle leden', 'qa.share': 'Delen met alle leden', 'qa.unshare': 'Opnieuw privé maken', 'qa.answered_by': '{who} · {date}', 'qa.ask_file': 'Een vraag stellen over dit bestand', 'qa.err': 'Versturen mislukt: {err}', 'qa.notice': 'Uw vragen zijn privé: enkel de onderneming ziet ze, tenzij ze beslist een antwoord met alle leden te delen.', 'common.read': 'Bekijken', 'viewer.close': 'Sluiten' });
+  I.add('fr', { 'qa.title': 'Questions et réponses', 'qa.count': '{n} · {open} en attente', 'qa.count0': 'aucune pour l\'instant', 'qa.empty': 'Aucune question pour l\'instant. Posez ci-dessous vos questions à la société sur cette data room.', 'qa.ph': 'Votre question…', 'qa.send': 'Envoyer la question', 'qa.file_any': 'Question générale', 'qa.file': 'Au sujet de : {f}', 'qa.to_any': 'Pour : la société', 'qa.to': 'Pour : {name}', 'qa.sent': 'Question envoyée. Vous recevrez un e-mail dès qu\'elle aura reçu une réponse.', 'qa.asked_by': 'Posée par {who} · {date}', 'qa.asked_you': 'Votre question · {date}', 'qa.asked_member': 'Partagée par la société · {date}', 'qa.about': 'Au sujet de {f}', 'qa.directed': 'pour {name}', 'qa.open': 'en attente de réponse', 'qa.shared': 'partagée avec tous les membres', 'qa.private': 'privée', 'qa.answer_ph': 'Votre réponse…', 'qa.answer': 'Répondre', 'qa.share_too': 'Partager avec tous les membres', 'qa.share': 'Partager avec tous les membres', 'qa.unshare': 'Rendre privée', 'qa.answered_by': '{who} · {date}', 'qa.ask_file': 'Poser une question sur ce fichier', 'qa.err': 'Envoi impossible : {err}', 'qa.notice': 'Vos questions sont privées : seule la société les voit, sauf si elle décide de partager une réponse avec tous les membres.', 'common.read': 'Consulter', 'viewer.close': 'Fermer' });
   I.add('fr', { 'room.member.id': 'Membre {id}', 'room.member.private_tag': 'privé', 'room.member.you': 'vous', 'room.member.noname': 'Nom pas encore renseigné' });
   function q(id) { return document.getElementById(id); }
   var roomId = new URLSearchParams(location.search).get('id');
@@ -150,7 +189,7 @@
     q('nda').hidden = !(gate && r.me.verified && complete);
     q('roomGrid').hidden = gate;
     if (gate && r.me.verified && complete) loadNda();
-    if (!gate) { renderTree(); renderSide(); }
+    if (!gate) { renderTree(); renderSide(); qaLoad(); }
   }
 
   function renderAccess() {
@@ -175,8 +214,13 @@
       var can = state.me.can_download && state.room.downloads_allowed;
       return '<li><div class="row" ' + pad + '><span class="ic">' + ICON.file + '</span><span class="nm" title="' + esc(e.path) + '">' + esc(e.name) + '</span>'
         + '<span class="meta">' + esc(S.fmtSize(e.size)) + ' · ' + esc(S.fmtDate(e.modified)) + '</span>'
-        + (can ? '<button class="btn-text dl" type="button" data-dl="' + esc(e.path) + '">' + I.t('common.download') + '</button>' : '<span class="meta">' + I.t('common.view_only') + '</span>') + '</div></li>';
+        + '<span class="acts">' + (/\.pdf$/i.test(e.name) && !state.me.expired ? '<button class="btn-text dl" type="button" data-view="' + esc(e.path) + '">' + I.t('common.read') + '</button>' : '')
+        + (can ? '<button class="btn-text dl" type="button" data-dl="' + esc(e.path) + '">' + I.t('common.download') + '</button>' : '')
+        + (!state.me.expired ? '<button class="btn-text ask" type="button" data-ask="' + esc(e.path) + '" title="' + esc(I.t('qa.ask_file')) + '" aria-label="' + esc(I.t('qa.ask_file')) + '">?</button>' : '') + '</span></div></li>';
     }).join('');
+    [].forEach.call(ul.querySelectorAll('[data-view]'), function (b) { b.addEventListener('click', function () { openViewer(b.getAttribute('data-view')); }); });
+    [].forEach.call(ul.querySelectorAll('[data-ask]'), function (b) { b.addEventListener('click', function () { askAbout(b.getAttribute('data-ask')); }); });
+    fillFileSelect();
     [].forEach.call(ul.querySelectorAll('[data-dl]'), function (b) {
       b.addEventListener('click', function () {
         b.disabled = true; b.textContent = I.t('common.preparing');
@@ -239,8 +283,8 @@
     if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
     return new Promise(function (ok, ko) { var sc = document.createElement('script'); sc.src = PDFJS + 'pdf.min.js'; sc.onload = function () { window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS + 'pdf.worker.min.js'; ok(window.pdfjsLib); }; sc.onerror = ko; document.head.appendChild(sc); });
   }
-  function renderPdf(blob) {
-    var box = q('ndaPdf'); box.innerHTML = '<p style="padding:12px;color:var(--fg-3);font-size:13px">' + esc(I.t('common.loading')) + '</p>';
+  function renderPdf(blob, box) {
+    box = box || q('ndaPdf'); box.innerHTML = '<p style="padding:12px;color:var(--fg-3);font-size:13px">' + esc(I.t('common.loading')) + '</p>';
     return Promise.all([loadPdfJs(), blob.arrayBuffer()]).then(function (x) {
       return x[0].getDocument({ data: new Uint8Array(x[1]) }).promise;
     }).then(function (pdf) {
@@ -274,10 +318,100 @@
     });
   });
 
+  /* ---------- reading a file in the browser (watermarked like a download, logged as a view) ---------- */
+  function openViewer(path) {
+    var name = path.split('/').pop(), ov = document.createElement('div');
+    ov.className = 'viewer'; ov.setAttribute('role', 'dialog'); ov.setAttribute('aria-modal', 'true');
+    ov.innerHTML = '<div class="viewer-head"><span class="nm">' + esc(name) + '</span><button type="button" class="btn-text" style="color:inherit;font-size:13px" data-vask>' + esc(I.t('qa.ask_file')) + '</button><button type="button" aria-label="' + esc(I.t('viewer.close')) + '" data-vclose>×</button></div><div class="viewer-body"><div class="vbox" style="max-width:900px;margin:0 auto"></div></div>';
+    document.body.appendChild(ov); document.body.style.overflow = 'hidden';
+    function close() { ov.remove(); document.body.style.overflow = ''; document.removeEventListener('keydown', onKey); }
+    function onKey(e) { if (e.key === 'Escape') close(); }
+    document.addEventListener('keydown', onKey);
+    ov.querySelector('[data-vclose]').addEventListener('click', close);
+    ov.querySelector('[data-vask]').addEventListener('click', function () { close(); askAbout(path); });
+    var box = ov.querySelector('.vbox');
+    A.client().auth.getSession().then(function (sr) {
+      var CFG = window.CLAVORIS_SUPABASE || {}, token = sr && sr.data && sr.data.session ? sr.data.session.access_token : CFG.anonKey;
+      return fetch(CFG.url + '/functions/v1/clv-room-file', { method: 'POST', headers: { 'content-type': 'application/json', 'apikey': CFG.anonKey, 'authorization': 'Bearer ' + token }, body: JSON.stringify({ room_id: roomId, path: path, view: true }) });
+    }).then(function (res) {
+      if (!res.ok) return res.json().catch(function () { return {}; }).then(function (b) { throw new Error(b.error || ('http-' + res.status)); });
+      return res.blob();
+    }).then(function (blob) { return renderPdf(blob, box); })
+      .catch(function (e) { box.innerHTML = '<p class="msg err" style="padding:12px;background:#fff;border-radius:6px">' + esc(I.t('room.dl.failed', { err: e.message })) + '</p>'; });
+  }
+
+  /* ---------- Q&A: collapsible, refreshes itself while open ---------- */
+  var qa = { data: null, file: '' };
+  q('qaTitle').textContent = I.t('qa.title');
+  q('qaText').placeholder = I.t('qa.ph');
+  q('qaSend').textContent = I.t('qa.send');
+  function fillFileSelect() {
+    var files = (state && state.tree || []).filter(function (e) { return !e.dir; });
+    var sel = q('qaFile'), cur = qa.file || sel.value;
+    sel.innerHTML = '<option value="">' + esc(I.t('qa.file_any')) + '</option>' + files.map(function (e) { return '<option value="' + esc(e.path) + '">' + esc(I.t('qa.file', { f: e.name })) + '</option>'; }).join('');
+    sel.value = cur || ''; sel.hidden = !files.length;
+  }
+  function askAbout(path) {
+    qa.file = path; fillFileSelect(); q('qa').open = true;
+    q('qa').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setTimeout(function () { q('qaText').focus(); }, 350);
+  }
+  function qaLoad() {
+    return A.callFn('clv-room-qa', { action: 'list', room_id: roomId }).then(function (r) {
+      if (!r || !r.ok) return;
+      // Keep what is being typed in an answer box across refreshes.
+      var drafts = {}; [].forEach.call(document.querySelectorAll('[data-adraft]'), function (t) { if (t.value) drafts[t.getAttribute('data-adraft')] = t.value; });
+      qa.data = r; qaRender(drafts);
+    });
+  }
+  function qaRender(drafts) {
+    var r = qa.data, list = r.questions || [], open = list.filter(function (x) { return x.status === 'open'; }).length;
+    q('qaCount').textContent = list.length ? '· ' + I.t('qa.count', { n: list.length, open: open }) : '· ' + I.t('qa.count0');
+    var to = q('qaTo'), ans = r.answerers || [];
+    if (!r.can_answer && ans.length > 1) { var cur = to.value; to.innerHTML = '<option value="">' + esc(I.t('qa.to_any')) + '</option>' + ans.map(function (a) { return '<option value="' + esc(a.user_id) + '">' + esc(I.t('qa.to', { name: a.name })) + '</option>'; }).join(''); to.value = cur; to.hidden = false; } else to.hidden = true;
+    var fileName = function (p) { return String(p || '').split('/').pop(); };
+    q('qaList').innerHTML = (r.can_answer ? '' : '<p class="qa-meta" style="margin:10px 0 2px">' + esc(I.t('qa.notice')) + '</p>')
+      + (list.length ? list.map(function (x) {
+        var who = x.own ? I.t('qa.asked_you', { date: S.fmtDate(x.created_at) }) : x.asker.name ? I.t('qa.asked_by', { who: x.asker.name + (x.asker.company ? ' (' + x.asker.company + ')' : ''), date: S.fmtDate(x.created_at) }) : I.t('qa.asked_member', { date: S.fmtDate(x.created_at) });
+        var tags = [x.file_name ? I.t('qa.about', { f: fileName(x.file_name) }) : '', x.directed_to ? I.t('qa.directed', { name: x.directed_to.name }) : '', x.status === 'open' ? I.t('qa.open') : '', r.can_answer || x.own ? I.t(x.shared ? 'qa.shared' : 'qa.private') : ''].filter(Boolean).join(' · ');
+        var answers = (x.answers || []).map(function (a) { return '<div class="qa-a">' + esc(a.body) + '<div class="qa-meta">' + esc(I.t('qa.answered_by', { who: a.author, date: S.fmtDate(a.created_at) })) + '</div></div>'; }).join('');
+        var form = r.can_answer ? '<div style="margin:10px 0 0 14px"><textarea data-adraft="' + esc(x.id) + '" placeholder="' + esc(I.t('qa.answer_ph')) + '" maxlength="8000" style="min-height:56px">' + esc(drafts && drafts[x.id] || '') + '</textarea><div class="qa-row">'
+          + (!x.shared ? '<label style="display:flex;gap:6px;align-items:center;font-size:12.5px;color:var(--fg-2)"><input type="checkbox" data-ashare="' + esc(x.id) + '"> ' + esc(I.t('qa.share_too')) + '</label>' : '')
+          + '<button class="btn-text" type="button" data-toggle-share="' + esc(x.id) + '" data-shared="' + (x.shared ? '1' : '0') + '" style="font-size:12.5px">' + esc(I.t(x.shared ? 'qa.unshare' : 'qa.share')) + '</button>'
+          + '<button class="btn btn-primary" type="button" data-answer="' + esc(x.id) + '" style="margin-left:auto;padding:6px 14px">' + esc(I.t('qa.answer')) + '</button></div></div>' : '';
+        return '<div class="qa-item"><div class="qa-q">' + esc(x.body) + '</div><div class="qa-meta">' + esc(who) + (tags ? ' · ' + esc(tags) : '') + '</div>' + answers + form + '</div>';
+      }).join('') : '<p class="qa-meta" style="margin:12px 0">' + esc(I.t('qa.empty')) + '</p>');
+    [].forEach.call(q('qaList').querySelectorAll('[data-answer]'), function (b) {
+      b.addEventListener('click', function () {
+        var id = b.getAttribute('data-answer'), t = q('qaList').querySelector('[data-adraft="' + id + '"]'), sh = q('qaList').querySelector('[data-ashare="' + id + '"]');
+        if (!t.value.trim()) { t.focus(); return; }
+        b.disabled = true;
+        A.callFn('clv-room-qa', { action: 'answer', question_id: id, body: t.value, share: !!(sh && sh.checked) }).then(function (x) { b.disabled = false; if (x.error) { q('qaMsg').className = 'msg err'; q('qaMsg').textContent = I.t('qa.err', { err: x.error }); return; } t.value = ''; qaLoad(); });
+      });
+    });
+    [].forEach.call(q('qaList').querySelectorAll('[data-toggle-share]'), function (b) {
+      b.addEventListener('click', function () { b.disabled = true; A.callFn('clv-room-qa', { action: 'share', question_id: b.getAttribute('data-toggle-share'), shared: b.getAttribute('data-shared') !== '1' }).then(function () { qaLoad(); }); });
+    });
+  }
+  q('qaForm').addEventListener('submit', function () {
+    var m = q('qaMsg'), text = q('qaText').value.trim(); m.className = 'msg'; m.textContent = '';
+    if (!text) { q('qaText').focus(); return; }
+    q('qaSend').disabled = true;
+    A.callFn('clv-room-qa', { action: 'ask', room_id: roomId, body: text, file_name: q('qaFile').value || null, directed_to: q('qaTo').hidden ? null : (q('qaTo').value || null) }).then(function (x) {
+      q('qaSend').disabled = false;
+      if (x.error) { m.className = 'msg err'; m.textContent = I.t('qa.err', { err: x.error }); return; }
+      q('qaText').value = ''; qa.file = ''; q('qaFile').value = ''; m.className = 'msg ok'; m.textContent = I.t('qa.sent'); qaLoad();
+    });
+  });
+  q('qa').addEventListener('toggle', function () { if (q('qa').open) qaLoad(); });
+  // While the Q&A is open it refreshes every 20 s; closed, the count follows the 90 s heartbeat.
+  setInterval(function () { if (!document.hidden && state && !q('roomGrid').hidden && q('qa').open) qaLoad(); }, 20000);
+
   // Heartbeat: refresh members/presence every 90 s while the room is open (also logs presence).
   function heartbeat() {
     if (document.hidden || !state || q('roomGrid').hidden) return;
     A.callFn('clv-room', { room_id: roomId, action: 'members' }).then(function (r) { if (r.ok) { state.members = r.members; state.nda = r.nda; renderSide(); } });
+    if (!q('qa').open) qaLoad();
   }
   setInterval(heartbeat, 90000);
 
@@ -285,7 +419,7 @@
     if (!A.clears('full')) return;
     S.render('rooms');
     if (!roomId) { q('err').textContent = I.t('room.err.none'); return; }
-    load();
+    load().then(function () { if (new URLSearchParams(location.search).get('qa') === '1' && !q('roomGrid').hidden) { q('qa').open = true; setTimeout(function () { q('qa').scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 300); } });
   });
 })();
 </script>
