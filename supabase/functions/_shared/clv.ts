@@ -171,6 +171,15 @@ export function textToHtml(text: string, cta?: Cta | Cta[], lang: Lang = "en"): 
       return;
     }
     if (!t) { flush(); return; }
+    // A one-time code (a line holding only 6 digits) stands out: large, spaced digits in a framed box.
+    if (/^\d{6}$/.test(t)) {
+      flush();
+      blocks.push(`<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:4px 0 24px"><tr>`
+        + `<td align="center" bgcolor="#F7F3EC" style="background:#F7F3EC;border:1px solid #E6DFD1;border-top:3px solid #B8860B;border-radius:6px;padding:18px 30px">`
+        + `<span style="font-family:'SFMono-Regular',Menlo,Consolas,'Courier New',monospace;font-size:38px;line-height:44px;font-weight:700;letter-spacing:12px;color:#1A3A5C;white-space:nowrap">${t}</span>`
+        + `</td></tr></table>`);
+      return;
+    }
     para.push(esc(line).replace(/(https?:\/\/[^\s&]+(?:&amp;[^\s&]+)*)/g, (u) => link(u.replace(/&amp;/g, "&"), u.replace(/&amp;/g, "&"))).replace(/([\w.+-]+@clavoris\.com)/g, (m) => link("mailto:" + m, m)));
   });
   flush();
