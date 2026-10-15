@@ -43,7 +43,7 @@ later migrations in the same folder.
 | `../supabase/functions/clv-room-file` | Gated download, PDF only: every page stamped with name, e-mail, UTC time and download code; SHA-256 of source and delivered file in `clv_downloads` + `clv_access_log`; first-download mail. |
 | `../supabase/functions/clv-admin-rooms` | Rooms list, members, invite-by-email (enrol + invitation with the step-by-step flow and the access end date), revoke, reactivate, extension decisions, reminders. |
 | `../supabase/functions/clv-kyc-token` / `clv-didit-webhook` / `_shared/kyc.ts` | Creates/resumes the Didit session; signed webhook (`X-Signature` raw body or `X-Signature-V2` canonical JSON) → verified / kyc_pending / kyc_retry; `{sync:true}` pulls the decision from Didit (own session, or any user for staff); "you are verified" mail on the transition. |
-| `../supabase/functions/clv-contracts` / `clv-esign-webhook` / `_shared/contracts.ts` | Contracts via e-Signature.eu: one request per contract, embedded signing links handed out in signing order, `remind`, `cancel` (releases the reserved credit), `balance`; callback re-verified against the provider API; executed PDF + audit trail + certificate stored next to the original. `clv-sumsub-webhook` is legacy and can be deleted. |
+| `../supabase/functions/clv-contracts` / `clv-esign-webhook` / `_shared/contracts.ts` | Contracts via e-Signature.eu: one request per contract, embedded signing links handed out in signing order, `remind`, `cancel` (releases the reserved credit), `balance`; callback re-verified against the provider API; executed PDF + audit trail + certificate stored next to the original. |
 | `../supabase/functions/_shared/clv.ts` / `mail-i18n.ts` | Shared helpers and the EN/NL/FR mail templates. Mails go out base64-encoded with RFC 2047 subjects (the SMTP library's quoted-printable path corrupts long subjects and folded lines). Every mail ends with the footer: Antwerp · Luxembourg, assistance address, notification-settings/unsubscribe link, privacy link. |
 
 ## Data rooms
@@ -134,7 +134,10 @@ immediately); images and fonts keep the long browser cache. Browsers that cached
 6. **Didit (KYC):** secrets `DIDIT_API_KEY`, `DIDIT_WEBHOOK_SECRET`, `DIDIT_WORKFLOW_ID`;
    register the webhook `https://<project>.supabase.co/functions/v1/clv-didit-webhook`
    in the Didit console. Until set, the KYC page shows "being set up" and status can be set by
-   an admin. The NDA signature is a KYC-attested electronic acceptance.
+   an admin. The NDA signature is a KYC-attested electronic acceptance. Data retention in the
+   Didit console (App Settings): **10 years** (set 15 October 2026); face biometric template deleted
+   with the session (Didit default). Sumsub, the earlier provider, was retired on 15 October 2026;
+   its historical events stay in `clv_sumsub_events` and in the audit trail.
 7. **e-Signature.eu (contracts, QES):** secrets `ESIGN_API_KEY`, `ESIGN_USER_ID` (optional
    `ESIGN_METHODS`, default `itsme-qes-signature,evrotrust-signature`); set the Callback URL
    `https://<project>.supabase.co/functions/v1/clv-esign-webhook` under My account › Signatures API
