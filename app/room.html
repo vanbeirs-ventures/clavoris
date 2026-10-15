@@ -246,7 +246,7 @@
       var can = state.me.can_download && state.room.downloads_allowed;
       return '<li><div class="row" ' + pad + '><span class="ic">' + ICON.file + '</span><span class="nm" title="' + esc(e.path) + '">' + esc(e.name) + '</span>'
         + '<span class="meta">' + esc(S.fmtSize(e.size)) + ' · ' + esc(S.fmtDate(e.modified)) + '</span>'
-        + '<span class="acts">' + (/\.pdf$/i.test(e.name) && !state.me.expired ? '<button class="btn-text dl" type="button" data-view="' + esc(e.path) + '">' + I.t('common.read') + '</button>' : '')
+        + '<span class="acts">' + (/\.(pdf|jpe?g|png)$/i.test(e.name) && !state.me.expired ? '<button class="btn-text dl" type="button" data-view="' + esc(e.path) + '">' + I.t('common.read') + '</button>' : '')
         + (can ? '<button class="btn-text dl" type="button" data-dl="' + esc(e.path) + '">' + I.t('common.download') + '</button>' : '')
         + (!state.me.expired ? '<button class="btn-text ask" type="button" data-ask="' + esc(e.path) + '" title="' + esc(I.t('qa.ask_file')) + '" aria-label="' + esc(I.t('qa.ask_file')) + '">?</button>' : '') + '</span></div></li>';
     }).join('');
