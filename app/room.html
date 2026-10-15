@@ -73,7 +73,7 @@
       <h2 style="font-family:var(--font-display);font-size:24px;color:var(--clavis-navy);margin-top:6px" data-i18n="room.nda.title">Sign before you see the documents</h2>
       <p style="font-size:14px;color:var(--fg-2);line-height:1.6;margin-top:8px;max-width:640px" data-i18n="room.nda.body">Read the agreement below. Your signature is recorded with your verified identity, the time, your IP address and a hash of the text; a signed copy is stored in the room for you.</p>
       <div class="nda-text" id="ndaText" style="margin-top:18px" data-i18n="common.loading">Loading…</div>
-      <div id="ndaPdfBox" style="margin-top:18px" hidden><p style="font-size:13.5px;color:var(--fg-2);line-height:1.6" data-i18n="room.nda.pdf">Read the agreement (PDF) before signing. It opens below; you can also download it.</p><iframe id="ndaPdf" title="NDA" style="width:100%;height:560px;border:1px solid var(--border);border-radius:6px;background:#fff;margin-top:10px"></iframe><p style="margin-top:8px"><button class="btn-text" type="button" id="ndaPdfDl" data-i18n="room.nda.pdf_dl">Download the agreement (PDF)</button></p></div>
+      <div id="ndaPdfBox" style="margin-top:18px" hidden><p style="font-size:13.5px;color:var(--fg-2);line-height:1.6" data-i18n="room.nda.pdf">Read the agreement (PDF) before signing. It opens below; you can also download it.</p><div id="ndaPdf" role="document" aria-label="NDA" style="width:100%;max-height:70vh;overflow:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--border);border-radius:6px;background:#e9e4da;margin-top:10px;padding:8px"></div><p style="margin-top:8px"><button class="btn-text" type="button" id="ndaPdfDl" data-i18n="room.nda.pdf_dl">Download the agreement (PDF)</button></p></div>
       <div class="signer" id="signer"><div class="initials" id="signerIni"></div><div><div class="who" id="signerName"></div><div class="cap" id="signerCap"></div><div class="edit"><a id="signerEdit" href="account.html" data-i18n="room.nda.edit_profile">Not you, or wrong spelling? Edit your profile</a></div></div></div>
       <form id="ndaForm" autocomplete="off" onsubmit="return false;" style="max-width:640px">
         <label class="check"><input type="checkbox" id="accept"><span id="acceptText" data-i18n="room.nda.accept">I have read the non-disclosure agreement above and accept it on behalf of myself and the organisation I represent.</span></label>
@@ -116,9 +116,9 @@
 (function () {
   'use strict';
   var A = window.ClavorisAccess, S = window.ClavorisShell, I = window.ClavorisI18n, esc = S.esc;
-  I.add('en', { 'room.member.private': 'Private member', 'room.member.private_tag': 'private', 'room.member.you': 'you', 'room.member.noname': 'Name not yet provided' });
-  I.add('nl', { 'room.member.private': 'Privé-lid', 'room.member.private_tag': 'privé', 'room.member.you': 'u', 'room.member.noname': 'Naam nog niet ingevuld' });
-  I.add('fr', { 'room.member.private': 'Membre privé', 'room.member.private_tag': 'privé', 'room.member.you': 'vous', 'room.member.noname': 'Nom pas encore renseigné' });
+  I.add('en', { 'room.member.id': 'Member {id}', 'room.member.private_tag': 'private', 'room.member.you': 'you', 'room.member.noname': 'Name not yet provided' });
+  I.add('nl', { 'room.member.id': 'Lid {id}', 'room.member.private_tag': 'privé', 'room.member.you': 'u', 'room.member.noname': 'Naam nog niet ingevuld' });
+  I.add('fr', { 'room.member.id': 'Membre {id}', 'room.member.private_tag': 'privé', 'room.member.you': 'vous', 'room.member.noname': 'Nom pas encore renseigné' });
   function q(id) { return document.getElementById(id); }
   var roomId = new URLSearchParams(location.search).get('id');
   var state = null;
@@ -202,9 +202,9 @@
     }
     var m = r.members || [];
     q('members').innerHTML = m.length ? m.map(function (x) {
-      return '<li><div class="nm"><span class="pres ' + esc(x.presence || 'never') + '" title="' + esc(x.last_seen ? I.t('room.last_seen', { date: S.fmtDate(x.last_seen) }) : I.t('room.never_visited')) + '"></span>' + (x.private && !x.name ? '<span style="font-weight:400;color:var(--fg-2);font-style:italic">' + esc(I.t('room.member.private')) + '</span>' : x.name ? esc(x.name) + (x.self ? ' <span style="font-weight:400;color:var(--fg-3)">(' + esc(I.t('room.member.you')) + ')</span>' : '') + (x.private ? ' <span class="chip neutral" style="font-size:10.5px;padding:1px 8px">' + esc(I.t('room.member.private_tag')) + '</span>' : '') : x.email ? '<span class="mono" style="font-weight:400">' + esc(x.email) + '</span>' : '<span style="font-weight:400;color:var(--fg-3)">' + esc(I.t('room.member.noname')) + '</span>') + '</div>'
+      return '<li><div class="nm"><span class="pres ' + esc(x.presence || 'never') + '" title="' + esc(x.last_seen ? I.t('room.last_seen', { date: S.fmtDate(x.last_seen) }) : I.t('room.never_visited')) + '"></span>' + (x.name ? esc(x.name) + (x.self ? ' <span style="font-weight:400;color:var(--fg-3)">(' + esc(I.t('room.member.you')) + ')</span>' : '') + (x.private ? ' <span class="chip neutral" style="font-size:10.5px;padding:1px 8px">' + esc(I.t('room.member.private_tag')) + '</span>' : '') : '<span class="mono" style="font-weight:500">' + esc(I.t('room.member.id', { id: x.member_id || '' })) + '</span>' + (x.private ? ' <span class="chip neutral" style="font-size:10.5px;padding:1px 8px">' + esc(I.t('room.member.private_tag')) + '</span>' : '')) + '</div>'
         + (x.company || x.job_title ? '<div class="org">' + esc([x.company, x.job_title].filter(Boolean).join(' · ')) + '</div>' : '')
-        + (x.name && x.email ? '<div class="mono" style="font-size:11px;color:var(--fg-3)">' + esc(x.email) + '</div>' : '')
+        + (x.email || (x.name && x.member_id && (x.self || x.private)) ? '<div class="mono" style="font-size:11px;color:var(--fg-3)">' + esc([x.name ? x.member_id : '', x.email].filter(Boolean).join(' · ')) + '</div>' : '')
         + '<div style="margin-top:4px">' + (x.verified ? '<span class="chip verified">KYC</span> ' : '') + (x.nda_signed ? '<span class="chip info">NDA</span>' : '') + '</div></li>';
     }).join('') : '<li style="color:var(--fg-3)">' + I.t('room.members.none') + '</li>';
   }
@@ -226,11 +226,37 @@
           var CFG = window.CLAVORIS_SUPABASE || {}, token = sr && sr.data && sr.data.session ? sr.data.session.access_token : CFG.anonKey;
           return fetch(CFG.url + '/functions/v1/clv-room-nda', { method: 'POST', headers: { 'content-type': 'application/json', 'apikey': CFG.anonKey, 'authorization': 'Bearer ' + token }, body: JSON.stringify({ action: 'pdf', room_id: roomId }) });
         }).then(function (res) { if (!res.ok) throw new Error('pdf'); return res.blob(); }).then(function (blob) {
-          var url = URL.createObjectURL(blob); q('ndaPdf').src = url;
+          var url = URL.createObjectURL(blob); renderPdf(blob);
           q('ndaPdfDl').addEventListener('click', function () { var a = document.createElement('a'); a.href = url; a.download = r.pdf_name || 'NDA.pdf'; document.body.appendChild(a); a.click(); a.remove(); });
         }).catch(function () { q('ndaPdfBox').innerHTML = '<p class="msg err">' + esc(I.t('room.nda.unavailable')) + '</p>'; });
       } else q('ndaText').textContent = r.text || I.t('room.nda.unavailable');
     });
+  }
+  // The NDA PDF is drawn page by page (pdf.js) instead of an embedded PDF viewer: phones (Chrome on
+  // Android) cannot show a PDF inside a page, so readers there saw an empty frame.
+  var PDFJS = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
+  function loadPdfJs() {
+    if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+    return new Promise(function (ok, ko) { var sc = document.createElement('script'); sc.src = PDFJS + 'pdf.min.js'; sc.onload = function () { window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS + 'pdf.worker.min.js'; ok(window.pdfjsLib); }; sc.onerror = ko; document.head.appendChild(sc); });
+  }
+  function renderPdf(blob) {
+    var box = q('ndaPdf'); box.innerHTML = '<p style="padding:12px;color:var(--fg-3);font-size:13px">' + esc(I.t('common.loading')) + '</p>';
+    return Promise.all([loadPdfJs(), blob.arrayBuffer()]).then(function (x) {
+      return x[0].getDocument({ data: new Uint8Array(x[1]) }).promise;
+    }).then(function (pdf) {
+      box.innerHTML = '';
+      var width = Math.max(280, box.clientWidth - 16), dpr = Math.min(window.devicePixelRatio || 1, 2), chain = Promise.resolve();
+      for (var n = 1; n <= pdf.numPages; n++) (function (n) {
+        chain = chain.then(function () { return pdf.getPage(n); }).then(function (page) {
+          var v1 = page.getViewport({ scale: 1 }), scale = width / v1.width, vp = page.getViewport({ scale: scale * dpr });
+          var c = document.createElement('canvas'); c.width = vp.width; c.height = vp.height;
+          c.style.cssText = 'display:block;width:' + width + 'px;height:' + (vp.height / dpr) + 'px;margin:0 auto 8px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.15)';
+          box.appendChild(c);
+          return page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+        });
+      })(n);
+      return chain;
+    }).catch(function () { box.innerHTML = '<p class="msg err" style="padding:12px">' + esc(I.t('room.nda.unavailable')) + '</p>'; });
   }
   function refreshSign() {
     var typed = q('typed').value, match = A.sameName(typed, A.displayName()), fb = q('typedMatch');

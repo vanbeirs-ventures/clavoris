@@ -47,9 +47,9 @@
           <div class="field"><label for="mobile" data-i18n="account.mobile">Mobile</label><input id="mobile" type="tel" autocomplete="tel" class="mono"></div>
           <div class="field"><label class="req" for="lang" data-i18n="account.lang">Language</label>
             <select id="lang"><option value="en">English</option><option value="nl">Nederlands</option><option value="fr">Français</option></select></div>
-          <div class="field"><label data-i18n="account.vis">Visibility to other data-room members</label>
-            <div class="seg" role="radiogroup"><label class="seg-opt"><input type="radio" name="vis" value="visible" id="visShown" checked><span data-i18n="account.vis.shown">Show my name and organisation</span></label><label class="seg-opt"><input type="radio" name="vis" value="private" id="visPrivate"><span data-i18n="account.vis.private">Private participation</span></label></div>
-            <span class="hint" data-i18n="account.vis_hint">Members of a data room see each other's name and organisation. With private participation the other investors see you as "Private member"; the company running the room always knows who you are.</span></div>
+          <div class="field"><label class="req" data-i18n="account.vis">Visibility to other data-room members</label>
+            <div class="seg" role="radiogroup"><label class="seg-opt"><input type="radio" name="vis" value="visible" id="visShown"><span data-i18n="account.vis.shown">Show my name and organisation</span></label><label class="seg-opt"><input type="radio" name="vis" value="private" id="visPrivate"><span data-i18n="account.vis.private">Private participation</span></label></div>
+            <span class="hint" data-i18n="account.vis_hint">Members of a data room see each other's name and organisation. With private participation the other investors only see your member ID; the company running the room always knows who you are.</span></div>
           <p class="msg" id="profileMsg" role="status"></p>
           <button class="btn btn-primary" type="submit" id="profileBtn" data-i18n="account.save">Save profile</button>
         </form>
@@ -107,18 +107,21 @@
   [].forEach.call(document.querySelectorAll('[data-eye]'), function (b) { b.addEventListener('click', function () { var i = document.getElementById(b.getAttribute('data-eye')); i.type = i.type === 'password' ? 'text' : 'password'; }); });
   var A = window.ClavorisAccess, I = window.ClavorisI18n;
   function q(id) { return document.getElementById(id); }
-  I.add('en', { 'account.vis': 'Visibility to other data-room members', 'account.vis.shown': 'Show my name and organisation', 'account.vis.private': 'Private participation', 'account.vis_hint': 'Members of a data room see each other\'s name and organisation. With private participation the other investors see you as “Private member”; the company running the room always knows who you are.' });
-  I.add('nl', { 'account.vis': 'Zichtbaarheid voor andere leden van de dataroom', 'account.vis.shown': 'Toon mijn naam en organisatie', 'account.vis.private': 'Privé deelnemen', 'account.vis_hint': 'Leden van een dataroom zien elkaars naam en organisatie. Neemt u privé deel, dan zien de andere beleggers u als “Privé-lid”; de onderneming die de dataroom beheert, weet altijd wie u bent.' });
-  I.add('fr', { 'account.vis': 'Visibilité pour les autres membres de la data room', 'account.vis.shown': 'Afficher mon nom et mon organisation', 'account.vis.private': 'Participation privée', 'account.vis_hint': 'Les membres d\'une data room voient le nom et l\'organisation des autres membres. En participation privée, les autres investisseurs vous voient comme « Membre privé » ; la société qui gère la data room sait toujours qui vous êtes.' });
+  I.add('en', { 'account.vis': 'Visibility to other data-room members', 'account.vis.shown': 'Show my name and organisation', 'account.vis.private': 'Private participation', 'account.vis_hint': 'Members of a data room see each other\'s name and organisation. With private participation the other investors only see your member ID; the company running the room always knows who you are.', 'account.err.vis': 'Choose whether other data-room members may see your name and organisation.', 'account.complete.title': 'Complete your profile to continue', 'account.complete.body': 'Your account is active. Before the platform opens, complete your profile below: all fields marked * and your visibility choice for data rooms are required.' });
+  I.add('nl', { 'account.vis': 'Zichtbaarheid voor andere leden van de dataroom', 'account.vis.shown': 'Toon mijn naam en organisatie', 'account.vis.private': 'Privé deelnemen', 'account.vis_hint': 'Leden van een dataroom zien elkaars naam en organisatie. Neemt u privé deel, dan zien de andere beleggers enkel uw lidnummer; de onderneming die de dataroom beheert, weet altijd wie u bent.', 'account.err.vis': 'Kies of andere leden van de dataroom uw naam en organisatie mogen zien.', 'account.complete.title': 'Vervolledig uw profiel om verder te gaan', 'account.complete.body': 'Uw account is actief. Vervolledig eerst uw profiel hieronder voor het platform opent: alle velden met * en uw keuze over zichtbaarheid in datarooms zijn verplicht.' });
+  I.add('fr', { 'account.vis': 'Visibilité pour les autres membres de la data room', 'account.vis.shown': 'Afficher mon nom et mon organisation', 'account.vis.private': 'Participation privée', 'account.vis_hint': 'Les membres d\'une data room voient le nom et l\'organisation des autres membres. En participation privée, les autres investisseurs ne voient que votre numéro de membre ; la société qui gère la data room sait toujours qui vous êtes.', 'account.err.vis': 'Indiquez si les autres membres de la data room peuvent voir votre nom et votre organisation.', 'account.complete.title': 'Complétez votre profil pour continuer', 'account.complete.body': 'Votre compte est actif. Avant l\'ouverture de la plateforme, complétez votre profil ci-dessous : tous les champs marqués * et votre choix de visibilité dans les data rooms sont obligatoires.' });
   // Private participation in data rooms (clv_profiles.member_private): read and saved separately from the
   // other profile fields.
+  // The choice is mandatory: nothing is preselected until the member has chosen once (privacy_chosen_at).
+  var privChosen = false;
   function loadPriv() {
-    return A.client().from('clv_profiles').select('member_private').eq('id', A.user().id).maybeSingle().then(function (r) {
-      var on = !!(r && r.data && r.data.member_private); q('visPrivate').checked = on; q('visShown').checked = !on;
+    return A.client().from('clv_profiles').select('member_private, privacy_chosen_at').eq('id', A.user().id).maybeSingle().then(function (r) {
+      var d = r && r.data; privChosen = !!(d && d.privacy_chosen_at);
+      if (privChosen) { q('visPrivate').checked = !!d.member_private; q('visShown').checked = !d.member_private; }
     }, function () {});
   }
   function savePriv() {
-    return A.client().from('clv_profiles').update({ member_private: q('visPrivate').checked }).eq('id', A.user().id).then(function (r) { return r && r.error ? r.error.message : ''; }, function (e) { return (e && e.message) || 'save-failed'; });
+    return A.client().from('clv_profiles').update({ member_private: q('visPrivate').checked, privacy_chosen_at: new Date().toISOString() }).eq('id', A.user().id).then(function (r) { if (r && r.error) return r.error.message; privChosen = true; return ''; }, function (e) { return (e && e.message) || 'save-failed'; });
   }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (m) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[m]; }); }
   function valid(pw) { return pw.length >= 12 && /[A-Za-z]/.test(pw) && /[0-9]/.test(pw); }
@@ -138,13 +141,17 @@
     if (isOrg && p.legal_rep === true) q('repYes').checked = true; else if (isOrg && p.legal_rep === false) q('repNo').checked = true;
     function syncKind() { q('orgBlock').hidden = !q('kindOrg').checked; }
     syncKind(); q('kindOrg').addEventListener('change', syncKind); q('kindPrivate').addEventListener('change', syncKind);
-    function welcomeGate() { var w = q('welcome'); if (w.hidden) return; var ok = A.profileComplete(); q('welcomeBtn').classList.toggle('disabled', !ok); q('welcomeBtn').setAttribute('aria-disabled', ok ? 'false' : 'true'); q('welcomeHint').hidden = ok; }
-    welcomeGate();
+    function welcomeGate() { var w = q('welcome'); if (w.hidden) return; var ok = A.profileComplete() && privChosen; q('welcomeBtn').classList.toggle('disabled', !ok); q('welcomeBtn').setAttribute('aria-disabled', ok ? 'false' : 'true'); q('welcomeHint').hidden = ok; }
+    loadPriv().then(welcomeGate);
     q('welcomeBtn').addEventListener('click', function (e) { if (q('welcomeBtn').getAttribute('aria-disabled') === 'true') { e.preventDefault(); q('full_name').focus(); } });
     var nextUrl = (function () { var n = new URLSearchParams(location.search).get('next') || ''; return /^[a-z-]+\.html(\?[^#]*)?$/i.test(n) ? n : ''; })();
     if (nextUrl) { var nb = q('nextBox'); nb.hidden = false; }
+    if (new URLSearchParams(location.search).get('complete') === '1') {
+      var cb = q('nextBox'), ps = cb.querySelectorAll('p'); cb.hidden = false;
+      ps[0].textContent = I.t('account.complete.title'); ps[0].removeAttribute('data-i18n');
+      ps[1].textContent = I.t('account.complete.body'); ps[1].removeAttribute('data-i18n');
+    }
     q('lang').value = I.langs.indexOf(p.lang) >= 0 ? p.lang : I.lang;
-    loadPriv();
     q('kyc').innerHTML = '<span class="chip ' + esc(p.status) + '"><span class="dot"></span>' + esc(tk('status.', p.status)) + '</span><p style="margin-top:8px">' + esc(tk('account.kyc.', p.status)) + '</p>'
       + (p.kyc_level ? '<p class="mono" style="font-size:12px;margin-top:6px;color:var(--fg-3)">' + esc(I.t('account.kyc.level', { level: p.kyc_level })) + (p.kyc_reviewed_at ? ' · ' + esc(String(p.kyc_reviewed_at).slice(0, 10)) : '') + '</p>' : '');
     // Start / continue / restart the identity verification; a verified user can verify again (new address,
@@ -175,12 +182,12 @@
       var org = q('kindOrg').checked, fields = { full_name: q('full_name').value.trim(), mobile: q('mobile').value.trim(), lang: q('lang').value };
       if (org) { fields.company = q('company').value.trim(); fields.job_title = q('job_title').value.trim(); fields.legal_rep = q('repYes').checked ? true : q('repNo').checked ? false : null; }
       else { fields.company = ''; fields.job_title = ''; fields.legal_rep = null; }
-      var err = !fields.full_name ? 'account.err.name' : (!org && !q('kindPrivate').checked) ? 'account.err.kind' : org && !fields.company ? 'account.err.company' : org && !fields.job_title ? 'account.err.role' : org && fields.legal_rep === null ? 'account.err.legal_rep' : '';
+      var err = !fields.full_name ? 'account.err.name' : (!org && !q('kindPrivate').checked) ? 'account.err.kind' : org && !fields.company ? 'account.err.company' : org && !fields.job_title ? 'account.err.role' : org && fields.legal_rep === null ? 'account.err.legal_rep' : !q('visShown').checked && !q('visPrivate').checked ? 'account.err.vis' : '';
       if (err) { m.className = 'msg err'; m.textContent = I.t(err); return; }
       q('profileBtn').disabled = true;
       A.updateProfile(fields)
         .then(function (r) { return !r.ok ? r : savePriv().then(function (e) { return e ? { ok: false, error: e } : r; }); })
-        .then(function (r) { q('profileBtn').disabled = false; m.className = r.ok ? 'msg ok' : 'msg err'; m.textContent = r.ok ? I.t('account.saved') : r.error === 'timeout' ? I.t('account.err.timeout') : (r.error || I.t('account.save_failed')); if (r.ok) { q('name').textContent = A.displayName(); welcomeGate(); if (q('lang').value !== I.lang) { location.reload(); return; } if (nextUrl && A.profileComplete()) setTimeout(function () { location.href = nextUrl; }, 700); } });
+        .then(function (r) { q('profileBtn').disabled = false; m.className = r.ok ? 'msg ok' : 'msg err'; m.textContent = r.ok ? I.t('account.saved') : r.error === 'timeout' ? I.t('account.err.timeout') : (r.error || I.t('account.save_failed')); if (r.ok) { try { if (A.profileComplete()) sessionStorage.setItem('clv_pf', A.user().id); } catch (e) {} q('name').textContent = A.displayName(); welcomeGate(); if (q('lang').value !== I.lang) { location.reload(); return; } if (nextUrl && A.profileComplete()) setTimeout(function () { location.href = nextUrl; }, 700); } });
     });
 
     var NKEYS = ['room_new', 'room_updated', 'contract_new', 'market_new', 'portfolio_events'];

@@ -52,6 +52,23 @@
 
     if (I) I.apply(document);
     unsubscribePrompt(); idleGuard();
+    profileGate();
+  }
+  // Mandatory profile: an investor whose profile is incomplete, or who has not yet chosen whether other
+  // data-room members may see their name (privacy_chosen_at), is taken to the account page first; every
+  // other page stays closed until that is done. Checked once per tab session once satisfied.
+  function profileGate() {
+    var A = window.ClavorisAccess, page = location.pathname.split('/').pop();
+    if (!A || A.isAdmin() || page === 'account.html') return;
+    try { if (sessionStorage.getItem('clv_pf') === A.user().id) return; } catch (e) {}
+    var go = function () { location.replace('account.html?complete=1&next=' + encodeURIComponent(page + location.search)); };
+    var main = document.querySelector('main'); if (main) main.style.visibility = 'hidden';
+    if (!A.profileComplete()) { go(); return; }
+    A.client().from('clv_profiles').select('privacy_chosen_at').eq('id', A.user().id).maybeSingle().then(function (r) {
+      if (r && r.data && !r.data.privacy_chosen_at) { go(); return; }
+      try { if (r && r.data) sessionStorage.setItem('clv_pf', A.user().id); } catch (e) {}
+      if (main) main.style.visibility = '';
+    }, function () { if (main) main.style.visibility = ''; });
   }
   // Instant top band from the last known session (cached per tab), replaced by the real one as soon as
   // the session is resolved — avoids the empty band / flicker on every page change.

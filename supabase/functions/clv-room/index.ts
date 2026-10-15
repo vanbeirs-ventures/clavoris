@@ -87,16 +87,19 @@ Deno.serve(async (req) => {
       // Name: the full name, else first + last name from the invitation; organisation: the stated company,
       // else the company account the member belongs to. Staff also get the e-mail address (to recognise
       // members who have not entered a name yet); investors do not see other members' addresses.
-      // A member who chose private participation is shown to the other investors as "Private member"
+      // A member who chose private participation is shown to the other investors by member ID only
       // (no name, organisation or role); the company running the room and the member themself see it all.
       ...(r.profile?.member_private && !isStaff(me) && r.user_id !== me.id
         ? { name: "", company: "", job_title: "", private: true }
         : { name: memberName(r.profile), company: r.profile?.company || r.profile?.account?.name || "", job_title: r.profile?.job_title || "", private: !!r.profile?.member_private }),
       self: r.user_id === me.id,
+      // Stable member ID (same in every room), shown instead of the name when the member is private or
+      // has not entered a name yet.
+      member_id: "M-" + String(r.user_id).replace(/-/g, "").slice(0, 6).toUpperCase(),
       email: isStaff(me) ? (r.profile?.email || "") : undefined,
       verified: r.profile?.status === "verified", nda_signed: signedSet.has(r.user_id), since: r.granted_at, last_seen: seen, presence,
     };
-  }).sort((a: any, b: any) => Number(!!a.private && !a.name) - Number(!!b.private && !b.name) || (a.company || "").localeCompare(b.company || "") || a.name.localeCompare(b.name));
+  }).sort((a: any, b: any) => Number(!a.name) - Number(!b.name) || (a.company || "").localeCompare(b.company || "") || a.name.localeCompare(b.name));
 
   // Folder tree (only once the gate is open). _users/ holds the signed NDAs and is never listed.
   let tree: any[] = [];
