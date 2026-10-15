@@ -264,9 +264,18 @@ async function postmarkSend(token: string, to: string, subject: string, body: st
   return String(j.MessageID || "");
 }
 
-// opt.html === false sends plain text only (used by the delivery test).
-export async function sendMail(to: string, subject: string, text: string, lang: Lang | string = "en", cta?: Cta | Cta[], opt: { html?: boolean } = {}): Promise<boolean> {
+// Delivery tracking (Postmark route): every message is recorded in clv_mail_log. The webhook function
+// clv-mail-events receives Postmark's Delivery / Bounce events: a bounced HTML mail is re-sent once as plain
+// text (opt.parent = the log row of the HTML attempt); a bounced plain-text mail is red-flagged for reporting.
+async function logMail(row: Record<string, unknown>): Promise<void> {
+  try { const { error } = await adminClient().from("clv_mail_log").insert(row); if (error) console.error("mail log:", error.message); }
+  catch (e) { console.error("mail log:", (e as Error).message); }
+}
+
+// opt.html === false sends plain text only; opt.parent links a plain-text retry to its HTML attempt.
+export async function sendMail(to: string, subject: string, text: string, lang: Lang | string = "en", cta?: Cta | Cta[], opt: { html?: boolean; parent?: string } = {}): Promise<boolean> {
   const withHtml = MAIL_HTML && opt.html !== false;
+  const original = text;
   const pmToken = Deno.env.get("CLAVORIS_POSTMARK_TOKEN");
   if ((!Deno.env.get("CLAVORIS_SMTP_HOST") && !pmToken) || !to) return false;
   if (pmToken) {
@@ -276,7 +285,8 @@ export async function sendMail(to: string, subject: string, text: string, lang: 
     const body = text + "\n\n" + mailFooter(L);
     try {
       const id = await postmarkSend(pmToken, to, subject, body, withHtml ? textToHtml(text, cta, L) : undefined);
-      console.log("mail sent: [postmark]", to, "|", subject.replace(/\b\d{6}\b/g, "******"), "|", id);
+      console.log("mail sent: [postmark]", to, "|", subject.replace(/\b\d{6}\b/g, "******"), "|", id, withHtml ? "html" : "text");
+      await logMail({ message_id: id, recipient: to.trim().toLowerCase(), subject, body: original, lang: L, cta: cta ?? null, format: withHtml ? "html" : "text", parent_id: opt.parent ?? null });
       return true;
     } catch (e) {
       console.error("mail failed: [postmark]", to, "|", subject.replace(/\b\d{6}\b/g, "******"), "|", (e as Error).message);

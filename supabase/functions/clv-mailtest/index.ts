@@ -6,6 +6,7 @@
 //   POST { token, recipients: string[] (max 8), modes?: ["html","text"] }
 //   -> { ok, results: [{ to, mode, ok, error?, mx }] }
 //   POST { token, status: true } -> delivery events of the last 30 Postmark messages (sends nothing)
+//   POST { token, register_webhook: key } -> creates/updates the Postmark Delivery+Bounce webhook to clv-mail-events
 // Deploy: supabase functions deploy clv-mailtest --no-verify-jwt
 import { adminClient, cors, json, mxHosts, sendMail } from "../_shared/clv.ts";
 
@@ -23,6 +24,21 @@ Deno.serve(async (req) => {
   const { data: tok } = await admin.from("clv_mail_test_tokens").select("token_hash, expires_at, used_at").eq("token_hash", hash).maybeSingle();
   if (!tok || tok.used_at || new Date(tok.expires_at).getTime() < Date.now()) return json({ error: "forbidden" }, 403);
   await admin.from("clv_mail_test_tokens").update({ used_at: new Date().toISOString() }).eq("token_hash", hash);
+
+  // { token, register_webhook: "<key>" } -> creates or updates the Postmark webhook (Delivery + Bounce) that
+  // calls clv-mail-events?key=<key>. The key's SHA-256 must already be in clv_mail_webhook_keys.
+  if (typeof body.register_webhook === "string" && body.register_webhook.length >= 32) {
+    const pm = Deno.env.get("CLAVORIS_POSTMARK_TOKEN");
+    if (!pm) return json({ error: "no-postmark" }, 400);
+    const h = { "Accept": "application/json", "Content-Type": "application/json", "X-Postmark-Server-Token": pm };
+    const base = `${Deno.env.get("SUPABASE_URL")}/functions/v1/clv-mail-events`;
+    const cfg = { Url: `${base}?key=${encodeURIComponent(body.register_webhook)}`, MessageStream: "outbound", Triggers: { Delivery: { Enabled: true }, Bounce: { Enabled: true, IncludeContent: false }, Open: { Enabled: false }, Click: { Enabled: false }, SpamComplaint: { Enabled: false, IncludeContent: false }, SubscriptionChange: { Enabled: false } } };
+    const list = await (await fetch("https://api.postmarkapp.com/webhooks?MessageStream=outbound", { headers: h })).json().catch(() => ({}));
+    const existing = (list.Webhooks || []).find((w: any) => String(w.Url || "").startsWith(base));
+    const res = await fetch(existing ? `https://api.postmarkapp.com/webhooks/${existing.ID}` : "https://api.postmarkapp.com/webhooks", { method: existing ? "PUT" : "POST", headers: h, body: JSON.stringify(cfg) });
+    const j = await res.json().catch(() => ({}));
+    return json({ ok: res.ok, id: j.ID, updated: !!existing, error: res.ok ? undefined : j.Message });
+  }
 
   // { token, status: true } -> delivery events of the last Postmark messages (no mail is sent).
   if (body.status === true) {
