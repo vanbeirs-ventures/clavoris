@@ -1,7 +1,8 @@
 /* ============================================================
    CLAVORIS — General Terms and Conditions (terms.html)
    Full text in English, Dutch and French; the other languages
-   show the English text. Keys: tg_* (sections tg_h1..tg_h14).
+   show the English text. Keys: tg_* (sections tg_h1..tg_h15).
+   The Dutch text is binding and is always shown first.
    ============================================================ */
 (function () {
   var L = window.I18N;
@@ -37,8 +38,13 @@
     tg_b12: "A user can leave a data room from the data-room page; the membership ends and the name is removed from the room's members, while the Clavoris account remains. A user can close the account from the account page by confirming with the full name; this cannot be undone. Holders of units in an instrument cannot close their account while they hold those units, because the register must identify them.",
     tg_h13: "13. Changes",
     tg_b13: "Clavoris may amend these terms. The date at the top shows the current version; material changes are announced to users by e-mail or on the platform before they take effect. Continued use of the platform after that date means acceptance of the amended terms.",
-    tg_h14: "14. Governing law and jurisdiction",
-    tg_b14: "These terms, and every subscription contract concluded under them, are governed by Belgian law. The courts of Antwerp (division Antwerp) have exclusive jurisdiction over any dispute, without prejudice to mandatory rules that protect consumers."
+    tg_h14: "14. Governing law and dispute resolution",
+    tg_b14: "These terms, and every subscription contract concluded under them, are governed by Belgian law. Every dispute arising out of or in connection with these terms or a subscription contract is finally settled under the CEPANI Rules of Arbitration (Belgian Centre for Arbitration and Mediation, in Dutch CEPINA) by a sole arbitrator appointed in accordance with those rules. The seat of the arbitration is Antwerp, Belgium, and the arbitration is conducted in Dutch. This does not prevent a party from asking the courts of Antwerp (division Antwerp) for interim or conservatory measures. Where the user acts as a consumer, the arbitration clause does not bind the user, who keeps the right to bring a dispute before the competent court under the mandatory rules that protect consumers; failing such rules, the courts of Antwerp (division Antwerp) have jurisdiction.",
+    tg_h15: "15. Language of the terms",
+    tg_b15: "These terms are drawn up in Dutch. The Dutch text is the only legally binding version and prevails over any translation. Translations into English, French or another language are provided for information only: they are not sworn translations of the Dutch legal text but fairly accurate translations, without absolute guarantee against misinterpretation. By accepting these terms in another language, the user accepts that the Dutch text alone binds the parties.",
+    tg_notice: "The legally binding text of these terms is the Dutch text, shown first in each clause. The English text that follows is not a sworn translation of the Dutch legal text; it is a fairly accurate translation, without absolute guarantee against misinterpretation. By accepting these terms, the user accepts this.",
+    tg_lbl_nl: "Nederlands · legally binding text",
+    tg_lbl_tr: "English · translation for information"
   };
 
   T.nl = {
@@ -71,8 +77,11 @@
     tg_b12: "Een gebruiker kan een dataroom verlaten via de pagina van de dataroom; het lidmaatschap eindigt en de naam wordt verwijderd uit de leden van de dataroom, terwijl het Clavoris-account blijft bestaan. Een gebruiker kan het account afsluiten via de accountpagina door te bevestigen met de volledige naam; dit kan niet ongedaan worden gemaakt. Wie eenheden van een instrument bezit, kan het account niet afsluiten zolang hij die bezit, omdat het register hem moet identificeren.",
     tg_h13: "13. Wijzigingen",
     tg_b13: "Clavoris kan deze voorwaarden wijzigen. De datum bovenaan toont de geldende versie; wezenlijke wijzigingen worden vóór de inwerkingtreding per e-mail of op het platform aangekondigd. Wie het platform na die datum blijft gebruiken, aanvaardt de gewijzigde voorwaarden.",
-    tg_h14: "14. Toepasselijk recht en bevoegde rechter",
-    tg_b14: "Op deze voorwaarden en op elke abonnementsovereenkomst die eronder wordt gesloten, is het Belgisch recht van toepassing. De rechtbanken van Antwerpen (afdeling Antwerpen) zijn exclusief bevoegd voor elk geschil, onverminderd de dwingende regels ter bescherming van consumenten."
+    tg_h14: "14. Toepasselijk recht en geschillenbeslechting",
+    tg_b14: "Op deze voorwaarden en op elke abonnementsovereenkomst die eronder wordt gesloten, is het Belgisch recht van toepassing. Alle geschillen die uit deze voorwaarden of uit een abonnementsovereenkomst ontstaan of ermee verband houden, worden definitief beslecht volgens het Arbitragereglement van CEPINA (Belgisch Centrum voor Arbitrage en Mediatie) door een enige arbiter die overeenkomstig dat reglement wordt benoemd. De plaats van de arbitrage is Antwerpen, België, en de arbitrage wordt in het Nederlands gevoerd. Dit belet een partij niet om bij de rechtbanken van Antwerpen (afdeling Antwerpen) voorlopige of bewarende maatregelen te vorderen. Treedt de gebruiker op als consument, dan is het arbitragebeding voor hem niet bindend en behoudt hij het recht om een geschil voor de bevoegde rechter te brengen volgens de dwingende regels ter bescherming van consumenten; bij gebreke daarvan zijn de rechtbanken van Antwerpen (afdeling Antwerpen) bevoegd.",
+    tg_h15: "15. Taal van de voorwaarden",
+    tg_b15: "Deze voorwaarden zijn opgesteld in het Nederlands. De Nederlandse tekst is de enige juridisch bindende versie en heeft voorrang op elke vertaling. Vertalingen in het Engels, het Frans of een andere taal worden enkel ter informatie verstrekt: het zijn geen beëdigde vertalingen van de Nederlandse juridische tekst, maar redelijk nauwkeurige vertalingen zonder absolute garantie tegen misinterpretatie. Wie deze voorwaarden in een andere taal aanvaardt, aanvaardt dat enkel de Nederlandse tekst de partijen bindt.",
+    tg_notice: "Deze voorwaarden zijn opgesteld in het Nederlands; de Nederlandse tekst is de enige juridisch bindende versie. Vertalingen in het Engels en het Frans zijn beschikbaar via de taalkeuze, uitsluitend ter informatie."
   };
 
   T.fr = {
@@ -105,10 +114,46 @@
     tg_b12: "Un utilisateur peut quitter une data room depuis la page de la data room ; son adhésion prend fin et son nom est retiré des membres de la data room, tandis que son compte Clavoris est maintenu. Un utilisateur peut clôturer son compte depuis la page du compte en confirmant avec son nom complet ; cette action est irréversible. Les détenteurs de parts d'un instrument ne peuvent pas clôturer leur compte tant qu'ils détiennent ces parts, le registre devant les identifier.",
     tg_h13: "13. Modifications",
     tg_b13: "Clavoris peut modifier les présentes conditions. La date en tête indique la version en vigueur ; les modifications substantielles sont annoncées aux utilisateurs par e-mail ou sur la plateforme avant leur entrée en vigueur. La poursuite de l'utilisation de la plateforme après cette date vaut acceptation des conditions modifiées.",
-    tg_h14: "14. Droit applicable et juridiction",
-    tg_b14: "Les présentes conditions, ainsi que tout contrat d'abonnement conclu sur leur base, sont régies par le droit belge. Les tribunaux d'Anvers (division Anvers) ont compétence exclusive pour tout litige, sans préjudice des règles impératives protégeant les consommateurs."
+    tg_h14: "14. Droit applicable et règlement des litiges",
+    tg_b14: "Les présentes conditions, ainsi que tout contrat d'abonnement conclu sur leur base, sont régies par le droit belge. Tous les différends découlant des présentes conditions ou d'un contrat d'abonnement, ou en relation avec ceux-ci, sont tranchés définitivement suivant le règlement d'arbitrage du CEPANI (Centre belge d'arbitrage et de médiation) par un arbitre unique nommé conformément à ce règlement. Le siège de l'arbitrage est Anvers, Belgique, et la langue de l'arbitrage est le néerlandais. Ceci n'empêche pas une partie de demander des mesures provisoires ou conservatoires aux tribunaux d'Anvers (division Anvers). Lorsque l'utilisateur agit en qualité de consommateur, la clause d'arbitrage ne le lie pas et il conserve le droit de porter un litige devant la juridiction compétente selon les règles impératives protégeant les consommateurs ; à défaut, les tribunaux d'Anvers (division Anvers) sont compétents.",
+    tg_h15: "15. Langue des conditions",
+    tg_b15: "Les présentes conditions sont rédigées en néerlandais. Le texte néerlandais est la seule version juridiquement contraignante et prévaut sur toute traduction. Les traductions en anglais, en français ou dans une autre langue sont fournies à titre d'information : ce ne sont pas des traductions jurées du texte juridique néerlandais, mais des traductions raisonnablement fidèles, sans garantie absolue contre toute erreur d'interprétation. En acceptant les présentes conditions dans une autre langue, l'utilisateur accepte que seul le texte néerlandais lie les parties.",
+    tg_notice: "Le texte juridiquement contraignant des présentes conditions est le texte néerlandais, présenté en premier dans chaque article. Le texte français qui suit n'est pas une traduction jurée du texte juridique néerlandais ; il s'agit d'une traduction raisonnablement fidèle, sans garantie absolue contre toute erreur d'interprétation. En acceptant les présentes conditions, l'utilisateur l'accepte.",
+    tg_lbl_nl: "Nederlands · texte faisant foi",
+    tg_lbl_tr: "Français · traduction à titre d'information"
   };
 
   // Languages without their own text show the English version.
   Object.keys(L).forEach(function (lang) { Object.assign(L[lang], T.en, T[lang] || {}); });
+
+  /* Bilingual presentation: the Dutch text is the legally binding version and is shown first in
+     every clause; for any other language the translation follows it, under a notice (in that
+     language) that it is not a sworn translation. Dutch readers see the Dutch text only. */
+  function nlText(k) { return (L.nl && L.nl[k]) || T.nl[k] || ""; }
+  function bilingual(lang) {
+    var d = L[lang] || L.en, nl = lang === "nl", list = document.querySelector(".legal-list");
+    if (!list) return;
+    var box = document.getElementById("tgNotice");
+    if (!box) { box = document.createElement("div"); box.id = "tgNotice"; box.className = "tg-notice"; list.parentNode.insertBefore(box, list); }
+    box.textContent = d.tg_notice || T.en.tg_notice;
+    list.querySelectorAll(".legal-clause").forEach(function (c) {
+      var h = c.querySelector("h3[data-i18n]"), b = c.querySelector("p[data-i18n]");
+      if (!h || !b) return;
+      var nb = c.querySelector(".tg-nl");
+      if (!nb) {
+        nb = document.createElement("div"); nb.className = "tg-nl"; nb.setAttribute("lang", "nl");
+        nb.innerHTML = '<span class="tg-lbl"></span><h3></h3><p></p>';
+        c.insertBefore(nb, c.firstChild);
+        var tl = document.createElement("span"); tl.className = "tg-lbl tg-lbl-tr"; c.insertBefore(tl, h);
+      }
+      nb.querySelector("h3").innerHTML = nlText(h.getAttribute("data-i18n"));
+      nb.querySelector("p").innerHTML = nlText(b.getAttribute("data-i18n"));
+      nb.querySelector(".tg-lbl").textContent = d.tg_lbl_nl || T.en.tg_lbl_nl;
+      c.querySelector(".tg-lbl-tr").textContent = d.tg_lbl_tr || T.en.tg_lbl_tr;
+      nb.hidden = nl;                         // Dutch readers: the clause's own text is already Dutch
+      c.querySelector(".tg-lbl-tr").hidden = nl;
+      c.classList.toggle("tg-bi", !nl);
+    });
+  }
+  document.addEventListener("cl:lang", function (e) { bilingual(e.detail); });
 })();
