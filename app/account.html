@@ -80,6 +80,7 @@
         <label class="check" style="margin-top:10px"><input type="checkbox" id="n_room_updated"> <span data-i18n="notif.room_updated">Existing data-room files updated</span></label>
         <label class="check" style="margin-top:10px"><input type="checkbox" id="n_contract_new"> <span data-i18n="notif.contract_new">New contracts assigned to me for signature</span></label>
         <label class="check" style="margin-top:10px"><input type="checkbox" id="n_market_new"> <span data-i18n="notif.market_new">New investments available on the marketplace</span></label>
+        <label class="check" style="margin-top:10px"><input type="checkbox" id="n_qa"> <span id="n_qa_l"></span></label>
         <label class="check" style="margin-top:10px"><input type="checkbox" id="n_portfolio_events"> <span data-i18n="notif.portfolio_events">Events in my portfolio: coupon payment, notices, end of contract, repayment of principal, conversion into shares</span></label>
         <p class="msg" id="notifMsg" role="status"></p>
         <button class="btn btn-primary" type="submit" id="notifBtn" data-i18n="notif.save">Save notifications</button>
@@ -101,7 +102,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="clavoris-access.js?v=20261015t"></script>
 <script src="shell.js?v=20261014e"></script>
-<script src="mfa.js?v=20261015m"></script>
+<script src="mfa.js?v=20261015u"></script>
 <script>
 (function () {
   'use strict';
@@ -220,7 +221,8 @@
         });
     });
 
-    var NKEYS = ['room_new', 'room_updated', 'contract_new', 'market_new', 'portfolio_events'];
+    var NKEYS = ['room_new', 'room_updated', 'qa', 'contract_new', 'market_new', 'portfolio_events'];
+    q('n_qa_l').textContent = ({ en: 'Data-room questions and answers: a question for me, an answer to my question', nl: 'Vragen en antwoorden in datarooms: een vraag aan mij, een antwoord op mijn vraag', fr: 'Questions-réponses des data rooms : une question qui m\'est adressée, une réponse à ma question' })[I.lang] || 'Data-room questions and answers';
     NKEYS.forEach(function (k) { q('n_' + k).checked = !(p.notify && p.notify[k] === false); });
     q('notifForm').addEventListener('submit', function () {
       var m = q('notifMsg'); m.className = 'msg'; m.textContent = ''; q('notifBtn').disabled = true;
