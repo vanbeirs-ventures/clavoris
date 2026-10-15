@@ -12,7 +12,8 @@
   };
   function run() {
     var I = window.ClavorisI18n, lang = (I && I.lang) || String(navigator.language || 'en').slice(0, 2), w = W[lang] || W.en;
-    var html = '<a href="../terms.html" target="_blank" rel="noopener" style="color:inherit">' + w[0] + '</a> · <a href="../privacy.html" target="_blank" rel="noopener" style="color:inherit">' + w[1] + '</a>';
+    var ql = '?lang=' + encodeURIComponent(lang);
+    var html = '<a href="../terms.html' + ql + '" target="_blank" rel="noopener" style="color:inherit">' + w[0] + '</a> · <a href="../privacy.html' + ql + '" target="_blank" rel="noopener" style="color:inherit">' + w[1] + '</a>';
     var old = document.getElementById('legalLinks'); if (old) { old.innerHTML = html; return; }
     var span = document.createElement('span'); span.id = 'legalLinks'; span.style.fontSize = '11.5px'; span.innerHTML = html;
     var foot = document.querySelector('.app-foot');
