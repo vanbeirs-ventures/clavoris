@@ -8,7 +8,7 @@
 <link rel="icon" href="../assets/clavoris-mark.png">
 <link rel="stylesheet" href="app.css?v=20261014e">
 <script>document.documentElement.classList.add('clv-checking');</script>
-<style>.pw-mm{display:block;margin-top:6px;font-size:12.5px;color:var(--status-alert)}.pw-bad input{border-color:var(--status-alert)!important;box-shadow:0 0 0 3px rgba(179,38,30,.12)}</style>
+<style>.fld-bad input,.fld-bad .seg-opt{border-color:var(--status-alert)!important;box-shadow:0 0 0 3px rgba(179,38,30,.12)}.fld-bad>label{color:var(--status-alert)}.pw-mm{display:block;margin-top:6px;font-size:12.5px;color:var(--status-alert)}.pw-bad input{border-color:var(--status-alert)!important;box-shadow:0 0 0 3px rgba(179,38,30,.12)}</style>
 </head>
 <body data-clv-restrict="full">
 <div class="app">
@@ -99,7 +99,7 @@
 <script src="config.js?v=20261014e"></script>
 <script src="i18n.js?v=20261014e"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="clavoris-access.js?v=20261015m"></script>
+<script src="clavoris-access.js?v=20261015t"></script>
 <script src="shell.js?v=20261014e"></script>
 <script src="mfa.js?v=20261015m"></script>
 <script>
@@ -108,9 +108,9 @@
   [].forEach.call(document.querySelectorAll('[data-eye]'), function (b) { b.addEventListener('click', function () { var i = document.getElementById(b.getAttribute('data-eye')); i.type = i.type === 'password' ? 'text' : 'password'; }); });
   var A = window.ClavorisAccess, I = window.ClavorisI18n;
   function q(id) { return document.getElementById(id); }
-  I.add('en', { 'account.vis': 'Visibility to other data-room members', 'account.vis.shown': 'Show my name and organisation', 'account.vis.private': 'Private participation', 'account.vis_hint': 'Members of a data room see each other\'s name and organisation. With private participation the other investors only see your member ID; the company running the room always knows who you are.', 'account.err.vis': 'Choose whether other data-room members may see your name and organisation.', 'account.complete.title': 'Complete your profile to continue', 'account.complete.body': 'Your account is active. Before the platform opens, complete your profile below: all fields marked * and your visibility choice for data rooms are required.' });
-  I.add('nl', { 'account.vis': 'Zichtbaarheid voor andere leden van de dataroom', 'account.vis.shown': 'Toon mijn naam en organisatie', 'account.vis.private': 'Privé deelnemen', 'account.vis_hint': 'Leden van een dataroom zien elkaars naam en organisatie. Neemt u privé deel, dan zien de andere beleggers enkel uw lidnummer; de onderneming die de dataroom beheert, weet altijd wie u bent.', 'account.err.vis': 'Kies of andere leden van de dataroom uw naam en organisatie mogen zien.', 'account.complete.title': 'Vervolledig uw profiel om verder te gaan', 'account.complete.body': 'Uw account is actief. Vervolledig eerst uw profiel hieronder voor het platform opent: alle velden met * en uw keuze over zichtbaarheid in datarooms zijn verplicht.' });
-  I.add('fr', { 'account.vis': 'Visibilité pour les autres membres de la data room', 'account.vis.shown': 'Afficher mon nom et mon organisation', 'account.vis.private': 'Participation privée', 'account.vis_hint': 'Les membres d\'une data room voient le nom et l\'organisation des autres membres. En participation privée, les autres investisseurs ne voient que votre numéro de membre ; la société qui gère la data room sait toujours qui vous êtes.', 'account.err.vis': 'Indiquez si les autres membres de la data room peuvent voir votre nom et votre organisation.', 'account.complete.title': 'Complétez votre profil pour continuer', 'account.complete.body': 'Votre compte est actif. Avant l\'ouverture de la plateforme, complétez votre profil ci-dessous : tous les champs marqués * et votre choix de visibilité dans les data rooms sont obligatoires.' });
+  I.add('en', { 'account.vis': 'Visibility to other data-room members', 'account.vis.shown': 'Show my name and organisation', 'account.vis.private': 'Private participation', 'account.vis_hint': 'Members of a data room see each other\'s name and organisation. With private participation the other investors only see your member ID; the company running the room always knows who you are.', 'account.err.vis': 'Choose whether other data-room members may see your name and organisation.', 'account.complete.title': 'Complete your profile to continue', 'account.complete.body': 'Your account is active. Before the platform opens, complete your profile below: all fields marked * and your visibility choice for data rooms are required.', 'account.err.session': 'Your session has ended. Sign in again and save your profile once more.', 'account.saved_go': 'Profile saved. Opening your data rooms…' });
+  I.add('nl', { 'account.vis': 'Zichtbaarheid voor andere leden van de dataroom', 'account.vis.shown': 'Toon mijn naam en organisatie', 'account.vis.private': 'Privé deelnemen', 'account.vis_hint': 'Leden van een dataroom zien elkaars naam en organisatie. Neemt u privé deel, dan zien de andere beleggers enkel uw lidnummer; de onderneming die de dataroom beheert, weet altijd wie u bent.', 'account.err.vis': 'Kies of andere leden van de dataroom uw naam en organisatie mogen zien.', 'account.complete.title': 'Vervolledig uw profiel om verder te gaan', 'account.complete.body': 'Uw account is actief. Vervolledig eerst uw profiel hieronder voor het platform opent: alle velden met * en uw keuze over zichtbaarheid in datarooms zijn verplicht.', 'account.err.session': 'Uw sessie is beëindigd. Meld u opnieuw aan en sla uw profiel nogmaals op.', 'account.saved_go': 'Profiel opgeslagen. Uw datarooms worden geopend…' });
+  I.add('fr', { 'account.vis': 'Visibilité pour les autres membres de la data room', 'account.vis.shown': 'Afficher mon nom et mon organisation', 'account.vis.private': 'Participation privée', 'account.vis_hint': 'Les membres d\'une data room voient le nom et l\'organisation des autres membres. En participation privée, les autres investisseurs ne voient que votre numéro de membre ; la société qui gère la data room sait toujours qui vous êtes.', 'account.err.vis': 'Indiquez si les autres membres de la data room peuvent voir votre nom et votre organisation.', 'account.complete.title': 'Complétez votre profil pour continuer', 'account.complete.body': 'Votre compte est actif. Avant l\'ouverture de la plateforme, complétez votre profil ci-dessous : tous les champs marqués * et votre choix de visibilité dans les data rooms sont obligatoires.', 'account.err.session': 'Votre session a pris fin. Reconnectez-vous et enregistrez à nouveau votre profil.', 'account.saved_go': 'Profil enregistré. Ouverture de vos data rooms…' });
   // Private participation in data rooms (clv_profiles.member_private): read and saved separately from the
   // other profile fields.
   // The choice is mandatory: nothing is preselected until the member has chosen once (privacy_chosen_at).
@@ -178,17 +178,46 @@
       }).join('') : '<tr><td colspan="7" style="color:var(--fg-3)">' + I.t('account.audit.none') + '</td></tr>';
     });
 
+    // Saving the profile: a missing answer is marked on the field itself (red outline, scrolled into view,
+    // focused) and cleared as soon as it is filled in. After a successful save of a complete profile the
+    // member goes on to the page that sent them here, otherwise to Data rooms (all rooms open to them).
+    var FIELD_OF = { 'account.err.name': 'full_name', 'account.err.kind': 'kindPrivate', 'account.err.company': 'company', 'account.err.role': 'job_title', 'account.err.legal_rep': 'repYes', 'account.err.vis': 'visShown' };
+    function clearBad() { [].forEach.call(document.querySelectorAll('#profileForm .fld-bad'), function (f) { f.classList.remove('fld-bad'); }); }
+    q('profileForm').addEventListener('input', clearBad); q('profileForm').addEventListener('change', clearBad);
     q('profileForm').addEventListener('submit', function () {
-      var m = q('profileMsg'); m.className = 'msg'; m.textContent = '';
+      var m = q('profileMsg'); m.className = 'msg'; m.textContent = ''; clearBad();
       var org = q('kindOrg').checked, fields = { full_name: q('full_name').value.trim(), mobile: q('mobile').value.trim(), lang: q('lang').value };
       if (org) { fields.company = q('company').value.trim(); fields.job_title = q('job_title').value.trim(); fields.legal_rep = q('repYes').checked ? true : q('repNo').checked ? false : null; }
       else { fields.company = ''; fields.job_title = ''; fields.legal_rep = null; }
       var err = !fields.full_name ? 'account.err.name' : (!org && !q('kindPrivate').checked) ? 'account.err.kind' : org && !fields.company ? 'account.err.company' : org && !fields.job_title ? 'account.err.role' : org && fields.legal_rep === null ? 'account.err.legal_rep' : !q('visShown').checked && !q('visPrivate').checked ? 'account.err.vis' : '';
-      if (err) { m.className = 'msg err'; m.textContent = I.t(err); return; }
+      if (err) {
+        m.className = 'msg err'; m.textContent = I.t(err);
+        var el = q(FIELD_OF[err]), fld = el && el.closest('.field');
+        if (fld) { fld.classList.add('fld-bad'); fld.scrollIntoView({ behavior: 'smooth', block: 'center' }); try { el.focus({ preventScroll: true }); } catch (e) {} }
+        return;
+      }
       q('profileBtn').disabled = true;
       A.updateProfile(fields)
         .then(function (r) { return !r.ok ? r : savePriv().then(function (e) { return e ? { ok: false, error: e } : r; }); })
-        .then(function (r) { q('profileBtn').disabled = false; m.className = r.ok ? 'msg ok' : 'msg err'; m.textContent = r.ok ? I.t('account.saved') : r.error === 'timeout' ? I.t('account.err.timeout') : (r.error || I.t('account.save_failed')); if (r.ok) { try { if (A.profileComplete()) sessionStorage.setItem('clv_pf', A.user().id); } catch (e) {} q('name').textContent = A.displayName(); welcomeGate(); if (q('lang').value !== I.lang) { location.reload(); return; } if (nextUrl && A.profileComplete()) setTimeout(function () { location.href = nextUrl; }, 700); } });
+        .then(function (r) {
+          q('profileBtn').disabled = false;
+          if (!r.ok) {
+            m.className = 'msg err';
+            if (r.error === 'session') { m.textContent = I.t('account.err.session'); setTimeout(function () { location.href = 'login.html?next=' + encodeURIComponent('account.html'); }, 2500); return; }
+            m.textContent = r.error === 'timeout' ? I.t('account.err.timeout') : (r.error || I.t('account.save_failed'));
+            return;
+          }
+          try { if (A.profileComplete()) sessionStorage.setItem('clv_pf', A.user().id); } catch (e) {}
+          q('name').textContent = A.displayName(); welcomeGate();
+          if (A.profileComplete()) {
+            if (q('lang').value !== I.lang) I.set(q('lang').value, true, true); // the next page opens in the chosen language
+            m.className = 'msg ok'; m.textContent = I.t('account.saved_go');
+            setTimeout(function () { location.href = nextUrl || 'portal.html'; }, 900);
+            return;
+          }
+          m.className = 'msg ok'; m.textContent = I.t('account.saved');
+          if (q('lang').value !== I.lang) location.reload();
+        });
     });
 
     var NKEYS = ['room_new', 'room_updated', 'contract_new', 'market_new', 'portfolio_events'];
@@ -213,7 +242,7 @@
         if (!proof) { q('pwBtn').disabled = false; return; }
         return A.callFn('clv-mfa', { action: 'change_password', current_password: q('curPw').value, password: q('newPw').value, code: proof.code }).then(function (r) {
           q('pwBtn').disabled = false;
-          if (r && r.ok) { m.className = 'msg ok'; m.textContent = I.t(r.same ? 'pw.same' : 'account.pw_ok'); q('curPw').value = ''; q('newPw').value = ''; q('newPw2').value = ''; return; }
+          if (r && r.ok) { if (r.session) A.client().auth.setSession(r.session).then(function () { return A.refresh(); }).then(function () { A.markMfa(); }, function () {}); m.className = 'msg ok'; m.textContent = I.t(r.same ? 'pw.same' : 'account.pw_ok'); q('curPw').value = ''; q('newPw').value = ''; q('newPw2').value = ''; return; }
           var e = r && r.error, k = e === 'wrong-password' ? 'account.pw_wrong' : e === 'weak-password' ? 'account.pw_hint' : window.ClavorisMfa.passwordError(e);
           m.className = 'msg err'; m.textContent = k ? I.t(k) : (e || I.t('account.pw_fail'));
         });

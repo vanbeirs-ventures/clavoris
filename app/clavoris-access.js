@@ -244,8 +244,11 @@
     // The saved row comes back with the update, so the cache is refreshed without another session read;
     // a hard 15 s limit guarantees the caller always gets an answer (the button never stays disabled).
     var save = sb.from('clv_profiles').update(allowed).eq('id', _user.id).select(PROFILE_SEL).maybeSingle().then(function (res) {
-      if (res.error) return { ok: false, error: res.error.message };
-      if (res.data) _profile = res.data;
+      // An ended session (e.g. after a password change elsewhere) or a session without the second factor
+      // saves nothing: say so instead of reporting success.
+      if (res.error) return { ok: false, error: /jwt|token|session/i.test(res.error.message || '') || res.status === 401 ? 'session' : res.error.message };
+      if (!res.data) return { ok: false, error: 'session' };
+      _profile = res.data;
       return { ok: true };
     }, function (e) { return { ok: false, error: (e && e.message) || 'save-failed' }; });
     var limit = new Promise(function (r) { setTimeout(function () { r({ ok: false, error: 'timeout' }); }, 15000); });
