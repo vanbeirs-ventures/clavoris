@@ -85,8 +85,7 @@ Deno.serve(async (req) => {
     const presence = seen ? (new Date(seen).getTime() > cutoff ? "online" : "returning") : "never";
     return {
       // Name: the full name, else first + last name from the invitation; organisation: the stated company,
-      // else the company account the member belongs to. Staff also get the e-mail address of private
-      // members and of members who have not entered a name yet (to recognise them); investors do not see other members' addresses.
+      // else the company account the member belongs to.
       // A member who chose private participation is shown to the other investors by member ID only
       // (no name, organisation or role); the company running the room and the member themself see it all.
       ...(r.profile?.member_private && !isStaff(me) && r.user_id !== me.id
@@ -96,9 +95,8 @@ Deno.serve(async (req) => {
       // Stable member ID (same in every room), shown instead of the name when the member is private or
       // has not entered a name yet.
       member_id: "M-" + String(r.user_id).replace(/-/g, "").slice(0, 6).toUpperCase(),
-      // A member who shows their identity is shown by name and organisation only: no e-mail address, also
-      // not to staff. Staff see the address only for private members and members without a name yet.
-      email: isStaff(me) && (r.profile?.member_private || !memberName(r.profile)) ? (r.profile?.email || "") : undefined,
+      // No e-mail addresses in the member list, for anyone, staff included: a member is shown by name and
+      // organisation, or by member ID when private or unnamed. Staff find addresses in the admin console.
       verified: r.profile?.status === "verified", nda_signed: signedSet.has(r.user_id), since: r.granted_at, last_seen: seen, presence,
     };
   }).sort((a: any, b: any) => Number(!a.name) - Number(!b.name) || (a.company || "").localeCompare(b.company || "") || a.name.localeCompare(b.name));
