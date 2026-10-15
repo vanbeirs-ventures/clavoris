@@ -12,7 +12,7 @@
     tg_lede: "The terms governing access to and use of the Clavoris platform, its data rooms, identity verification and electronic signatures.",
     tg_updated: "Last updated · 15 October 2026",
     tg_h1: "1. Operator and scope",
-    tg_b1: "The Clavoris platform (www.clavoris.com and www.clavoris.com/app) is operated by Clavoris BV in formation, part of <a class='vbv' href='https://www.vanbeirsventures.com' target='_blank' rel='noopener'>Van Beirs Ventures</a> (\"Clavoris\"). These terms apply to every user of the platform: investors, members of data rooms and the companies that run data rooms. By creating an account or entering a data room, the user accepts these terms. Specific agreements (an NDA, a subscription agreement or a service-level agreement) prevail over these terms for the subject they cover.",
+    tg_b1: "The Clavoris platform (www.clavoris.com and www.clavoris.com/app) is operated by Clavoris – Van Beirs Consult BV, a private limited company under Belgian law, registered office Sint-Thomasstraat 9/301, 2018 Antwerpen, Belgium, enterprise number 1015.351.359 (RLE Antwerp, division Antwerp), VAT BE 1015.351.359, info@clavoris.com, part of <a class='vbv' href='https://www.vanbeirsventures.com' target='_blank' rel='noopener'>Van Beirs Ventures</a> (\"Clavoris\"). Subscriptions of company accounts are contracts between Clavoris – Van Beirs Consult BV and the holder of the company account. These terms apply to every user of the platform: investors, members of data rooms and the companies that run data rooms. By creating an account or entering a data room, the user accepts these terms. Specific agreements (an NDA, a subscription agreement or a service-level agreement) prevail over these terms for the subject they cover.",
     tg_h2: "2. Eligibility and accounts",
     tg_b2: "Access to investment instruments is restricted to professional investors under MiFID II, subject to identity verification under the EU anti-money-laundering rules (AMLD). Data rooms are open only to persons invited by the company running the room. An account is personal: the user keeps the password and second authentication factor confidential and informs Clavoris without delay of any misuse.",
     tg_h3: "3. No offer or advice",
@@ -38,7 +38,7 @@
     tg_h13: "13. Changes",
     tg_b13: "Clavoris may amend these terms. The date at the top shows the current version; material changes are announced to users by e-mail or on the platform before they take effect. Continued use of the platform after that date means acceptance of the amended terms.",
     tg_h14: "14. Governing law and jurisdiction",
-    tg_b14: "These terms are governed by the laws of Luxembourg. The competent courts of Luxembourg have exclusive jurisdiction over any dispute, without prejudice to mandatory rules that protect consumers."
+    tg_b14: "These terms, and every subscription contract concluded under them, are governed by Belgian law. The courts of Antwerp (division Antwerp) have exclusive jurisdiction over any dispute, without prejudice to mandatory rules that protect consumers."
   };
 
   T.nl = {
@@ -46,7 +46,7 @@
     tg_lede: "De voorwaarden voor de toegang tot en het gebruik van het Clavoris-platform, de datarooms, de identiteitsverificatie en de elektronische handtekeningen.",
     tg_updated: "Laatst bijgewerkt · 15 oktober 2026",
     tg_h1: "1. Beheerder en toepassingsgebied",
-    tg_b1: "Het Clavoris-platform (www.clavoris.com en www.clavoris.com/app) wordt beheerd door Clavoris BV in oprichting, onderdeel van <a class='vbv' href='https://www.vanbeirsventures.com' target='_blank' rel='noopener'>Van Beirs Ventures</a> (\"Clavoris\"). Deze voorwaarden gelden voor elke gebruiker van het platform: beleggers, leden van datarooms en de ondernemingen die datarooms beheren. Wie een account aanmaakt of een dataroom betreedt, aanvaardt deze voorwaarden. Specifieke overeenkomsten (een NDA, een inschrijvingsovereenkomst of een service level agreement) gaan voor op deze voorwaarden voor het onderwerp dat ze regelen.",
+    tg_b1: "Het Clavoris-platform (www.clavoris.com en www.clavoris.com/app) wordt beheerd door Clavoris – Van Beirs Consult BV, besloten vennootschap naar Belgisch recht, met maatschappelijke zetel te Sint-Thomasstraat 9/301, 2018 Antwerpen, België, ondernemingsnummer 1015.351.359 (RPR Antwerpen, afdeling Antwerpen), btw BE 1015.351.359, info@clavoris.com, onderdeel van <a class='vbv' href='https://www.vanbeirsventures.com' target='_blank' rel='noopener'>Van Beirs Ventures</a> (\"Clavoris\"). Abonnementen van bedrijfsaccounts zijn overeenkomsten tussen Clavoris – Van Beirs Consult BV en de houder van het bedrijfsaccount. Deze voorwaarden gelden voor elke gebruiker van het platform: beleggers, leden van datarooms en de ondernemingen die datarooms beheren. Wie een account aanmaakt of een dataroom betreedt, aanvaardt deze voorwaarden. Specifieke overeenkomsten (een NDA, een inschrijvingsovereenkomst of een service level agreement) gaan voor op deze voorwaarden voor het onderwerp dat ze regelen.",
     tg_h2: "2. Toelaatbaarheid en accounts",
     tg_b2: "Toegang tot beleggingsinstrumenten is beperkt tot professionele beleggers onder MiFID II, na identiteitsverificatie volgens de Europese antiwitwasregels (AMLD). Datarooms zijn enkel toegankelijk voor personen die de beherende onderneming uitnodigt. Een account is persoonlijk: de gebruiker houdt wachtwoord en tweede authenticatiefactor geheim en meldt elk misbruik onverwijld aan Clavoris.",
     tg_h3: "3. Geen aanbod of advies",
@@ -72,7 +72,7 @@
     tg_h13: "13. Wijzigingen",
     tg_b13: "Clavoris kan deze voorwaarden wijzigen. De datum bovenaan toont de geldende versie; wezenlijke wijzigingen worden vóór de inwerkingtreding per e-mail of op het platform aangekondigd. Wie het platform na die datum blijft gebruiken, aanvaardt de gewijzigde voorwaarden.",
     tg_h14: "14. Toepasselijk recht en bevoegde rechter",
-    tg_b14: "Op deze voorwaarden is het recht van Luxemburg van toepassing. De bevoegde rechtbanken van Luxemburg zijn exclusief bevoegd voor elk geschil, onverminderd de dwingende regels ter bescherming van consumenten."
+    tg_b14: "Op deze voorwaarden en op elke abonnementsovereenkomst die eronder wordt gesloten, is het Belgisch recht van toepassing. De rechtbanken van Antwerpen (afdeling Antwerpen) zijn exclusief bevoegd voor elk geschil, onverminderd de dwingende regels ter bescherming van consumenten."
   };
 
   T.fr = {
@@ -80,7 +80,7 @@
     tg_lede: "Les conditions régissant l'accès à la plateforme Clavoris et son utilisation, ses data rooms, la vérification d'identité et les signatures électroniques.",
     tg_updated: "Dernière mise à jour · 15 octobre 2026",
     tg_h1: "1. Exploitant et champ d'application",
-    tg_b1: "La plateforme Clavoris (www.clavoris.com et www.clavoris.com/app) est exploitée par Clavoris BV en formation, membre de <a class='vbv' href='https://www.vanbeirsventures.com' target='_blank' rel='noopener'>Van Beirs Ventures</a> (« Clavoris »). Les présentes conditions s'appliquent à tout utilisateur de la plateforme : investisseurs, membres de data rooms et sociétés qui gèrent des data rooms. En créant un compte ou en accédant à une data room, l'utilisateur accepte les présentes conditions. Les accords spécifiques (un NDA, un contrat de souscription ou un contrat de niveau de service) priment sur les présentes conditions pour l'objet qu'ils régissent.",
+    tg_b1: "La plateforme Clavoris (www.clavoris.com et www.clavoris.com/app) est exploitée par Clavoris – Van Beirs Consult BV, société à responsabilité limitée de droit belge, dont le siège est établi Sint-Thomasstraat 9/301, 2018 Anvers, Belgique, numéro d'entreprise 1015.351.359 (RPM Anvers, division Anvers), TVA BE 1015.351.359, info@clavoris.com, membre de <a class='vbv' href='https://www.vanbeirsventures.com' target='_blank' rel='noopener'>Van Beirs Ventures</a> (« Clavoris »). Les abonnements des comptes société sont des contrats conclus entre Clavoris – Van Beirs Consult BV et le titulaire du compte société. Les présentes conditions s'appliquent à tout utilisateur de la plateforme : investisseurs, membres de data rooms et sociétés qui gèrent des data rooms. En créant un compte ou en accédant à une data room, l'utilisateur accepte les présentes conditions. Les accords spécifiques (un NDA, un contrat de souscription ou un contrat de niveau de service) priment sur les présentes conditions pour l'objet qu'ils régissent.",
     tg_h2: "2. Éligibilité et comptes",
     tg_b2: "L'accès aux instruments de placement est réservé aux investisseurs professionnels au sens de MiFID II, sous réserve de la vérification d'identité prévue par les règles européennes de lutte contre le blanchiment (AMLD). Les data rooms ne sont accessibles qu'aux personnes invitées par la société qui les gère. Le compte est personnel : l'utilisateur garde confidentiels son mot de passe et son second facteur d'authentification et signale sans délai tout abus à Clavoris.",
     tg_h3: "3. Ni offre ni conseil",
@@ -106,7 +106,7 @@
     tg_h13: "13. Modifications",
     tg_b13: "Clavoris peut modifier les présentes conditions. La date en tête indique la version en vigueur ; les modifications substantielles sont annoncées aux utilisateurs par e-mail ou sur la plateforme avant leur entrée en vigueur. La poursuite de l'utilisation de la plateforme après cette date vaut acceptation des conditions modifiées.",
     tg_h14: "14. Droit applicable et juridiction",
-    tg_b14: "Les présentes conditions sont régies par le droit luxembourgeois. Les tribunaux compétents du Luxembourg ont compétence exclusive pour tout litige, sans préjudice des règles impératives protégeant les consommateurs."
+    tg_b14: "Les présentes conditions, ainsi que tout contrat d'abonnement conclu sur leur base, sont régies par le droit belge. Les tribunaux d'Anvers (division Anvers) ont compétence exclusive pour tout litige, sans préjudice des règles impératives protégeant les consommateurs."
   };
 
   // Languages without their own text show the English version.

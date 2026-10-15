@@ -5,6 +5,25 @@
 (function () {
   "use strict";
 
+  /* ---- legal entity (Oct 2026) ----
+     The platform is operated by Clavoris, a trade name of Van Beirs Consult BV (Sint-Thomasstraat 9/301,
+     2018 Antwerpen, Belgium · enterprise number 1015.351.359 · VAT BE 1015.351.359 · info@clavoris.com).
+     Older texts in the dictionaries still name "Clavoris BV in formation" (in each language),
+     "Van Beirs Holding B.V." or legal@clavoris.com; they are corrected here, in every language,
+     before the page is translated. */
+  var ENTITY = "Clavoris – Van Beirs Consult BV";
+  (function fixEntity() {
+    var L = window.I18N || {};
+    var re = /Clavoris BV (in formation|in oprichting|in Gründung|en cours de constitution|en constitución|en constitució|in costituzione|em constituição|設立準備中|筹备中)/g;
+    Object.keys(L).forEach(function (lang) {
+      var d = L[lang];
+      Object.keys(d).forEach(function (k) {
+        if (typeof d[k] !== "string") return;
+        d[k] = d[k].replace(re, ENTITY).replace(/Van Beirs Holding B\.V\./g, ENTITY).replace(/legal@clavoris\.com/g, "info@clavoris.com");
+      });
+    });
+  })();
+
   var LANGS = [
     { code: "en", name: "English" }, { code: "nl", name: "Nederlands" },
     { code: "de", name: "Deutsch" }, { code: "fr", name: "Français" },
@@ -153,13 +172,13 @@
         '<div class="footer-col"><h4 data-i18n="foot_legal_h"></h4>' +
           '<a href="privacy.html" data-i18n="foot_privacy"></a>' +
           '<a href="terms.html" data-i18n="foot_terms"></a>' +
-          '<a class="mono" href="mailto:legal@clavoris.com">legal@clavoris.com</a></div>' +
+          '<a class="mono" href="mailto:info@clavoris.com">info@clavoris.com</a></div>' +
       "</div>" +
       '<div class="footer-bar"><div class="loc-row"><span class="lbl" data-i18n="foot_loc_h"></span>' +
         '<span data-i18n="foot_loc"></span></div></div>' +
       '<div class="footer-bar"><p data-i18n="foot_legal"></p></div>' +
       '<div class="footer-bar"><p data-i18n="foot_rights"></p>' +
-        '<p class="vbv-line">Clavoris BV <span data-i18n="entity_status"></span> · <a class="vbv" href="https://www.vanbeirsventures.com" target="_blank" rel="noopener">Van Beirs Ventures</a></p></div></div>';
+        '<p class="vbv-line">Clavoris – Van Beirs Consult BV · BE 1015.351.359 · Sint-Thomasstraat 9/301, 2018 Antwerpen · <a class="vbv" href="https://www.vanbeirsventures.com" target="_blank" rel="noopener">Van Beirs Ventures</a></p></div></div>';
     document.body.appendChild(f);
   }
 
