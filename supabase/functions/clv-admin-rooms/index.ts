@@ -16,6 +16,7 @@
 import { adminClient, APP_URL, audit, companyScope, cors, enrolUser, fmtDay, inScope, json, requireAdmin, sendMail, ctaLabel } from "../_shared/clv.ts";
 import { mail, OPEN_CTA, pickLang, word } from "../_shared/room-mail.ts";
 import { ncConfigured, ncMkdirP, ncPut, sha256Hex } from "../_shared/nc.ts";
+import { overLimit } from "../_shared/plans.ts";
 const withLang = (u: string, l: string) => u + (u.includes("?") ? "&" : "?") + "lang=" + l;
 const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "room";
 const isDate = (s: unknown) => /^\d{4}-\d{2}-\d{2}$/.test(String(s || ""));
@@ -87,6 +88,8 @@ Deno.serve(async (req) => {
     };
     if (r.annex_text !== undefined) row.annex_text = String(r.annex_text || "").slice(0, 60000) || null;
     let id = String(r.id || "");
+    // A new data room: the company account's plan sets how many rooms it may have (super admins are not limited).
+    if (!id && me.role !== "super") { const over = await overLimit(admin, companyId, "data_rooms"); if (over) return json(over, 403); }
     if (id) {
       const { data: ex } = await admin.from("clv_rooms").select("company_id").eq("id", id).maybeSingle();
       if (!ex || !inScope(me, ex.company_id)) return json({ error: "forbidden" }, 403);

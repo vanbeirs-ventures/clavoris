@@ -18,6 +18,7 @@
 import { PDFDocument } from "https://esm.sh/pdf-lib@1.17.1";
 import { adminClient, APP_URL, audit, clientIp, companyScope, cors, enrolUser, inScope, isStaff, json, requireUser, sendMail } from "../_shared/clv.ts";
 import { wants } from "../_shared/notify.ts";
+import { overLimit } from "../_shared/plans.ts";
 import { ncConfigured, ncGet, ncMkdirP, ncPut, sha256Hex } from "../_shared/nc.ts";
 import { bytesToB64, esign, esignBalance, esignConfigured, esignGetRequest, ESIGN_METHODS, type EsignRequest, esignResult, normalizePhone, splitName } from "../_shared/esign.ts";
 import { mail, pickLang, word } from "../_shared/mail-i18n.ts";
@@ -110,6 +111,8 @@ Deno.serve(async (req) => {
   // ---- staff actions ----
   if (action === "create") {
     if (!staff) return json({ error: "forbidden" }, 403);
+    // The company account's plan sets how many contracts it may have (Clavoris super admins are not limited).
+    if (me.role !== "super") { const over = await overLimit(admin, me.company_id, "contracts"); if (over) return json(over, 403); }
     if (!(await ncConfigured())) return json({ error: "storage-not-configured" }, 503);
     const title = String(body.title || "").trim().slice(0, 200);
     const description = String(body.description || "").trim().slice(0, 2000) || null;
