@@ -34,8 +34,11 @@ html.clv-checking body[data-clv-restrict] main { visibility: hidden; }
 .nav-lk.active { color: var(--clavis-navy); font-weight: 500; }
 .nav-lk.active::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--seal-gold); }
 .nav-right { display: flex; align-items: center; gap: 14px; }
-.nav-av.active { box-shadow: 0 0 0 2px var(--seal-gold); }
-.nav-av { width: 34px; height: 34px; border-radius: 50%; background: var(--clavis-navy); color: var(--parchment);
+.nav-menu { display: contents; }   /* desktop: tabs and account block sit directly in the band */
+.nav-acct { display: inline-flex; align-items: center; gap: 10px; }
+.nav-name { display: none; }
+.nav-acct.active .nav-av { box-shadow: 0 0 0 2px var(--seal-gold); }
+.nav-av { flex: none; width: 34px; height: 34px; border-radius: 50%; background: var(--clavis-navy); color: var(--parchment);
   display: inline-flex; align-items: center; justify-content: center; font-family: var(--font-display); font-size: 15px; }
 
 /* ---- footer ---- */
@@ -57,6 +60,7 @@ html.clv-checking body[data-clv-restrict] main { visibility: hidden; }
 .btn:disabled { opacity: .45; cursor: not-allowed; }
 .btn-text { font-size: 12.5px; color: var(--slate); text-decoration: underline; text-underline-offset: 3px; padding: 8px 0; }
 .btn-text:hover { color: var(--clavis-navy); }
+.btn-sm { padding: 7px 14px; font-size: 12.5px; }
 
 .chip { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 500; padding: 4px 11px;
   border-radius: var(--r-pill); border: 1px solid transparent; white-space: nowrap; }
@@ -171,13 +175,25 @@ textarea { font-family: inherit; font-size: 14px; }
 @media (max-width: 860px) {
   html, body { overflow-x: hidden; }   /* no sideways page scroll on phones; wide content scrolls inside its own card */
   .screen-wrap, .card { min-width: 0; max-width: 100%; }
-  /* Phones: the full menu stays visible as a scrollable row under the brand line; no collapsed menu. */
-  .nav { flex-wrap: wrap; padding-top: 8px; padding-bottom: 0; row-gap: 0; }
-  .nav-burger { display: none; }
-  .nav-right { order: 2; margin-left: auto; gap: 10px; }
-  .nav-links { display: flex; order: 3; width: 100%; gap: 22px; overflow-x: auto; white-space: nowrap; -webkit-overflow-scrolling: touch; scrollbar-width: none; margin-top: 6px; border-top: 1px solid var(--border); }
-  .nav-links::-webkit-scrollbar { display: none; }
-  .nav-lk { padding: 12px 0; font-size: 14.5px; flex: none; }
+  /* Phones: brand + hamburger; the button opens one panel with the tabs and the account block. */
+  .nav { flex-wrap: wrap; min-height: 60px; row-gap: 0; }
+  .nav-burger { display: inline-flex; margin-left: auto; }
+  .nav.open .nav-burger span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+  .nav.open .nav-burger span:nth-child(2) { opacity: 0; }
+  .nav.open .nav-burger span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+  .nav-burger span { transition: transform .18s, opacity .18s; }
+  .nav-menu { display: none; width: 100%; padding: 4px 0 14px; border-top: 1px solid var(--border); }
+  .nav.open .nav-menu { display: block; max-height: calc(100vh - 60px); overflow-y: auto; }
+  .nav-links { display: flex; flex-direction: column; gap: 0; }
+  .nav-lk { display: block; padding: 14px 4px; font-size: 16px; border-bottom: 1px solid var(--border); }
+  .nav-lk.active { color: var(--clavis-navy); }
+  .nav-lk.active::after { top: 12px; bottom: 12px; left: -16px; right: auto; width: 3px; height: auto; }
+  .nav-right { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; padding-top: 16px; }
+  .nav-acct { width: 100%; padding: 4px; }
+  .nav-name { display: flex; flex-direction: column; line-height: 1.25; min-width: 0; }
+  .nav-name b { font-weight: 500; color: var(--clavis-navy); font-size: 15px; overflow-wrap: anywhere; }
+  .nav-name small { font-size: 12.5px; color: var(--fg-3); }
+  .nav-out { padding: 0 4px; font-size: 15px; }
   .page-title { font-size: 26px; }
   .app-foot { flex-direction: column; gap: 6px; padding: 16px; text-align: center; }
   .btn { min-height: 44px; }
@@ -210,4 +226,22 @@ textarea { font-family: inherit; font-size: 14px; }
   main .tree .row .nm { flex: 1 1 calc(100% - 30px); white-space: normal; overflow-wrap: anywhere; line-height: 1.35; }
   main .tree .row .meta { margin-left: 30px; }
   main .tree .row .dl { margin-left: auto; }
+}
+/* Tables marked .tbl-cards become one card per row on phones (no sideways scrolling to reach the
+   action); rows with data-href open on a tap anywhere in the row. */
+.tbl tr[data-href] { cursor: pointer; }
+@media (max-width: 640px) {
+  .tbl-cards thead { display: none; }
+  .tbl-cards, .tbl-cards tbody, .tbl-cards tr, .tbl-cards td { display: block; width: 100%; }
+  .tbl-cards tr { padding: 14px 16px; border-top: 1px solid var(--border); }
+  .tbl-cards tr:first-child { border-top: 0; }
+  .tbl-cards td { border: 0; padding: 4px 0; white-space: normal; display: flex; justify-content: space-between; align-items: center; gap: 12px; text-align: right; }
+  .tbl-cards td::before { content: attr(data-label); font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--fg-3); text-align: left; flex: none; }
+  .tbl-cards td.cell-main { display: block; text-align: left; font-size: 15px; padding-bottom: 8px; }
+  .tbl-cards td.cell-main::before, .tbl-cards td.cell-act::before { content: none; }
+  .tbl-cards td.cell-act { padding-top: 12px; }
+  .tbl-cards td.cell-act .btn { width: 100%; }
+  .tbl-cards tr:hover td { background: transparent; }
+  .tbl-cards td[colspan] { display: block; text-align: left; }
+  .tbl-cards td[colspan]::before { content: none; }
 }

@@ -5,6 +5,28 @@
 (function () {
   'use strict';
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (m) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[m]; }); }
+  // Top-band menu. Desktop: tabs in the middle, KYC chip / avatar / sign out on the right.
+  // Phones (<= 860 px): a hamburger button opens one panel with the tabs, then the account block
+  // (avatar + name -> account page, KYC status, sign out).
+  function menu(links, active, chip, name, initials, t, placeholder) {
+    return '<button class="nav-burger" id="navBurger" type="button" aria-label="Menu" aria-controls="navMenu" aria-expanded="false"><span></span><span></span><span></span></button>'
+      + '<div class="nav-menu" id="navMenu">'
+      + '<div class="nav-links" id="navLinks">' + links.map(function (l) { return '<a class="nav-lk' + (l.id === active ? ' active' : '') + '" href="' + l.href + '">' + esc(l.label) + '</a>'; }).join('') + '</div>'
+      + '<div class="nav-right">' + chip
+      + '<a class="nav-acct' + (active === 'account' ? ' active' : '') + '" href="account.html" title="' + esc(name) + ' — ' + esc(t('nav.account')) + '"><span class="nav-av">' + esc(initials) + '</span><span class="nav-name"><b>' + esc(name) + '</b><small>' + esc(t('nav.account')) + '</small></span></a>'
+      + '<button class="btn-text nav-out"' + (placeholder ? ' disabled' : ' id="signOut"') + ' type="button">' + esc(t('nav.signout')) + '</button></div>'
+      + '</div>';
+  }
+  // One handler for the hamburger (works for the instant band and the real one): toggle, close on
+  // a tap outside the band, on Escape and when a menu link is followed.
+  function setOpen(nav, open) { nav.classList.toggle('open', open); var b = document.getElementById('navBurger'); if (b) b.setAttribute('aria-expanded', open ? 'true' : 'false'); }
+  document.addEventListener('click', function (ev) {
+    var nav = document.getElementById('nav'); if (!nav) return;
+    if (ev.target.closest && ev.target.closest('#navBurger')) { setOpen(nav, !nav.classList.contains('open')); return; }
+    if (!nav.classList.contains('open')) return;
+    if (!nav.contains(ev.target) || (ev.target.closest && ev.target.closest('#navMenu a'))) setOpen(nav, false);
+  });
+  document.addEventListener('keydown', function (ev) { var nav = document.getElementById('nav'); if (ev.key === 'Escape' && nav && nav.classList.contains('open')) setOpen(nav, false); });
   function render(active) {
     var A = window.ClavorisAccess, I = window.ClavorisI18n; var nav = document.getElementById('nav'); if (!nav || !A) return;
     var p = A.profile && A.profile();
@@ -21,17 +43,13 @@
     var chip = status === 'verified' ? '<span class="chip verified"><span class="dot"></span>' + esc(t('nav.kyc_verified')) + '</span>'
       : '<a class="chip ' + esc(status) + '" href="kyc.html" title="' + esc(t('nav.kyc_title')) + '"><span class="dot"></span>' + esc(t('status.' + status)) + '</a>';
     nav.innerHTML = '<a class="nav-brand" href="portal.html"><img src="../assets/clavoris-mark.png" alt=""><span class="nav-wm">Clavori<span class="g">s</span></span></a>'
-      + '<button class="nav-burger" id="navBurger" type="button" aria-label="Menu" aria-expanded="false"><span></span><span></span><span></span></button>'
-      + '<div class="nav-links" id="navLinks">' + links.map(function (l) { return '<a class="nav-lk' + (l.id === active ? ' active' : '') + '" href="' + l.href + '">' + esc(l.label) + '</a>'; }).join('') + '</div>'
-      + '<div class="nav-right">' + chip + '<a class="nav-av' + (active === 'account' ? ' active' : '') + '" href="account.html" title="' + esc(A.displayName()) + ' — ' + esc(t('nav.account')) + '">' + esc(A.initials()) + '</a>'
-      + '<button class="btn-text" id="signOut" type="button">' + esc(t('nav.signout')) + '</button></div>';
+      + menu(links, active, chip, A.displayName(), A.initials(), t, false);
     try { sessionStorage.setItem('clv_nav', JSON.stringify({ role: p && p.role, status: status, name: A.displayName(), initials: A.initials(), lang: I && I.lang })); } catch (e) {}
     // The current page's own item does not reload the page.
     [].forEach.call(nav.querySelectorAll('.nav-lk.active'), function (a) { a.addEventListener('click', function (ev) { ev.preventDefault(); }); });
     var so = document.getElementById('signOut');
     if (so) so.addEventListener('click', function () { try { sessionStorage.removeItem('clv_nav'); } catch (e) {} A.signOut().then(function () { location.href = 'login.html'; }); });
-    var bg = document.getElementById('navBurger');
-    if (bg) bg.addEventListener('click', function () { var open = nav.classList.toggle('open'); bg.setAttribute('aria-expanded', open ? 'true' : 'false'); });
+
     if (I) I.apply(document);
     unsubscribePrompt(); idleGuard();
   }
@@ -55,8 +73,7 @@
     var st = c.status || 'registered';
     var chip = st === 'verified' ? '<span class="chip verified"><span class="dot"></span>' + esc(t('nav.kyc_verified')) + '</span>' : '<a class="chip ' + esc(st) + '" href="kyc.html"><span class="dot"></span>' + esc(t('status.' + st)) + '</a>';
     nav.innerHTML = '<a class="nav-brand" href="portal.html"><img src="../assets/clavoris-mark.png" alt=""><span class="nav-wm">Clavori<span class="g">s</span></span></a>'
-      + '<div class="nav-links">' + links.map(function (l) { return '<a class="nav-lk' + (l.id === active ? ' active' : '') + '" href="' + l.href + '">' + esc(l.label) + '</a>'; }).join('') + '</div>'
-      + '<div class="nav-right">' + chip + '<a class="nav-av' + (active === 'account' ? ' active' : '') + '" href="account.html">' + esc(c.initials || 'C') + '</a><button class="btn-text" type="button" disabled>' + esc(t('nav.signout')) + '</button></div>';
+      + menu(links, active, chip, c.name || '', c.initials || 'C', t, true);
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', prerender); else prerender();
   // After following the "unsubscribe / manage notifications" link in a mail: offer the settings once signed in.

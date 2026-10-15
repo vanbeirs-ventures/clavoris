@@ -6,7 +6,7 @@
 <meta name="robots" content="noindex">
 <title>Data rooms — Clavoris</title>
 <link rel="icon" href="../assets/clavoris-mark.png">
-<link rel="stylesheet" href="app.css?v=20261014c">
+<link rel="stylesheet" href="app.css?v=20261015m">
 <script>document.documentElement.classList.add('clv-checking');</script>
 </head>
 <body data-clv-restrict="full">
@@ -26,7 +26,7 @@
 
     <p class="page-sub" style="margin-top:28px" data-i18n="portal.sub">Rooms you have been granted access to. Documents are confidential; a non-disclosure agreement is signed inside each room before documents open, and every access is logged.</p>
     <div class="card tbl-wrap" style="margin-top:14px">
-      <table class="tbl"><thead><tr><th data-i18n="portal.th.room">Room</th><th data-i18n="portal.th.type">Type</th><th data-i18n="portal.th.access">Access</th><th data-i18n="portal.th.expires">Expires</th><th data-i18n="portal.th.status">Status</th><th></th></tr></thead>
+      <table class="tbl tbl-cards"><thead><tr><th data-i18n="portal.th.room">Room</th><th data-i18n="portal.th.type">Type</th><th data-i18n="portal.th.access">Access</th><th data-i18n="portal.th.expires">Expires</th><th data-i18n="portal.th.status">Status</th><th></th></tr></thead>
       <tbody id="roomRows"><tr><td colspan="6" style="color:var(--fg-3)" data-i18n="common.loading">Loading…</td></tr></tbody></table>
     </div>
     <p class="note" data-i18n="portal.note">Access is personal and may not be shared. Instruments are available exclusively to professional investors under MiFID II categorisation.</p>
@@ -38,7 +38,7 @@
 <script src="i18n.js?v=20261014c"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="clavoris-access.js?v=20261014c"></script>
-<script src="shell.js?v=20261014c"></script>
+<script src="shell.js?v=20261015m"></script>
 <script>
 (function () {
   'use strict';
@@ -74,13 +74,16 @@
         var expired = a.expires_at && new Date(a.expires_at) < new Date();
         var x = a.expires_at ? S.accessLeft(a.expires_at) : null;
         var exp = !a.expires_at ? '—' : '<span class="chip ' + (x.state === 'ended' ? 'rejected' : x.state === 'ok' ? 'verified' : 'pending') + '">' + S.esc(S.accessText(a.expires_at)) + '</span>' + (a.staff ? '' : '<div style="margin-top:4px"><button class="btn-text" type="button" data-ext="' + S.esc(rm.id) + '" data-name="' + S.esc(rm.name || '') + '" data-exp="' + S.esc(a.expires_at) + '">' + I.t('access.request') + '</button></div>');
-        return '<tr><td style="font-weight:500;color:var(--clavis-navy)">' + S.esc(rm.name || '') + '<div class="mono" style="font-size:11px;color:var(--fg-3);margin-top:3px">' + S.esc(ownerLine((rm.company && rm.company.name) || '', rm.seller || '')) + '</div></td>'
-          + '<td>' + S.esc(rm.project_type === 'ma' ? I.t('portal.type.ma') : rm.project_type || '') + '</td>'
-          + '<td>' + I.t(a.staff ? 'portal.access.staff' : a.can_download ? 'portal.access.dl' : 'portal.access.view') + '</td>'
-          + '<td>' + exp + '</td>'
-          + '<td>' + (expired ? '<span class="chip alert">' + I.t('portal.expired') + '</span>' : '<span class="chip verified">' + I.t('room.status.open') + '</span>') + '</td>'
-          + '<td><a class="btn-text" href="room.html?id=' + S.esc(rm.id) + '">' + I.t('portal.open') + '</a></td></tr>';
+        var href = 'room.html?id=' + encodeURIComponent(rm.id || '');
+        return '<tr data-href="' + S.esc(href) + '"><td class="cell-main" style="font-weight:500;color:var(--clavis-navy)">' + S.esc(rm.name || '') + '<div class="mono" style="font-size:11px;color:var(--fg-3);margin-top:3px">' + S.esc(ownerLine((rm.company && rm.company.name) || '', rm.seller || '')) + '</div></td>'
+          + '<td data-label="' + S.esc(I.t('portal.th.type')) + '">' + S.esc(rm.project_type === 'ma' ? I.t('portal.type.ma') : rm.project_type || '') + '</td>'
+          + '<td data-label="' + S.esc(I.t('portal.th.access')) + '">' + I.t(a.staff ? 'portal.access.staff' : a.can_download ? 'portal.access.dl' : 'portal.access.view') + '</td>'
+          + '<td data-label="' + S.esc(I.t('portal.th.expires')) + '">' + exp + '</td>'
+          + '<td data-label="' + S.esc(I.t('portal.th.status')) + '">' + (expired ? '<span class="chip alert">' + I.t('portal.expired') + '</span>' : '<span class="chip verified">' + I.t('room.status.open') + '</span>') + '</td>'
+          + '<td class="cell-act"><a class="btn btn-primary btn-sm" href="' + S.esc(href) + '">' + I.t('portal.open') + '</a></td></tr>';
       }).join('');
+      // A tap anywhere on a room row opens the room (buttons and links inside the row keep their own action).
+      [].forEach.call(tb.querySelectorAll('tr[data-href]'), function (tr) { tr.addEventListener('click', function (ev) { if (ev.target.closest('a, button')) return; location.href = tr.getAttribute('data-href'); }); });
       [].forEach.call(tb.querySelectorAll('[data-ext]'), function (b) { b.addEventListener('click', function () { S.extensionDialog(b.getAttribute('data-ext'), b.getAttribute('data-name'), b.getAttribute('data-exp'), null); }); });
     });
   });
