@@ -28,7 +28,7 @@
         <p class="eyebrow" data-i18n="login.form_eyebrow">Authorised access</p>
         <h2 data-i18n="login.form_title">Sign in to your portal</h2>
         <p class="lead" data-i18n="login.lead">Access is exclusive to verified professional investors and Clavoris staff.</p>
-        <div class="field"><label for="email" data-i18n="login.email">Institutional email</label><input id="email" type="email" autocomplete="email" placeholder="name@company.com" data-i18n-placeholder="login.email_ph"></div>
+        <div class="field"><label for="email" data-i18n="login.email">Email</label><input id="email" type="email" autocomplete="email" placeholder="name@company.com" data-i18n-placeholder="login.email_ph"></div>
         <div class="field"><label for="pw" data-i18n="login.pass">Password</label>
           <div class="pw-wrap"><input id="pw" type="password" autocomplete="current-password" class="mono" placeholder="••••••••••••">
             <button type="button" class="pw-eye" data-eye="pw" aria-label="Show password"><svg viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>
@@ -42,7 +42,7 @@
         <p class="eyebrow" data-i18n="forgot.eyebrow">Recovery</p>
         <h2 data-i18n="forgot.title">Reset your password</h2>
         <p class="lead" data-i18n="forgot.lead">Enter the email on your Clavoris account. Clavoris sends a one-time link to set a new password.</p>
-        <div class="field"><label for="fEmail" data-i18n="login.email">Institutional email</label><input id="fEmail" type="email" autocomplete="email"></div>
+        <div class="field"><label for="fEmail" data-i18n="login.email">Email</label><input id="fEmail" type="email" autocomplete="email"></div>
         <p class="msg" id="forgotMsg" role="status"></p>
         <button class="btn btn-primary btn-block" type="submit" id="forgotBtn" data-i18n="forgot.btn">Send recovery link</button>
         <div style="text-align:center;margin-top:10px"><button type="button" class="btn-text" id="toLogin" data-i18n="forgot.back">Back to sign in</button></div>
@@ -59,6 +59,8 @@
 (function () {
   'use strict';
   var A = window.ClavorisAccess, I = window.ClavorisI18n;
+  // The e-mail field reads "Email" in every language.
+  ['en', 'nl', 'fr'].forEach(function (l) { I.add(l, { 'login.email': 'Email' }); });
   function q(id) { return document.getElementById(id); }
   function param(k) { try { return new URLSearchParams(location.search).get(k); } catch (e) { return null; } }
   function reason(k) { return I.t(['invalid', 'no-profile', 'suspended', 'rejected', 'unavailable'].indexOf(k) >= 0 ? 'login.err.' + k : 'login.err.invalid'); }
