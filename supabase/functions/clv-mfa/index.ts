@@ -7,6 +7,7 @@
 //                                            purpose "login" (default) or "password" (confirming a password change)
 //   { action: "verify", code }            -> checks a sign-in code; marks this session as verified; completes the sign-in
 //   { action: "totp_done" }               -> after an authenticator verification (aal2): completes the sign-in
+//   { action: "delivery", purpose? }      -> delivery state of the latest e-mailed code: none | pending | delivered | rejected
 //   { action: "remind", never? }          -> answer to the "activate the authenticator app" reminder
 //   { action: "change_password", password, current_password?, code? }
 //                                         -> sets a new password, only with a fresh second factor: an e-mailed
@@ -134,6 +135,22 @@ Deno.serve(async (req) => {
 
   if (action === "status") {
     return json({ ok: true, verified: await mfaOk(admin, jwt, me.id), totp, email: mask(me.email), first_password: await firstPassword() });
+  }
+
+  // Delivery state of the latest e-mailed code for this session (from the Postmark delivery log, see
+  // clv-mail-events): "pending" while unknown, "delivered", or "rejected" when the recipient's mail server
+  // refused both the HTML mail and its plain-text retry. The code screen polls this to explain a rejection.
+  if (action === "delivery") {
+    const purpose: Purpose = body.purpose === "password" ? "password" : "login";
+    const { data: c } = await admin.from("clv_mfa_codes").select("created_at").eq("user_id", me.id).eq("session_id", sessionId).eq("purpose", purpose).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (!c) return json({ ok: true, state: "none" });
+    const since = new Date(new Date(c.created_at).getTime() - 5000).toISOString();
+    const { data: first } = await admin.from("clv_mail_log").select("id, status").eq("recipient", me.email.trim().toLowerCase()).is("parent_id", null).gte("created_at", since).order("created_at", { ascending: true }).limit(1).maybeSingle();
+    if (!first) return json({ ok: true, state: "pending" });
+    const { data: retry } = await admin.from("clv_mail_log").select("status").eq("parent_id", first.id).maybeSingle();
+    const state = first.status === "delivered" || retry?.status === "delivered" ? "delivered"
+      : first.status === "failed" || retry?.status === "failed" ? "rejected" : "pending";
+    return json({ ok: true, state, email: mask(me.email) });
   }
 
   if (action === "send") {
