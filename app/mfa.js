@@ -34,6 +34,7 @@
     'mfa.acc.activate': 'Activate Google Authenticator', 'mfa.acc.deactivate': 'Deactivate Google Authenticator',
     'mfa.acc.step1': '1. Install Google Authenticator (App Store or Google Play) and tap “+” › “Scan a QR code”.',
     'mfa.acc.step2': '2. Scan this code. Can\'t scan? Enter this key in the app instead:',
+    'mfa.acc.manual': 'Entering the key by hand? In Google Authenticator tap + and "Enter a setup key", then fill in:', 'mfa.acc.m_name': 'Account name', 'mfa.acc.m_key': 'Your key', 'mfa.acc.m_keyv': 'the key above (copy it with the button)', 'mfa.acc.m_type': 'Type of key', 'mfa.acc.m_typev': 'Time based', 'mfa.acc.copy': 'Copy key', 'mfa.acc.copied': 'Copied',
     'mfa.acc.step3': '3. Enter the 6-digit code the app now shows for Clavoris:', 'mfa.acc.confirm': 'Confirm and activate', 'mfa.acc.cancel': 'Cancel',
     'mfa.acc.done': 'Google Authenticator is active. From your next sign-in you enter the code from the app.',
     'mfa.acc.off_lead': 'To deactivate, enter the current code from Google Authenticator:', 'mfa.acc.off_done': 'Google Authenticator is deactivated. You sign in with a code by e-mail.',
@@ -64,6 +65,7 @@
     'mfa.acc.activate': 'Google Authenticator activeren', 'mfa.acc.deactivate': 'Google Authenticator uitschakelen',
     'mfa.acc.step1': '1. Installeer Google Authenticator (App Store of Google Play) en tik op “+” › “QR-code scannen”.',
     'mfa.acc.step2': '2. Scan deze code. Lukt scannen niet? Vul dan deze sleutel in de app in:',
+    'mfa.acc.manual': 'De sleutel met de hand invoeren? Tik in Google Authenticator op + en "Een configuratiesleutel invoeren", en vul in:', 'mfa.acc.m_name': 'Accountnaam', 'mfa.acc.m_key': 'Uw sleutel', 'mfa.acc.m_keyv': 'de sleutel hierboven (kopieer hem met de knop)', 'mfa.acc.m_type': 'Type sleutel', 'mfa.acc.m_typev': 'Op tijd gebaseerd', 'mfa.acc.copy': 'Sleutel kopiëren', 'mfa.acc.copied': 'Gekopieerd',
     'mfa.acc.step3': '3. Vul de code van 6 cijfers in die de app nu bij Clavoris toont:', 'mfa.acc.confirm': 'Bevestigen en activeren', 'mfa.acc.cancel': 'Annuleren',
     'mfa.acc.done': 'Google Authenticator is actief. Vanaf uw volgende aanmelding vult u de code uit de app in.',
     'mfa.acc.off_lead': 'Vul om uit te schakelen de huidige code uit Google Authenticator in:', 'mfa.acc.off_done': 'Google Authenticator is uitgeschakeld. U meldt zich aan met een code per e-mail.',
@@ -94,6 +96,7 @@
     'mfa.acc.activate': 'Activer Google Authenticator', 'mfa.acc.deactivate': 'Désactiver Google Authenticator',
     'mfa.acc.step1': '1. Installez Google Authenticator (App Store ou Google Play) et touchez « + » › « Scanner un code QR ».',
     'mfa.acc.step2': '2. Scannez ce code. Impossible de scanner ? Saisissez cette clé dans l\'application :',
+    'mfa.acc.manual': 'Vous saisissez la clé à la main ? Dans Google Authenticator, touchez + puis « Saisir une clé de configuration », et remplissez :', 'mfa.acc.m_name': 'Nom du compte', 'mfa.acc.m_key': 'Votre clé', 'mfa.acc.m_keyv': 'la clé ci-dessus (copiez-la avec le bouton)', 'mfa.acc.m_type': 'Type de clé', 'mfa.acc.m_typev': 'Basée sur l\'heure', 'mfa.acc.copy': 'Copier la clé', 'mfa.acc.copied': 'Copiée',
     'mfa.acc.step3': '3. Saisissez le code à 6 chiffres que l\'application affiche maintenant pour Clavoris :', 'mfa.acc.confirm': 'Confirmer et activer', 'mfa.acc.cancel': 'Annuler',
     'mfa.acc.done': 'Google Authenticator est actif. Dès votre prochaine connexion, vous saisissez le code de l\'application.',
     'mfa.acc.off_lead': 'Pour désactiver, saisissez le code actuel de Google Authenticator :', 'mfa.acc.off_done': 'Google Authenticator est désactivé. Vous vous connectez avec un code par e-mail.',
@@ -319,10 +322,16 @@
         q('mfaAct').innerHTML = '<p style="font-size:13px;line-height:1.6">' + esc(t('mfa.acc.step1')) + '</p>'
           + '<p style="font-size:13px;line-height:1.6;margin-top:10px">' + esc(t('mfa.acc.step2')) + '</p>'
           + '<div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap;margin-top:8px"><img src="' + esc(qr) + '" alt="QR" width="176" height="176" style="background:#fff;padding:8px;border:1px solid var(--line)">'
-          + '<code class="mono" style="font-size:13px;word-break:break-all;max-width:260px">' + esc(secret) + '</code></div>'
+          + '<div><code class="mono" style="font-size:13px;word-break:break-all;max-width:260px;display:block">' + esc(secret) + '</code><button type="button" class="btn-text" id="mfaCopy" style="margin-top:6px;font-size:12.5px">' + esc(t('mfa.acc.copy')) + '</button></div></div>'
+          // Manual entry: the three fields of Google Authenticator's "Enter a setup key" screen, filled in for the user.
+          + '<p style="font-size:12.5px;line-height:1.6;margin-top:10px;color:var(--fg-2)">' + esc(t('mfa.acc.manual')) + '</p>'
+          + '<table style="font-size:12.5px;margin-top:4px;border-collapse:collapse"><tr><td style="padding:2px 14px 2px 0;color:var(--fg-3)">' + esc(t('mfa.acc.m_name')) + '</td><td><b>Clavoris</b></td></tr>'
+          + '<tr><td style="padding:2px 14px 2px 0;color:var(--fg-3)">' + esc(t('mfa.acc.m_key')) + '</td><td>' + esc(t('mfa.acc.m_keyv')) + '</td></tr>'
+          + '<tr><td style="padding:2px 14px 2px 0;color:var(--fg-3)">' + esc(t('mfa.acc.m_type')) + '</td><td><b>' + esc(t('mfa.acc.m_typev')) + '</b></td></tr></table>'
           + '<p style="font-size:13px;line-height:1.6;margin-top:12px">' + esc(t('mfa.acc.step3')) + '</p>'
           + '<div class="field" style="max-width:380px">' + codeInput('mfaNew') + '</div>'
           + '<div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap"><button class="btn btn-primary" type="button" id="mfaConfirm">' + esc(t('mfa.acc.confirm')) + '</button><button class="btn btn-ghost" type="button" id="mfaCancel">' + esc(t('mfa.acc.cancel')) + '</button></div>';
+        var cp = q('mfaCopy'); if (cp) cp.addEventListener('click', function () { try { navigator.clipboard.writeText(secret).then(function () { cp.textContent = t('mfa.acc.copied'); setTimeout(function () { cp.textContent = t('mfa.acc.copy'); }, 2000); }); } catch (e) {} });
         var newCode = otpBox('mfaNew'); newCode.focus();
         q('mfaCancel').addEventListener('click', function () { client.auth.mfa.unenroll({ factorId: fid }).then(render, render); });
         q('mfaConfirm').addEventListener('click', function () {
