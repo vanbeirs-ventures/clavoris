@@ -13,3 +13,6 @@ window.CLAVORIS_SUPABASE = {
   // Where this app is served from (used for auth redirect links).
   appUrl: "https://www.clavoris.com/app"
 };
+
+// Footer links to the General Terms and Conditions and the Privacy Policy on every app page.
+(function () { var s = document.createElement('script'); s.src = 'legal-foot.js?v=20261015a'; s.defer = true; document.head.appendChild(s); })();
