@@ -73,7 +73,9 @@ async function appendSignaturePage(original: Uint8Array, opts: { room: string; c
   page.drawText("Private investment, enabled", { x: M + 96, y: y + 4, size: 9, font, color: gold });
   y -= 30; page.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: 1, color: gold }); y -= 24;
   page.drawText("Electronic signature record", { x: M, y, size: 15, font: bold, color: navy }); y -= 18;
-  page.drawText(`Non-disclosure agreement of ${opts.company} · data room ${opts.room}`, { x: M, y, size: 10.5, font, color: grey }); y -= 24;
+  // Long company or room names wrap instead of running off the page.
+  for (const l of wrap(`Non-disclosure agreement of ${opts.company} · data room ${opts.room}`, 88)) { page.drawText(l, { x: M, y, size: 10.5, font, color: grey }); y -= 14; }
+  y -= 10;
   for (const [k, v] of Object.entries(opts.sig)) {
     page.drawText(k.padEnd(22), { x: M, y, size: 8.5, font: mono, color: grey });
     for (const l of wrap(v, 80)) { page.drawText(l, { x: M + 140, y, size: 9, font, color: ink }); y -= 12.5; }
