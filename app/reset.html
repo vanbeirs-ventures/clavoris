@@ -112,9 +112,9 @@
     q('btn').disabled = true;
     A.updatePassword(q('pw1').value).then(function (r) {
       if (!r.ok) { q('btn').disabled = false; m.className = 'msg err'; m.textContent = r.error || I.t('reset.fail'); return; }
-      m.className = 'msg ok'; m.textContent = I.t('reset.ok');
+      m.className = 'msg ok'; m.textContent = I.t(r.same ? 'reset.same' : 'reset.ok');
       var welcome = params.get('welcome') === '1' || sessionStorage.getItem('clv_welcome') === '1';
-      setTimeout(function () { location.href = welcome ? 'account.html?welcome=1' : A.homeFor(); }, 1200);
+      setTimeout(function () { location.href = welcome ? 'account.html?welcome=1' : A.homeFor(); }, r.same ? 3500 : 1200);
     });
   });
 })();
