@@ -238,9 +238,9 @@ export async function sendMail(to: string, subject: string, text: string, lang: 
       // Standard unsubscribe header (shown by Gmail and Outlook as "Unsubscribe"); expected on automated mail.
       headers: { "List-Unsubscribe": `<mailto:${MAIL_REPLY_TO}?subject=unsubscribe>, <${UNSUB_URL()}>` },
     });
-    console.log("mail sent:", to, "|", subject, "|", r.messageId, "|", r.reply.replace(/\s+/g, " ").slice(0, 120));
+    console.log("mail sent:", to, "|", subject.replace(/\b\d{6}\b/g, "******"), "|", r.messageId, "|", r.reply.replace(/\s+/g, " ").slice(0, 120));
     return true;
-  } catch (e) { console.error("mail failed:", to, "|", subject, "|", (e as Error).message); throw e; }
+  } catch (e) { console.error("mail failed:", to, "|", subject.replace(/\b\d{6}\b/g, "******"), "|", (e as Error).message); throw e; }
 }
 
 // ---- enrolment on the shared user directory ----
