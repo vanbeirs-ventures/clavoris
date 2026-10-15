@@ -54,13 +54,16 @@ async function renderNdaPdf(opts: { title: string; room: string; text: string; s
   for (const l of wrap(opts.text, 100)) line(l);
   y -= 10; if (y < 200) newPage();
   page.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: 0.6, color: gold }); y -= 20;
-  line("Electronic signature record", bold, 12, navy); y -= 2;
+  line("Handtekeningbijvoegsel · Electronic signature record", bold, 12, navy); y -= 2;
   for (const [k, v] of Object.entries(opts.sig)) {
-    page.drawText(k.padEnd(22), { x: M, y, size: 8.5, font: mono, color: grey });
-    for (const l of wrap(v, 80)) { page.drawText(l, { x: M + 140, y, size: 9, font, color: rgb(0.1, 0.1, 0.1) }); y -= 12.5; }
+    page.drawText(k, { x: M, y, size: 8, font: mono, color: grey });
+    for (const l of wrap(v, 66)) { page.drawText(l, { x: M + 165, y, size: 9, font, color: rgb(0.1, 0.1, 0.1) }); y -= 12.5; }
+    y -= 1.5;
     if (y < M) newPage();
   }
   y -= 8;
+  for (const l of wrap("Dit document werd elektronisch aanvaard door een gebruiker met geverifieerde identiteit van de Clavoris-dataroom. De identiteit van de ondertekenaar werd vóór de ondertekening geverifieerd via de KYC-procedure van Clavoris (AMLD6). De vingerafdrukken hierboven verbinden dit bijvoegsel met de precies aanvaarde tekst. Clavoris bewaart het toegangslogboek van die aanvaarding.", 100)) line(l, font, 8.5, rgb(0.1, 0.1, 0.1));
+  y -= 4;
   for (const l of wrap("This document was accepted electronically by an identity-verified user of the Clavoris data room. The signatory's identity was verified through the Clavoris KYC procedure (AMLD6 identity verification) before signature. The hashes above bind this record to the exact text accepted. Clavoris retains the access log of this acceptance.", 100)) line(l, font, 8.5, grey);
   const pages = pdf.getPages();
   pages.forEach((p, i) => p.drawText(`Clavoris · ${opts.room} · NDA · page ${i + 1} / ${pages.length}`, { x: M, y: 30, size: 8, font, color: grey }));
@@ -78,18 +81,21 @@ async function appendSignaturePage(original: Uint8Array, opts: { room: string; c
   page.drawText("Clavoris", { x: M, y, size: 22, font: bold, color: navy });
   page.drawText("Private investment, enabled", { x: M + 96, y: y + 4, size: 9, font, color: gold });
   y -= 30; page.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: 1, color: gold }); y -= 24;
-  page.drawText("Electronic signature record", { x: M, y, size: 15, font: bold, color: navy }); y -= 18;
+  page.drawText("Handtekeningbijvoegsel · Electronic signature record", { x: M, y, size: 14, font: bold, color: navy }); y -= 18;
   // Long company or room names wrap instead of running off the page.
-  for (const l of wrap(`Non-disclosure agreement of ${opts.company} · data room ${opts.room}`, 88)) { page.drawText(l, { x: M, y, size: 10.5, font, color: grey }); y -= 14; }
+  for (const l of wrap(`Geheimhoudingsovereenkomst van ${opts.company} · dataroom ${opts.room} / Non-disclosure agreement of ${opts.company} · data room ${opts.room}`, 92)) { page.drawText(l, { x: M, y, size: 10, font, color: grey }); y -= 14; }
   y -= 10;
   for (const [k, v] of Object.entries(opts.sig)) {
-    page.drawText(k.padEnd(22), { x: M, y, size: 8.5, font: mono, color: grey });
-    for (const l of wrap(v, 80)) { page.drawText(l, { x: M + 140, y, size: 9, font, color: ink }); y -= 12.5; }
+    page.drawText(k, { x: M, y, size: 8, font: mono, color: grey });
+    for (const l of wrap(v, 66)) { page.drawText(l, { x: M + 165, y, size: 9, font, color: ink }); y -= 12.5; }
+    y -= 1.5;
   }
   y -= 10;
+  for (const l of wrap("De voorgaande pagina's vormen de geheimhoudingsovereenkomst zoals zij op Clavoris aan de ondertekenaar werd voorgelegd; de SHA-256 hierboven verbindt dit bijvoegsel met dat document. Zij werd elektronisch aanvaard door een gebruiker met geverifieerde identiteit (AMLD6-KYC); Clavoris bewaart het toegangslogboek van die aanvaarding.", 100)) { page.drawText(l, { x: M, y, size: 8.5, font, color: ink }); y -= 12; }
+  y -= 6;
   for (const l of wrap("The preceding pages are the non-disclosure agreement exactly as presented to the signatory on Clavoris; the SHA-256 above binds this record to that document. It was accepted electronically by an identity-verified user (AMLD6 KYC) and Clavoris retains the access log of this acceptance.", 100)) { page.drawText(l, { x: M, y, size: 8.5, font, color: grey }); y -= 12; }
   const pages = pdf.getPages();
-  pages[pages.length - 1].drawText(`Clavoris · ${opts.room} · NDA · signature page`, { x: M, y: 30, size: 8, font, color: grey });
+  pages[pages.length - 1].drawText(`Clavoris · ${opts.room} · NDA · handtekeningbijvoegsel / signature record`, { x: M, y: 30, size: 8, font, color: grey });
   return await pdf.save();
 }
 
@@ -114,7 +120,7 @@ async function appendCountersignPage(signed: Uint8Array, cs: Countersign, opts: 
     ["Hoedanigheid / Capacity", cs.capacity],
     ["Namens / On behalf of", `${opts.company} (Verstrekkende Partij / Disclosing Party)`],
     ["Ondertekend / Signed (UTC)", String(cs.signed_at).replace("T", " ").slice(0, 19)],
-    ["Identiteit / Identity", `${cs.kyc_provider === "didit" ? "Didit" : (cs.kyc_provider || "KYC")} KYC · session ${cs.kyc_session_id || "n/a"} · reviewed ${cs.kyc_reviewed_at ? String(cs.kyc_reviewed_at).slice(0, 10) : "n/a"}`],
+    ["Identiteit / Identity", `${cs.kyc_provider === "didit" ? "Didit" : (cs.kyc_provider || "KYC")} KYC · sessie / session ${cs.kyc_session_id || "n/a"} · beoordeeld / reviewed ${cs.kyc_reviewed_at ? String(cs.kyc_reviewed_at).slice(0, 10) : "n/a"}`],
     ["Methode / Method", "Eenmalige elektronische handtekening op Clavoris (eIDAS eenvoudige e-handtekening) / One-time electronic signature on Clavoris (eIDAS simple e-signature)"],
     ["IP-adres / IP address", cs.ip || "n/a"],
     ["NDA-versie / NDA version", opts.version],
@@ -147,13 +153,16 @@ async function storeNda(room: { nextcloud_folder: string | null; slug: string },
 
 function sigBlock(me: { email: string; company: string | null; job_title?: string | null; legal_rep?: boolean | null; sumsub_applicant_id: string | null; kyc_provider?: string | null; kyc_session_id?: string | null; kyc_reviewed_at: string | null }, typed: string, at: Date, ip: string, version: string, shaUnsigned: string): Record<string, string> {
   return {
-    "Signatory": typed, "Email": me.email, "Organisation": me.company || "— (private person)",
-    "Role": me.company ? (me.job_title || "—") : "—",
-    "Capacity": me.company ? (me.legal_rep ? `Legal representative, authorised to sign on behalf of ${me.company}` : `Signs in a personal capacity (not an authorised representative of ${me.company})`) : "Private person, signs in a personal capacity",
-    "Signed at (UTC)": at.toISOString().replace("T", " ").slice(0, 19),
-    "Identity verification": `${me.kyc_provider === "didit" || (!me.sumsub_applicant_id && me.kyc_session_id) ? `Didit KYC · session ${me.kyc_session_id || "n/a"}` : `Sumsub KYC · applicant ${me.sumsub_applicant_id || "n/a"}`} · reviewed ${me.kyc_reviewed_at ? String(me.kyc_reviewed_at).slice(0, 10) : "n/a"}`,
-    "Signature method": "KYC-attested electronic acceptance (eIDAS simple e-signature)",
-    "IP address": ip || "n/a", "NDA version": version, "SHA-256 of NDA": shaUnsigned,
+    // Bilingual labels and texts, Dutch first (the data-room NDAs are Dutch-binding), then English.
+    "Ondertekenaar / Signatory": typed, "E-mail": me.email, "Organisatie / Organisation": me.company || "— (privépersoon / private person)",
+    "Functie / Role": me.company ? (me.job_title || "—") : "—",
+    "Hoedanigheid / Capacity": me.company
+      ? (me.legal_rep ? `Wettelijk vertegenwoordiger, bevoegd om te ondertekenen namens ${me.company} / Legal representative, authorised to sign on behalf of ${me.company}` : `Ondertekent in eigen naam, niet als bevoegd vertegenwoordiger van ${me.company} / Signs in a personal capacity, not as authorised representative of ${me.company}`)
+      : "Privépersoon, ondertekent in eigen naam / Private person, signs in a personal capacity",
+    "Ondertekend / Signed (UTC)": at.toISOString().replace("T", " ").slice(0, 19),
+    "Identiteit / Identity": `${me.kyc_provider === "didit" || (!me.sumsub_applicant_id && me.kyc_session_id) ? `Didit KYC · sessie / session ${me.kyc_session_id || "n/a"}` : `Sumsub KYC · applicant ${me.sumsub_applicant_id || "n/a"}`} · beoordeeld / reviewed ${me.kyc_reviewed_at ? String(me.kyc_reviewed_at).slice(0, 10) : "n/a"}`,
+    "Methode / Method": "Elektronische aanvaarding na identiteitsverificatie (eIDAS eenvoudige e-handtekening) / KYC-attested electronic acceptance (eIDAS simple e-signature)",
+    "IP-adres / IP address": ip || "n/a", "NDA-versie / NDA version": version, "SHA-256 NDA": shaUnsigned,
   };
 }
 
