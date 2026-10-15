@@ -57,16 +57,20 @@
   // Mandatory profile: an investor whose profile is incomplete, or who has not yet chosen whether other
   // data-room members may see their name (privacy_chosen_at), is taken to the account page first; every
   // other page stays closed until that is done. Checked once per tab session once satisfied.
+  // The General Terms and Conditions (current version, see TERMS_VERSION) are accepted on the account page
+  // too, before identity verification; staff accept them as well. A new version is asked once more.
+  var TERMS_VERSION = '2026-10-15'; // same constant in the edge functions clv-account and clv-kyc-token
   function profileGate() {
     var A = window.ClavorisAccess, page = location.pathname.split('/').pop();
-    if (!A || A.isAdmin() || page === 'account.html') return;
-    try { if (sessionStorage.getItem('clv_pf') === A.user().id) return; } catch (e) {}
+    if (!A || page === 'account.html') return;
+    try { if (sessionStorage.getItem('clv_pf') === A.user().id + ':' + TERMS_VERSION) return; } catch (e) {}
     var go = function () { location.replace('account.html?complete=1&next=' + encodeURIComponent(page + location.search)); };
     var main = document.querySelector('main'); if (main) main.style.visibility = 'hidden';
-    if (!A.profileComplete()) { go(); return; }
-    A.client().from('clv_profiles').select('privacy_chosen_at').eq('id', A.user().id).maybeSingle().then(function (r) {
-      if (r && r.data && !r.data.privacy_chosen_at) { go(); return; }
-      try { if (r && r.data) sessionStorage.setItem('clv_pf', A.user().id); } catch (e) {}
+    var staff = A.isAdmin();
+    if (!staff && !A.profileComplete()) { go(); return; }
+    A.client().from('clv_profiles').select('privacy_chosen_at, terms_version').eq('id', A.user().id).maybeSingle().then(function (r) {
+      if (r && r.data && (r.data.terms_version !== TERMS_VERSION || (!staff && !r.data.privacy_chosen_at))) { go(); return; }
+      try { if (r && r.data) sessionStorage.setItem('clv_pf', A.user().id + ':' + TERMS_VERSION); } catch (e) {}
       if (main) main.style.visibility = '';
     }, function () { if (main) main.style.visibility = ''; });
   }
@@ -206,5 +210,7 @@
       });
     });
   }
-  window.ClavorisShell = { render: render, esc: esc, fmtDate: fmtDate, fmtSize: fmtSize, fmtMoney: fmtMoney, downloadFn: downloadFn, accessLeft: accessLeft, accessText: accessText, extensionDialog: extensionDialog };
+  // Admin console extras: Subscriptions (super admins) and the Dutch / French translation of the console.
+  if (/\/admin\.html$/.test(location.pathname)) ['admin-subs.js?v=20261015a', 'admin-i18n.js?v=20261015a'].forEach(function (src) { var s = document.createElement('script'); s.src = src; s.async = false; document.head.appendChild(s); });
+  window.ClavorisShell = { TERMS_VERSION: TERMS_VERSION, render: render, esc: esc, fmtDate: fmtDate, fmtSize: fmtSize, fmtMoney: fmtMoney, downloadFn: downloadFn, accessLeft: accessLeft, accessText: accessText, extensionDialog: extensionDialog };
 })();

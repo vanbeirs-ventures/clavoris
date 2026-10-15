@@ -8,7 +8,16 @@
 <link rel="icon" href="../assets/clavoris-mark.png">
 <link rel="stylesheet" href="app.css?v=20261014e">
 <script>document.documentElement.classList.add('clv-checking');</script>
-<style>.fld-bad input,.fld-bad .seg-opt{border-color:var(--status-alert)!important;box-shadow:0 0 0 3px rgba(179,38,30,.12)}.fld-bad>label{color:var(--status-alert)}.pw-mm{display:block;margin-top:6px;font-size:12.5px;color:var(--status-alert)}.pw-bad input{border-color:var(--status-alert)!important;box-shadow:0 0 0 3px rgba(179,38,30,.12)}</style>
+<style>.fld-bad input,.fld-bad .seg-opt{border-color:var(--status-alert)!important;box-shadow:0 0 0 3px rgba(179,38,30,.12)}.fld-bad>label{color:var(--status-alert)}.pw-mm{display:block;margin-top:6px;font-size:12.5px;color:var(--status-alert)}.pw-bad input{border-color:var(--status-alert)!important;box-shadow:0 0 0 3px rgba(179,38,30,.12)}
+.cl-head{display:flex;align-items:center;gap:10px;width:100%;background:none;border:0;padding:0;margin:0;cursor:pointer;text-align:left;font:inherit;color:inherit}
+.cl-head h2{flex:1}.cl-chev{width:18px;height:18px;flex:none;color:var(--fg-3);transition:transform .15s}.cl-open .cl-chev{transform:rotate(90deg)}
+.cl-sum{font-size:12px;color:var(--fg-3);font-weight:400;white-space:nowrap}
+.cl-body[hidden]{display:none}
+.au-filters{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:14px}
+.au-filters label{display:block;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--fg-3);margin-bottom:4px}
+.au-filters select,.au-filters input{font:inherit;font-size:13px;padding:7px 9px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--bg-raised);max-width:100%}
+.terms-box{margin-top:14px;padding:12px 14px;border:1px solid var(--border);border-left:3px solid var(--seal-gold);border-radius:var(--r-md);background:var(--bg-raised);font-size:13px;line-height:1.55}
+.terms-box a{color:var(--clavis-navy)}</style>
 </head>
 <body data-clv-restrict="full">
 <div class="app">
@@ -50,6 +59,7 @@
           <div class="field"><label class="req" data-i18n="account.vis">Visibility to other data-room members</label>
             <div class="seg" role="radiogroup"><label class="seg-opt"><input type="radio" name="vis" value="visible" id="visShown"><span data-i18n="account.vis.shown">Show my name and organisation</span></label><label class="seg-opt"><input type="radio" name="vis" value="private" id="visPrivate"><span data-i18n="account.vis.private">Private participation</span></label></div>
             <span class="hint" data-i18n="account.vis_hint">Members of a data room see each other's name and organisation. With private participation the other investors only see your member ID; the company running the room always knows who you are.</span></div>
+          <div class="terms-box field" id="termsBox"><label class="check" style="margin:0;display:flex;gap:10px;align-items:flex-start;text-transform:none;letter-spacing:0;font-size:13px;color:var(--fg-1)"><input type="checkbox" id="termsOk" style="margin-top:3px;width:16px;height:16px;flex:none"><span id="termsTxt"></span></label><p id="termsDone" style="font-size:12.5px;color:var(--fg-2)" hidden></p></div>
           <p class="msg" id="profileMsg" role="status"></p>
           <button class="btn btn-primary" type="submit" id="profileBtn" data-i18n="account.save">Save profile</button>
         </form>
@@ -80,17 +90,32 @@
         <label class="check" style="margin-top:10px"><input type="checkbox" id="n_room_updated"> <span data-i18n="notif.room_updated">Existing data-room files updated</span></label>
         <label class="check" style="margin-top:10px"><input type="checkbox" id="n_contract_new"> <span data-i18n="notif.contract_new">New contracts assigned to me for signature</span></label>
         <label class="check" style="margin-top:10px"><input type="checkbox" id="n_market_new"> <span data-i18n="notif.market_new">New investments available on the marketplace</span></label>
-        <label class="check" style="margin-top:10px"><input type="checkbox" id="n_qa"> <span id="n_qa_l"></span></label>
+        <label class="check" style="margin-top:10px"><input type="checkbox" id="n_qa_answer"> <span id="n_qa_answer_l"></span></label>
+        <label class="check" style="margin-top:10px" id="n_qa_question_w" hidden><input type="checkbox" id="n_qa_question"> <span id="n_qa_question_l"></span></label>
         <label class="check" style="margin-top:10px"><input type="checkbox" id="n_portfolio_events"> <span data-i18n="notif.portfolio_events">Events in my portfolio: coupon payment, notices, end of contract, repayment of principal, conversion into shares</span></label>
         <p class="msg" id="notifMsg" role="status"></p>
         <button class="btn btn-primary" type="submit" id="notifBtn" data-i18n="notif.save">Save notifications</button>
       </form>
     </section>
+    <section class="card" id="subs" style="padding:22px;margin-top:24px" hidden>
+      <h2 style="font-family:var(--font-display);font-size:20px;color:var(--clavis-navy)" id="subsTitle">Subscriptions</h2>
+      <div id="subsBody" style="margin-top:10px"></div>
+    </section>
     <section class="card" id="audit" style="padding:22px;margin-top:24px">
       <h2 style="font-family:var(--font-display);font-size:20px;color:var(--clavis-navy)" data-i18n="account.audit">Audit trail</h2>
       <p style="font-size:13px;color:var(--fg-2);margin-top:6px;line-height:1.6" data-i18n="account.audit.body">Your complete activity record on Clavoris: every sign-in, your identity verification (Didit, AMLD6), the NDAs you signed and every document you downloaded. Each download carries a unique reference and a SHA-256 fingerprint of the delivered file; PDFs are additionally watermarked on every page with your identity and the reference. The documents are confidential under the NDA you signed.</p>
-      <div class="tbl-wrap" style="margin-top:14px"><table class="tbl"><thead><tr><th data-i18n="account.audit.th.date">Date (UTC)</th><th data-i18n="account.audit.th.event">Event</th><th data-i18n="account.audit.th.details">Details</th><th data-i18n="account.audit.th.room">Data room</th><th data-i18n="account.audit.th.ref">Reference</th><th data-i18n="account.audit.th.fp">Fingerprint</th><th data-i18n="account.audit.th.ip">IP</th></tr></thead>
-      <tbody id="auditRows"><tr><td colspan="7" style="color:var(--fg-3)" data-i18n="common.loading">Loading…</td></tr></tbody></table></div>
+      <div class="au-filters"><div id="auUserW" hidden><label for="auUser" id="auUserL"></label><select id="auUser"></select></div><div><label for="auKind" id="auKindL"></label><select id="auKind"></select></div><div><label for="auDate" id="auDateL"></label><input type="date" id="auDate"></div><button class="btn-text" type="button" id="auClear" style="font-size:12.5px;margin-bottom:8px"></button><span id="auCount" style="font-size:12px;color:var(--fg-3);margin-bottom:8px;margin-left:auto"></span></div>
+      <div class="tbl-wrap" style="margin-top:10px"><table class="tbl"><thead><tr><th data-i18n="account.audit.th.date">Date (UTC)</th><th id="auUserTh" hidden></th><th data-i18n="account.audit.th.event">Event</th><th data-i18n="account.audit.th.details">Details</th><th data-i18n="account.audit.th.room">Data room</th><th data-i18n="account.audit.th.ref">Reference</th><th data-i18n="account.audit.th.fp">Fingerprint</th><th data-i18n="account.audit.th.ip">IP</th></tr></thead>
+      <tbody id="auditRows"><tr><td colspan="8" style="color:var(--fg-3)" data-i18n="common.loading">Loading…</td></tr></tbody></table></div>
+    </section>
+    <section class="card" id="closeAcc" style="padding:22px;margin-top:24px;border-left:3px solid var(--danger,#9b2c2c)">
+      <h2 style="font-family:var(--font-display);font-size:20px;color:var(--clavis-navy)" id="caTitle">Close my account</h2>
+      <p style="font-size:13px;color:var(--fg-2);margin-top:6px;line-height:1.6" id="caBody"></p>
+      <form id="caForm" autocomplete="off" onsubmit="return false;" style="margin-top:12px;max-width:460px">
+        <div class="field"><label for="caName" id="caLabel">Type your full name to confirm</label><input id="caName" type="text" autocomplete="off" spellcheck="false"><span class="hint" id="caHint"></span></div>
+        <p class="msg" id="caMsg" role="status"></p>
+        <button class="btn" type="submit" id="caBtn" disabled style="border-color:var(--danger,#9b2c2c);color:var(--danger,#9b2c2c)">Close my account</button>
+      </form>
     </section>
     <p class="note" data-i18n="account.note">Clavoris retains identity records per AMLD6 and CSSF requirements. To close your account, contact access@clavoris.com.</p>
   </main>
@@ -103,6 +128,7 @@
 <script src="clavoris-access.js?v=20261015t"></script>
 <script src="shell.js?v=20261014e"></script>
 <script src="mfa.js?v=20261015u"></script>
+<script src="subscriptions.js?v=20261015a" defer></script>
 <script>
 (function () {
   'use strict';
@@ -117,8 +143,11 @@
   // The choice is mandatory: nothing is preselected until the member has chosen once (privacy_chosen_at).
   var privChosen = false;
   function loadPriv() {
-    return A.client().from('clv_profiles').select('member_private, privacy_chosen_at').eq('id', A.user().id).maybeSingle().then(function (r) {
+    return A.client().from('clv_profiles').select('member_private, privacy_chosen_at, kyc_name_at, terms_version, terms_accepted_at').eq('id', A.user().id).maybeSingle().then(function (r) {
       var d = r && r.data; privChosen = !!(d && d.privacy_chosen_at);
+      termsOk = !!(d && d.terms_version === TERMS_VERSION); renderTerms(d && d.terms_accepted_at);
+      // After the identity check the official name is fixed: shown, not editable.
+      if (d && d.kyc_name_at) { var fn = q('full_name'); fn.readOnly = true; fn.style.background = 'var(--bg-raised)'; var h = fn.parentNode.querySelector('.hint'); if (h) { h.textContent = ({ en: 'Official name from your identity verification. It cannot be changed.', nl: 'Officiële naam uit uw identiteitsverificatie. Deze kan niet worden gewijzigd.', fr: 'Nom officiel issu de votre vérification d\'identité. Il ne peut pas être modifié.' })[I.lang] || h.textContent; h.removeAttribute('data-i18n'); } }
       // Private unless the member chose to show their name (the default for every member).
       var priv = !(d && d.member_private === false); q('visPrivate').checked = priv; q('visShown').checked = !priv; visWarn();
     }, function () {});
@@ -131,6 +160,46 @@
   }
   function savePriv() {
     return A.client().from('clv_profiles').update({ member_private: q('visPrivate').checked, privacy_chosen_at: new Date().toISOString() }).eq('id', A.user().id).then(function (r) { if (r && r.error) return r.error.message; privChosen = true; return ''; }, function (e) { return (e && e.message) || 'save-failed'; });
+  }
+  // General Terms and Conditions: the current version is accepted with the profile, before identity
+  // verification (clv-account "accept_terms" records the time and IP address in the audit trail).
+  var TERMS_VERSION = (window.ClavorisShell && window.ClavorisShell.TERMS_VERSION) || '2026-10-15', termsOk = false;
+  var TX = ({
+    en: { txt: 'I accept the <a href="../terms.html" target="_blank" rel="noopener">General Terms and Conditions</a> of Clavoris – Van Beirs Consult BV and have read the <a href="../privacy.html" target="_blank" rel="noopener">Privacy Policy</a>. The Dutch text of the terms is the legally binding version; the English text is a translation.', done: 'General Terms and Conditions accepted on {date} (version {v}).', err: 'Accept the General Terms and Conditions to continue.', fail: 'The acceptance could not be recorded: {e}' },
+    nl: { txt: 'Ik aanvaard de <a href="../terms.html" target="_blank" rel="noopener">algemene voorwaarden</a> van Clavoris – Van Beirs Consult BV en heb het <a href="../privacy.html" target="_blank" rel="noopener">privacybeleid</a> gelezen. De Nederlandse tekst van de voorwaarden is de juridisch bindende versie.', done: 'Algemene voorwaarden aanvaard op {date} (versie {v}).', err: 'Aanvaard de algemene voorwaarden om verder te gaan.', fail: 'De aanvaarding kon niet worden vastgelegd: {e}' },
+    fr: { txt: 'J\'accepte les <a href="../terms.html" target="_blank" rel="noopener">conditions générales</a> de Clavoris – Van Beirs Consult BV et j\'ai lu la <a href="../privacy.html" target="_blank" rel="noopener">politique de confidentialité</a>. Le texte néerlandais des conditions fait foi juridiquement ; le texte français en est une traduction.', done: 'Conditions générales acceptées le {date} (version {v}).', err: 'Acceptez les conditions générales pour continuer.', fail: 'L\'acceptation n\'a pas pu être enregistrée : {e}' }
+  })[I.lang] || null;
+  function renderTerms(at) {
+    var tx = TX || { txt: '', done: '', err: '', fail: '' };
+    q('termsTxt').innerHTML = tx.txt;
+    q('termsOk').closest('label').hidden = termsOk;
+    q('termsDone').hidden = !termsOk;
+    if (termsOk) q('termsDone').textContent = tx.done.replace('{date}', String(at || '').slice(0, 10)).replace('{v}', TERMS_VERSION);
+  }
+  function acceptTerms() {
+    if (termsOk) return Promise.resolve('');
+    return A.callFn('clv-account', { action: 'accept_terms', version: TERMS_VERSION }).then(function (r) {
+      if (r && r.ok) { termsOk = true; renderTerms(r.accepted_at); return ''; }
+      return (TX || { fail: '{e}' }).fail.replace('{e}', (r && r.error) || '');
+    }, function (e) { return (e && e.message) || 'save-failed'; });
+  }
+  // Every block of the page folds open and closed on its title; the choice is remembered on this device.
+  function collapsible(sec, openByDefault, summary) {
+    var h = sec.querySelector('h2'); if (!h || sec.querySelector('.cl-head')) return;
+    var id = sec.id || ('blk' + [].indexOf.call(document.querySelectorAll('main section.card'), sec)), key = 'clv_acc_' + id;
+    var body = document.createElement('div'); body.className = 'cl-body';
+    while (h.nextSibling) body.appendChild(h.nextSibling);
+    var btn = document.createElement('button'); btn.type = 'button'; btn.className = 'cl-head'; btn.setAttribute('aria-controls', id + '_b'); body.id = id + '_b';
+    h.parentNode.insertBefore(btn, h); btn.appendChild(h);
+    var sum = document.createElement('span'); sum.className = 'cl-sum'; btn.appendChild(sum);
+    btn.insertAdjacentHTML('beforeend', '<svg class="cl-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>');
+    sec.appendChild(body);
+    var stored = null; try { stored = localStorage.getItem(key); } catch (e) {}
+    function set(open, save) { body.hidden = !open; sec.classList.toggle('cl-open', open); btn.setAttribute('aria-expanded', open ? 'true' : 'false'); sum.textContent = open ? '' : (summary ? summary() : ''); if (save) { try { localStorage.setItem(key, open ? '1' : '0'); } catch (e) {} } }
+    set(stored === null ? openByDefault : stored === '1', false);
+    btn.addEventListener('click', function () { set(body.hidden, true); });
+    sec._open = function () { set(true, false); };
+    if (sec.querySelector('.cl-head')) h.style.margin = '0';
   }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (m) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[m]; }); }
   function valid(pw) { return pw.length >= 12 && /[A-Za-z]/.test(pw) && /[0-9]/.test(pw); }
@@ -150,7 +219,7 @@
     if (isOrg && p.legal_rep === true) q('repYes').checked = true; else if (isOrg && p.legal_rep === false) q('repNo').checked = true;
     function syncKind() { q('orgBlock').hidden = !q('kindOrg').checked; }
     syncKind(); q('kindOrg').addEventListener('change', syncKind); q('kindPrivate').addEventListener('change', syncKind);
-    function welcomeGate() { var w = q('welcome'); if (w.hidden) return; var ok = A.profileComplete(); q('welcomeBtn').classList.toggle('disabled', !ok); q('welcomeBtn').setAttribute('aria-disabled', ok ? 'false' : 'true'); q('welcomeHint').hidden = ok; }
+    function welcomeGate() { var w = q('welcome'); if (w.hidden) return; var ok = A.profileComplete() && termsOk; q('welcomeBtn').classList.toggle('disabled', !ok); q('welcomeBtn').setAttribute('aria-disabled', ok ? 'false' : 'true'); q('welcomeHint').hidden = ok; }
     loadPriv().then(welcomeGate);
     q('visShown').addEventListener('change', visWarn); q('visPrivate').addEventListener('change', visWarn);
     q('welcomeBtn').addEventListener('click', function (e) { if (q('welcomeBtn').getAttribute('aria-disabled') === 'true') { e.preventDefault(); q('full_name').focus(); } });
@@ -173,19 +242,55 @@
         + (st === 'verified' ? '<p class="hint" style="margin-top:8px;font-size:12.5px;color:var(--fg-3);line-height:1.6">' + esc(I.t('account.idv.renew_hint')) + '</p>' : '');
     })();
 
-    var KIND = { login: 'neutral', kyc: 'verified', nda: 'info', download: 'pending' };
-    A.callFn('clv-audit', { action: 'list' }).then(function (r) {
-      var rows = (r && r.events) || [], tb = q('auditRows');
-      tb.innerHTML = rows.length ? rows.map(function (e) {
-        return '<tr><td class="mono" style="white-space:nowrap">' + esc(String(e.ts).replace('T', ' ').slice(0, 16)) + '</td>'
-          + '<td><span class="chip ' + esc(KIND[e.kind] || 'neutral') + '">' + esc(e.title) + '</span></td>'
-          + '<td style="font-size:12.5px;color:var(--fg-2)">' + esc(e.detail || '') + '</td>'
-          + '<td>' + esc(e.room || '—') + '</td>'
-          + '<td class="mono">' + esc(e.ref || '—') + '</td>'
-          + '<td class="mono" style="font-size:11px;color:var(--fg-3)" title="' + esc(e.sha ? I.t('account.audit.sha_title', { sha: e.sha }) : '') + '">' + (e.sha ? esc(String(e.sha).slice(0, 16)) + '…' : '—') + '</td>'
-          + '<td class="mono" style="font-size:11px;color:var(--fg-3)">' + esc(e.ip || '—') + '</td></tr>';
-      }).join('') : '<tr><td colspan="7" style="color:var(--fg-3)">' + I.t('account.audit.none') + '</td></tr>';
+    // Language: applied at once, everywhere (the profile language drives the pages, e-mails and documents).
+    q('lang').addEventListener('change', function () {
+      var l = q('lang').value; q('lang').disabled = true;
+      A.updateProfile({ lang: l }).then(function () { I.set(l, true, true); location.reload(); }, function () { q('lang').disabled = false; });
     });
+
+    // Audit trail with filters: user (staff only: themselves, one user in their scope, or everyone), event
+    // kind, and one day or all dates. Texts come translated from clv-audit in the profile language.
+    var AU = ({
+      en: { user: 'User', me: 'My own trail', all: 'All users', kind: 'Event', anyk: 'All events', date: 'Date', clear: 'All dates', count: '{n} events', k: { login: 'Sign-ins', kyc: 'Identity verification', nda: 'NDA', view: 'Documents read', download: 'Downloads', room: 'Data-room visits', account: 'Account', admin: 'Administration' } },
+      nl: { user: 'Gebruiker', me: 'Mijn eigen overzicht', all: 'Alle gebruikers', kind: 'Gebeurtenis', anyk: 'Alle gebeurtenissen', date: 'Datum', clear: 'Alle datums', count: '{n} gebeurtenissen', k: { login: 'Aanmeldingen', kyc: 'Identiteitsverificatie', nda: 'NDA', view: 'Gelezen documenten', download: 'Downloads', room: 'Bezoeken aan datarooms', account: 'Account', admin: 'Beheer' } },
+      fr: { user: 'Utilisateur', me: 'Mon propre relevé', all: 'Tous les utilisateurs', kind: 'Événement', anyk: 'Tous les événements', date: 'Date', clear: 'Toutes les dates', count: '{n} événements', k: { login: 'Connexions', kyc: 'Vérification d\'identité', nda: 'NDA', view: 'Documents consultés', download: 'Téléchargements', room: 'Visites de data rooms', account: 'Compte', admin: 'Administration' } }
+    })[I.lang] || null;
+    if (!AU) AU = { user: 'User', me: 'My own trail', all: 'All users', kind: 'Event', anyk: 'All events', date: 'Date', clear: 'All dates', count: '{n} events', k: { login: 'Sign-ins', kyc: 'Identity verification', nda: 'NDA', view: 'Documents read', download: 'Downloads', room: 'Data-room visits', account: 'Account', admin: 'Administration' } };
+    var KIND = { login: 'neutral', kyc: 'verified', nda: 'info', download: 'pending', view: 'info', room: 'neutral', account: 'verified', admin: 'pending' };
+    var staffView = p.role === 'admin' || p.role === 'super';
+    q('auUserL').textContent = AU.user; q('auKindL').textContent = AU.kind; q('auDateL').textContent = AU.date; q('auClear').textContent = AU.clear; q('auUserTh').textContent = AU.user;
+    q('auKind').innerHTML = '<option value="">' + esc(AU.anyk) + '</option>' + Object.keys(AU.k).map(function (k) { return '<option value="' + k + '">' + esc(AU.k[k]) + '</option>'; }).join('');
+    if (staffView) {
+      q('auUserW').hidden = false;
+      q('auUser').innerHTML = '<option value="">' + esc(AU.me) + '</option><option value="all">' + esc(AU.all) + '</option>';
+      A.callFn('clv-audit', { action: 'users' }).then(function (r) {
+        (r && r.users || []).filter(function (u) { return u.id !== A.user().id; }).forEach(function (u) { var o = document.createElement('option'); o.value = u.id; o.textContent = u.name ? u.name + ' · ' + u.email : u.email; q('auUser').appendChild(o); });
+      });
+    }
+    var auSeq = 0;
+    function loadAudit() {
+      var seq = ++auSeq, uid = staffView ? q('auUser').value : '', other = !!uid, tb = q('auditRows');
+      q('auUserTh').hidden = !other;
+      tb.innerHTML = '<tr><td colspan="8" style="color:var(--fg-3)">' + esc(I.t('common.loading')) + '</td></tr>';
+      A.callFn('clv-audit', { action: 'list', user_id: uid || undefined, kind: q('auKind').value || undefined, date: q('auDate').value || undefined }).then(function (r) {
+        if (seq !== auSeq) return;
+        var rows = (r && r.events) || [];
+        q('auCount').textContent = AU.count.replace('{n}', rows.length);
+        tb.innerHTML = rows.length ? rows.map(function (e) {
+          return '<tr><td class="mono" style="white-space:nowrap">' + esc(String(e.ts).replace('T', ' ').slice(0, 16)) + '</td>'
+            + (other ? '<td style="font-size:12.5px">' + esc(e.user || '—') + '</td>' : '')
+            + '<td><span class="chip ' + esc(KIND[e.kind] || 'neutral') + '">' + esc(e.title) + '</span></td>'
+            + '<td style="font-size:12.5px;color:var(--fg-2)">' + esc(e.detail || '') + '</td>'
+            + '<td>' + esc(e.room || '—') + '</td>'
+            + '<td class="mono">' + esc(e.ref || '—') + '</td>'
+            + '<td class="mono" style="font-size:11px;color:var(--fg-3)" title="' + esc(e.sha ? I.t('account.audit.sha_title', { sha: e.sha }) : '') + '">' + (e.sha ? esc(String(e.sha).slice(0, 16)) + '…' : '—') + '</td>'
+            + '<td class="mono" style="font-size:11px;color:var(--fg-3)">' + esc(e.ip || '—') + '</td></tr>';
+        }).join('') : '<tr><td colspan="8" style="color:var(--fg-3)">' + I.t('account.audit.none') + '</td></tr>';
+      });
+    }
+    ['auUser', 'auKind', 'auDate'].forEach(function (id) { q(id).addEventListener('change', loadAudit); });
+    q('auClear').addEventListener('click', function () { q('auDate').value = ''; loadAudit(); });
+    var auditLoaded = false;
 
     // Saving the profile: a missing answer is marked on the field itself (red outline, scrolled into view,
     // focused) and cleared as soon as it is filled in. After a successful save of a complete profile the
@@ -198,7 +303,8 @@
       var org = q('kindOrg').checked, fields = { full_name: q('full_name').value.trim(), mobile: q('mobile').value.trim(), lang: q('lang').value };
       if (org) { fields.company = q('company').value.trim(); fields.job_title = q('job_title').value.trim(); fields.legal_rep = q('repYes').checked ? true : q('repNo').checked ? false : null; }
       else { fields.company = ''; fields.job_title = ''; fields.legal_rep = null; }
-      var err = !fields.full_name ? 'account.err.name' : (!org && !q('kindPrivate').checked) ? 'account.err.kind' : org && !fields.company ? 'account.err.company' : org && !fields.job_title ? 'account.err.role' : org && fields.legal_rep === null ? 'account.err.legal_rep' : !q('visShown').checked && !q('visPrivate').checked ? 'account.err.vis' : '';
+      var err = !fields.full_name ? 'account.err.name' : (!org && !q('kindPrivate').checked) ? 'account.err.kind' : org && !fields.company ? 'account.err.company' : org && !fields.job_title ? 'account.err.role' : org && fields.legal_rep === null ? 'account.err.legal_rep' : !q('visShown').checked && !q('visPrivate').checked ? 'account.err.vis' : !termsOk && !q('termsOk').checked ? 'terms' : '';
+      if (err === 'terms') { m.className = 'msg err'; m.textContent = (TX || { err: '' }).err; var tb = q('termsBox'); tb.classList.add('fld-bad'); tb.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
       if (err) {
         m.className = 'msg err'; m.textContent = I.t(err);
         var el = q(FIELD_OF[err]), fld = el && el.closest('.field');
@@ -208,15 +314,16 @@
       q('profileBtn').disabled = true;
       A.updateProfile(fields)
         .then(function (r) { return !r.ok ? r : savePriv().then(function (e) { return e ? { ok: false, error: e } : r; }); })
+        .then(function (r) { return !r.ok ? r : acceptTerms().then(function (e) { return e ? { ok: false, error: e } : r; }); })
         .then(function (r) {
           q('profileBtn').disabled = false;
           if (!r.ok) {
             m.className = 'msg err';
             if (r.error === 'session') { m.textContent = I.t('account.err.session'); setTimeout(function () { location.href = 'login.html?next=' + encodeURIComponent('account.html'); }, 2500); return; }
-            m.textContent = r.error === 'timeout' ? I.t('account.err.timeout') : (r.error || I.t('account.save_failed'));
+            m.textContent = r.error === 'timeout' ? I.t('account.err.timeout') : /\s/.test(String(r.error || '')) && TX && r.error.indexOf(TX.fail.split('{e}')[0]) === 0 ? r.error : I.t('account.save_failed') + (r.error ? ' (' + r.error + ')' : '');
             return;
           }
-          try { if (A.profileComplete()) sessionStorage.setItem('clv_pf', A.user().id); } catch (e) {}
+          try { if (A.profileComplete() && termsOk) sessionStorage.setItem('clv_pf', A.user().id + ':' + TERMS_VERSION); } catch (e) {}
           q('name').textContent = A.displayName(); welcomeGate();
           if (A.profileComplete()) {
             if (q('lang').value !== I.lang) I.set(q('lang').value, true, true); // the next page opens in the chosen language
@@ -229,14 +336,66 @@
         });
     });
 
-    var NKEYS = ['room_new', 'room_updated', 'qa', 'contract_new', 'market_new', 'portfolio_events'];
-    q('n_qa_l').textContent = ({ en: 'Data-room questions and answers: a question for me, an answer to my question', nl: 'Vragen en antwoorden in datarooms: een vraag aan mij, een antwoord op mijn vraag', fr: 'Questions-réponses des data rooms : une question qui m\'est adressée, une réponse à ma question' })[I.lang] || 'Data-room questions and answers';
-    NKEYS.forEach(function (k) { q('n_' + k).checked = !(p.notify && p.notify[k] === false); });
+    // Close the account: confirmed by typing the full name, as for the NDA signature.
+    (function () {
+      var CA = {
+        en: { title: 'Close my account', body: 'Closing your account removes your name and personal details from the platform and from every data room you are a member of, and signs you out everywhere. It cannot be undone. Clavoris keeps only what the law requires (the result of your identity verification, the NDAs you signed and your activity record), sealed and out of reach of any user, for the legal retention period. Holders of units in an instrument cannot close their account while they hold them.', label: 'Type your full name to confirm', hint: 'Exactly as on your profile: {name}', btn: 'Close my account permanently', staff: 'Staff accounts are closed by a Clavoris administrator.', mismatch: 'The name does not match the name on your profile.', holdings: 'You still hold units in an instrument. Contact access@clavoris.com to close your account.', done: 'Your account has been closed. You are being signed out…', confirm: 'Close your Clavoris account permanently? This cannot be undone.' },
+        nl: { title: 'Mijn account afsluiten', body: 'Bij het afsluiten van uw account worden uw naam en persoonsgegevens verwijderd van het platform en uit elke dataroom waarvan u lid bent, en wordt u overal afgemeld. Dit kan niet ongedaan worden gemaakt. Clavoris bewaart enkel wat de wet vereist (het resultaat van uw identiteitsverificatie, de NDA\'s die u ondertekende en uw activiteitenoverzicht), verzegeld en buiten bereik van elke gebruiker, gedurende de wettelijke bewaartermijn. Wie eenheden van een instrument bezit, kan zijn account niet afsluiten zolang hij ze bezit.', label: 'Typ uw volledige naam ter bevestiging', hint: 'Precies zoals op uw profiel: {name}', btn: 'Mijn account definitief afsluiten', staff: 'Accounts van medewerkers worden door een beheerder van Clavoris afgesloten.', mismatch: 'De naam komt niet overeen met de naam op uw profiel.', holdings: 'U bezit nog eenheden van een instrument. Neem contact op met access@clavoris.com om uw account af te sluiten.', done: 'Uw account is afgesloten. U wordt afgemeld…', confirm: 'Uw Clavoris-account definitief afsluiten? Dit kan niet ongedaan worden gemaakt.' },
+        fr: { title: 'Clôturer mon compte', body: 'La clôture de votre compte supprime votre nom et vos données personnelles de la plateforme et de toutes les data rooms dont vous êtes membre, et vous déconnecte partout. Elle est irréversible. Clavoris ne conserve que ce que la loi impose (le résultat de votre vérification d\'identité, les NDA que vous avez signés et votre relevé d\'activité), scellé et hors de portée de tout utilisateur, pendant la durée légale de conservation. Les détenteurs de parts d\'un instrument ne peuvent pas clôturer leur compte tant qu\'ils les détiennent.', label: 'Saisissez votre nom complet pour confirmer', hint: 'Exactement comme sur votre profil : {name}', btn: 'Clôturer définitivement mon compte', staff: 'Les comptes du personnel sont clôturés par un administrateur Clavoris.', mismatch: 'Le nom ne correspond pas au nom de votre profil.', holdings: 'Vous détenez encore des parts d\'un instrument. Contactez access@clavoris.com pour clôturer votre compte.', done: 'Votre compte a été clôturé. Déconnexion en cours…', confirm: 'Clôturer définitivement votre compte Clavoris ? Cette action est irréversible.' }
+      }, c = CA[I.lang] || CA.en;
+      q('caTitle').textContent = c.title; q('caBody').textContent = c.body; q('caLabel').textContent = c.label; q('caBtn').textContent = c.btn;
+      var note = document.querySelector('[data-i18n="account.note"]'); if (note) note.hidden = true;
+      if (p.role === 'admin' || p.role === 'super') { q('caForm').hidden = true; q('caBody').textContent = c.staff; return; }
+      q('caHint').textContent = c.hint.replace('{name}', p.full_name || '');
+      function norm(s) { return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim(); }
+      q('caName').addEventListener('input', function () { q('caBtn').disabled = !(norm(q('caName').value) && norm(q('caName').value) === norm(p.full_name)); });
+      q('caForm').addEventListener('submit', function () {
+        var m = q('caMsg'); m.className = 'msg'; m.textContent = '';
+        if (q('caBtn').disabled || !window.confirm(c.confirm)) return;
+        q('caBtn').disabled = true;
+        A.callFn('clv-account', { action: 'delete', typed_name: q('caName').value }).then(function (r) {
+          if (r && r.ok) { m.className = 'msg ok'; m.textContent = c.done; setTimeout(function () { A.signOut().then(function () { location.replace('login.html'); }, function () { location.replace('login.html'); }); }, 1800); return; }
+          var e = r && r.error; q('caBtn').disabled = false; m.className = 'msg err';
+          m.textContent = e === 'name-mismatch' ? c.mismatch : e === 'holdings' ? c.holdings : e === 'staff' ? c.staff : I.t('account.save_failed') + (e ? ' (' + e + ')' : '');
+        }, function () { q('caBtn').disabled = false; m.className = 'msg err'; m.textContent = I.t('account.save_failed'); });
+      });
+    })();
+
+    var NKEYS = ['room_new', 'room_updated', 'qa_answer', 'qa_question', 'contract_new', 'market_new', 'portfolio_events'];
+    q('n_qa_answer_l').textContent = ({ en: 'An answer to a question I asked in a data room', nl: 'Een antwoord op een vraag die ik in een dataroom stelde', fr: 'Une réponse à une question que j\'ai posée dans une data room' })[I.lang] || 'An answer to a question I asked in a data room';
+    q('n_qa_question_l').textContent = ({ en: 'A new question for me to answer in a data room', nl: 'Een nieuwe vraag die ik in een dataroom moet beantwoorden', fr: 'Une nouvelle question à laquelle je dois répondre dans une data room' })[I.lang] || 'A new question for me to answer in a data room';
+    // The "new question" switch concerns only those who answer: the company's administrators and members
+    // tagged to answer questions in a room.
+    if (p.role === 'admin' || p.role === 'super') q('n_qa_question_w').hidden = false;
+    else A.client().from('clv_room_assignments').select('id').eq('user_id', A.user().id).eq('answers_questions', true).is('revoked_at', null).limit(1).then(function (r) { if (r && r.data && r.data.length) q('n_qa_question_w').hidden = false; }, function () {});
+    // An older single switch (notify.qa = false) turned both off.
+    NKEYS.forEach(function (k) { q('n_' + k).checked = !(p.notify && (p.notify[k] === false || (/^qa_/.test(k) && p.notify.qa === false))); });
     q('notifForm').addEventListener('submit', function () {
       var m = q('notifMsg'); m.className = 'msg'; m.textContent = ''; q('notifBtn').disabled = true;
       var n = {}; NKEYS.forEach(function (k) { if (!q('n_' + k).checked) n[k] = false; });
-      A.updateProfile({ notify: n }).then(function (r) { q('notifBtn').disabled = false; m.className = r.ok ? 'msg ok' : 'msg err'; m.textContent = r.ok ? I.t('notif.saved') : (r.error || I.t('account.save_failed')); });
+      A.updateProfile({ notify: n }).then(function (r) { q('notifBtn').disabled = false; m.className = r.ok ? 'msg ok' : 'msg err'; m.textContent = r.ok ? I.t('notif.saved') : I.t('account.save_failed') + (r.error ? ' (' + r.error + ')' : ''); });
     });
+
+    // Fold the blocks: the profile stays open while it (or the terms) still needs something; identity
+    // verification while it is not done; the others start closed. The audit trail loads when first opened.
+    (function () {
+      var forced = new URLSearchParams(location.search).get('complete') === '1' || !!nextUrl || !A.profileComplete();
+      var secs = document.querySelectorAll('main > div > section.card, main > section.card');
+      [].forEach.call(secs, function (sec) {
+        if (sec.id === 'welcome' || sec.id === 'nextBox') return;
+        var isProfile = !!sec.querySelector('#profileForm');
+        var open = isProfile ? true : sec.id === 'idv' ? p.status !== 'verified' : false;
+        collapsible(sec, open, sec.id === 'idv' ? function () { return tk('status.', p.status); } : null);
+        if (isProfile && forced) sec._open();
+      });
+      var au = q('audit'), btn = au.querySelector('.cl-head');
+      function maybe() { if (!auditLoaded && !au.querySelector('.cl-body').hidden) { auditLoaded = true; loadAudit(); } }
+      btn.addEventListener('click', maybe); maybe();
+      if (location.hash === '#audit') { au._open(); maybe(); au.scrollIntoView(); }
+      // The second-factor block is drawn (and redrawn) by mfa.js: folded the same way each time it appears.
+      var mo = new MutationObserver(function () { var m = q('mfa'); if (m && m.querySelector('h2') && !m.querySelector('.cl-head')) collapsible(m, location.hash === '#mfa'); });
+      mo.observe(document.querySelector('main'), { childList: true, subtree: true });
+    })();
 
     function refreshPw() {
       var a = q('newPw').value, b = q('newPw2').value, mm = !!b && a !== b;
@@ -254,7 +413,7 @@
           q('pwBtn').disabled = false;
           if (r && r.ok) { if (r.session) A.client().auth.setSession(r.session).then(function () { return A.refresh(); }).then(function () { A.markMfa(); }, function () {}); m.className = 'msg ok'; m.textContent = I.t(r.same ? 'pw.same' : 'account.pw_ok'); q('curPw').value = ''; q('newPw').value = ''; q('newPw2').value = ''; return; }
           var e = r && r.error, k = e === 'wrong-password' ? 'account.pw_wrong' : e === 'weak-password' ? 'account.pw_hint' : window.ClavorisMfa.passwordError(e);
-          m.className = 'msg err'; m.textContent = k ? I.t(k) : (e || I.t('account.pw_fail'));
+          m.className = 'msg err'; m.textContent = k ? I.t(k) : I.t('account.pw_fail') + (e ? ' (' + e + ')' : '');
         });
       });
     });
