@@ -34,6 +34,10 @@ Deno.serve(async (req) => {
   const renew = body.renew === true && me.status === "verified";
   if (me.status === "verified" && !renew) return json({ ok: true, verified: true });
   if (me.status === "rejected" || me.status === "suspended") return json({ error: "kyc-closed" }, 403);
+  // The General Terms and Conditions are accepted before identity data goes to the provider.
+  const TERMS_VERSION = "2026-10-15"; // same constant in clv-account and app/shell.js
+  const { data: tv } = await admin.from("clv_profiles").select("terms_version").eq("id", me.id).maybeSingle();
+  if (!isStaff(me) && tv?.terms_version !== TERMS_VERSION) return json({ error: "terms-required" }, 400);
   const next = typeof body.next === "string" && /^[a-z0-9_./?=&-]{1,200}$/i.test(body.next) && !body.next.startsWith("/") && !body.next.includes("//") ? body.next : "portal.html";
   const lang = LANGS.has(String(me.lang || "")) ? String(me.lang) : "en";
   const callback = `${APP_URL}/kyc.html?next=${encodeURIComponent(next)}${renew ? "&renew=1" : ""}`;

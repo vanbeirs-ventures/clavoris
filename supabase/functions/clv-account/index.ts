@@ -4,6 +4,8 @@
 //                                             and they no longer appear among the room's members; the account stays.
 //   { action: "delete", typed_name }       -> the member closes their Clavoris account. Confirmed by typing the full
 //                                             name exactly as on the profile (same rule as the NDA signature).
+//   { action: "accept_terms", version }    -> records the acceptance of the General Terms and Conditions (version =
+//                                             TERMS_VERSION), with time and IP address in the audit trail.
 // Deleting: all data-room memberships, extension requests and Q&A of the member are removed; the profile is
 // emptied (name, e-mail, organisation, role, mobile, preferences) and marked deleted, so the member's name no
 // longer appears anywhere on the platform; the member is signed out everywhere. What the law requires Clavoris to
@@ -11,7 +13,7 @@
 // record (clv_retention, no user access) for the legal period. Holders of an instrument cannot delete their account
 // while they hold units (the register must name them). Staff accounts are closed by a super-admin, not here.
 // Deploy: supabase functions deploy clv-account --no-verify-jwt
-import { adminClient, APP_URL, audit, cors, isStaff, json, requireUser, sameName, sendMail } from "../_shared/clv.ts";
+import { adminClient, APP_URL, audit, clientIp, cors, isStaff, json, requireUser, sameName, sendMail } from "../_shared/clv.ts";
 import { pickLang, type Lang } from "../_shared/mail-i18n.ts";
 
 const BYE: Record<Lang, { s: string; t: string }> = {
@@ -28,6 +30,17 @@ Deno.serve(async (req) => {
   if (me instanceof Response) return me;
   const body = await req.json().catch(() => ({}));
   const action = String(body.action || "");
+
+  if (action === "accept_terms") {
+    // Current version of terms.html (the date shown on it). Same constant in clv-kyc-token and app/shell.js.
+    const TERMS_VERSION = "2026-10-15";
+    if (String(body.version || "") !== TERMS_VERSION) return json({ error: "terms-version", current: TERMS_VERSION }, 400);
+    const now = new Date().toISOString();
+    const { error } = await admin.from("clv_profiles").update({ terms_version: TERMS_VERSION, terms_accepted_at: now }).eq("id", me.id);
+    if (error) return json({ error: error.message }, 400);
+    await audit(admin, me as any, "terms-accepted", me.id, { version: TERMS_VERSION, ip: clientIp(req), user_agent: (req.headers.get("user-agent") || "").slice(0, 300) });
+    return json({ ok: true, version: TERMS_VERSION, accepted_at: now });
+  }
 
   if (action === "leave_room") {
     const roomId = String(body.room_id || "");

@@ -102,6 +102,8 @@ Deno.serve(async (req) => {
     const ip = clientIp(req), ua = (req.headers.get("user-agent") || "").slice(0, 400);
     await admin.from("clv_access_log").insert({ user_id: me.id, action: "login", ip, user_agent: ua }).then(() => {}, () => {});
     await admin.from("clv_audit").insert({ actor: me.id, actor_email: me.email, event_type: "mfa-passed", target: me.email, detail: { method } }).then(() => {}, () => {});
+    // The session is marked as signed in (also after an authenticator code), so "status" does not log it twice.
+    await admin.from("clv_mfa_sessions").upsert({ session_id: sessionId, user_id: me.id, method, verified_at: new Date().toISOString() }).then(() => {}, () => {});
     const { data: p } = await admin.from("clv_profiles").select("mfa_logins_since_reminder, mfa_reminded_at, mfa_snooze_until").eq("id", me.id).maybeSingle();
     const now = Date.now();
     const patch: Record<string, unknown> = { last_login_at: new Date().toISOString() };
@@ -141,7 +143,18 @@ Deno.serve(async (req) => {
   }
 
   if (action === "status") {
-    return json({ ok: true, verified: await mfaOk(admin, jwt, me.id), totp, email: mask(me.email), first_password: await firstPassword() });
+    const verified = await mfaOk(admin, jwt, me.id);
+    // A sign-in that needs no code (account exempted from the second factor) is logged here, once per
+    // session, like a sign-in completed with a code: audit trail and last sign-in.
+    if (verified) {
+      const { data: known } = await admin.from("clv_mfa_sessions").select("session_id").eq("session_id", sessionId).maybeSingle();
+      if (!known) {
+        await admin.from("clv_mfa_sessions").upsert({ session_id: sessionId, user_id: me.id, method: "no-code", verified_at: new Date().toISOString() }).then(() => {}, () => {});
+        await admin.from("clv_access_log").insert({ user_id: me.id, action: "login", ip: clientIp(req), user_agent: (req.headers.get("user-agent") || "").slice(0, 400) }).then(() => {}, () => {});
+        await admin.from("clv_profiles").update({ last_login_at: new Date().toISOString() }).eq("id", me.id).then(() => {}, () => {});
+      }
+    }
+    return json({ ok: true, verified, totp, email: mask(me.email), first_password: await firstPassword() });
   }
 
   // Delivery state of the latest e-mailed code for this session (from the Postmark delivery log, see
