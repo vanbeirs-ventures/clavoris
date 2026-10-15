@@ -220,11 +220,39 @@ async function formalGreeting(to: string, text: string, L: Lang): Promise<string
   } catch { return text; }
 }
 
+// Second route for recipients whose mail is hosted by mailbox.org (MX *.mailbox.org): mailbox.org refuses
+// mail from Brevo's shared sending IPs while one of them is on the SpamCop blocklist ("554 5.7.1 … blocked
+// by RBL"), and Brevo only reports that later as a soft bounce. Mail to those recipients is therefore
+// submitted through mailbox.org itself (delivered internally, no blocklist check). Secrets:
+// CLAVORIS_SMTP_ALT_HOST (smtp.mailbox.org), CLAVORIS_SMTP_ALT_PORT (465), CLAVORIS_SMTP_ALT_USER,
+// CLAVORIS_SMTP_ALT_PASS (an application password of the clavoris.com mailbox); optional
+// CLAVORIS_SMTP_ALT_MX (MX suffixes, comma separated; default "mailbox.org"). Without them all mail uses Brevo.
+const mxCache = new Map<string, string[]>();
+async function mxHosts(domain: string): Promise<string[]> {
+  if (mxCache.has(domain)) return mxCache.get(domain)!;
+  let hosts: string[] = [];
+  try { hosts = (await Deno.resolveDns(domain, "MX")).map((r) => String(r.exchange).toLowerCase().replace(/\.$/, "")); }
+  catch (e) { console.error("mx lookup:", domain, (e as Error).message); }
+  mxCache.set(domain, hosts);
+  return hosts;
+}
+async function altRoute(to: string): Promise<boolean> {
+  if (!Deno.env.get("CLAVORIS_SMTP_ALT_HOST") || !Deno.env.get("CLAVORIS_SMTP_ALT_PASS")) return false;
+  const domain = to.trim().toLowerCase().split("@")[1] || "";
+  if (!domain) return false;
+  const suffixes = (Deno.env.get("CLAVORIS_SMTP_ALT_MX") || "mailbox.org").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+  const hosts = await mxHosts(domain);
+  return hosts.some((h) => suffixes.some((s) => h === s || h.endsWith("." + s)));
+}
+
 export async function sendMail(to: string, subject: string, text: string, lang: Lang | string = "en", cta?: Cta | Cta[]): Promise<boolean> {
-  const host = Deno.env.get("CLAVORIS_SMTP_HOST"); if (!host || !to) return false;
-  const port = Number(Deno.env.get("CLAVORIS_SMTP_PORT") || 465);
-  const user = Deno.env.get("CLAVORIS_SMTP_USER") || MAIL_FROM;
-  const pass = Deno.env.get("CLAVORIS_SMTP_PASS") || "";
+  if (!Deno.env.get("CLAVORIS_SMTP_HOST") || !to) return false;
+  const alt = await altRoute(to);
+  const P = alt ? "CLAVORIS_SMTP_ALT_" : "CLAVORIS_SMTP_";
+  const host = Deno.env.get(P + "HOST")!;
+  const port = Number(Deno.env.get(P + "PORT") || 465);
+  const user = Deno.env.get(P + "USER") || MAIL_FROM;
+  const pass = Deno.env.get(P + "PASS") || "";
   const L = pickLang(lang);
   // The invitation's lead-in "Start here:" reads as "Click here to activate your account:" above the link.
   if (cta && !Array.isArray(cta)) text = text.replace(/\n(Start here:|Begin hier:|Commencez ici :)\n/, "\n" + cta.label + (L === "fr" ? " :" : ":") + "\n");
@@ -238,9 +266,20 @@ export async function sendMail(to: string, subject: string, text: string, lang: 
       // Standard unsubscribe header (shown by Gmail and Outlook as "Unsubscribe"); expected on automated mail.
       headers: { "List-Unsubscribe": `<mailto:${MAIL_REPLY_TO}?subject=unsubscribe>, <${UNSUB_URL()}>` },
     });
-    console.log("mail sent:", to, "|", subject.replace(/\b\d{6}\b/g, "******"), "|", r.messageId, "|", r.reply.replace(/\s+/g, " ").slice(0, 120));
+    console.log("mail sent:", alt ? "[mailbox.org]" : "[brevo]", to, "|", subject.replace(/\b\d{6}\b/g, "******"), "|", r.messageId, "|", r.reply.replace(/\s+/g, " ").slice(0, 120));
     return true;
-  } catch (e) { console.error("mail failed:", to, "|", subject.replace(/\b\d{6}\b/g, "******"), "|", (e as Error).message); throw e; }
+  } catch (e) {
+    console.error("mail failed:", alt ? "[mailbox.org]" : "[brevo]", to, "|", subject.replace(/\b\d{6}\b/g, "******"), "|", (e as Error).message);
+    if (!alt) throw e;
+    // mailbox.org route refused (e.g. wrong application password): fall back to Brevo.
+    const r = await smtpSend({ host: Deno.env.get("CLAVORIS_SMTP_HOST")!, port: Number(Deno.env.get("CLAVORIS_SMTP_PORT") || 465), user: Deno.env.get("CLAVORIS_SMTP_USER") || MAIL_FROM, pass: Deno.env.get("CLAVORIS_SMTP_PASS") || "", helo: "clavoris.com" }, {
+      fromName: "Clavoris", from: MAIL_FROM, to: to.trim(), replyTo: MAIL_REPLY_TO, subject,
+      text: body, html: MAIL_HTML ? textToHtml(text, cta, L) : undefined,
+      headers: { "List-Unsubscribe": `<mailto:${MAIL_REPLY_TO}?subject=unsubscribe>, <${UNSUB_URL()}>` },
+    });
+    console.log("mail sent: [brevo fallback]", to, "|", subject.replace(/\b\d{6}\b/g, "******"), "|", r.messageId, "|", r.reply.replace(/\s+/g, " ").slice(0, 120));
+    return true;
+  }
 }
 
 // ---- enrolment on the shared user directory ----
