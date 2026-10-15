@@ -10,6 +10,7 @@
   if (!A || !I) return;
 
   I.add('en', {
+    'mfa.slow.title': 'Code not received yet?', 'mfa.slow.body': 'Check your spam folder. If the code does not arrive, your mail server may be refusing our e-mails.',
     'mfa.rej.title': 'Your code could not be delivered', 'mfa.rej.body': 'Your mail server rejected our e-mail to {email}, so the code did not reach you.', 'mfa.rej.totp': 'Use Google Authenticator instead', 'mfa.rej.provider': 'Ask your IT department or e-mail provider to accept e-mail from noreply@clavoris.com, then tap “Send a new code”.',
     'mfa.pw.title': 'Confirm it is you', 'mfa.pw.email': 'To change your password, enter the 6-digit code we sent to {email}.', 'mfa.pw.totp': 'To change your password, enter the code from Google Authenticator.', 'mfa.pw.cancel': 'Cancel', 'mfa.pw.go': 'Confirm',
     'mfa.eyebrow': 'Two-step sign-in', 'mfa.title': 'Enter your sign-in code',
@@ -39,6 +40,7 @@
     'mfa.acc.err': 'This did not work: {e}'
   });
   I.add('nl', {
+    'mfa.slow.title': 'Nog geen code ontvangen?', 'mfa.slow.body': 'Kijk in uw map met ongewenste e-mail. Komt de code niet aan, dan weigert uw mailserver mogelijk onze e-mails.',
     'mfa.rej.title': 'Uw code kon niet bezorgd worden', 'mfa.rej.body': 'Uw mailserver weigerde onze e-mail naar {email}, waardoor de code u niet bereikte.', 'mfa.rej.totp': 'Gebruik Google Authenticator', 'mfa.rej.provider': 'Vraag uw IT-afdeling of e-mailprovider om e-mail van noreply@clavoris.com te aanvaarden en tik daarna op “Stuur een nieuwe code”.',
     'mfa.pw.title': 'Bevestig dat u het bent', 'mfa.pw.email': 'Vul om uw wachtwoord te wijzigen de code van 6 cijfers in die we naar {email} stuurden.', 'mfa.pw.totp': 'Vul om uw wachtwoord te wijzigen de code uit Google Authenticator in.', 'mfa.pw.cancel': 'Annuleren', 'mfa.pw.go': 'Bevestigen',
     'mfa.eyebrow': 'Aanmelden in twee stappen', 'mfa.title': 'Vul uw aanmeldcode in',
@@ -68,6 +70,7 @@
     'mfa.acc.err': 'Dit lukte niet: {e}'
   });
   I.add('fr', {
+    'mfa.slow.title': 'Code toujours pas reçu ?', 'mfa.slow.body': 'Vérifiez votre dossier de courrier indésirable. Si le code n\'arrive pas, votre serveur de messagerie refuse peut-être nos e-mails.',
     'mfa.rej.title': 'Votre code n\'a pas pu être remis', 'mfa.rej.body': 'Votre serveur de messagerie a refusé notre e-mail à {email} : le code ne vous est pas parvenu.', 'mfa.rej.totp': 'Utiliser Google Authenticator', 'mfa.rej.provider': 'Demandez à votre service informatique ou à votre fournisseur de messagerie d\'accepter les e-mails de noreply@clavoris.com, puis touchez « Envoyer un nouveau code ».',
     'mfa.pw.title': 'Confirmez votre identité', 'mfa.pw.email': 'Pour changer votre mot de passe, saisissez le code à 6 chiffres envoyé à {email}.', 'mfa.pw.totp': 'Pour changer votre mot de passe, saisissez le code de Google Authenticator.', 'mfa.pw.cancel': 'Annuler', 'mfa.pw.go': 'Confirmer',
     'mfa.eyebrow': 'Connexion en deux étapes', 'mfa.title': 'Saisissez votre code de connexion',
@@ -176,29 +179,37 @@
       + '<div style="text-align:center;margin-top:12px;display:flex;flex-direction:column;gap:6px;align-items:center">'
       + '<button type="button" class="btn-text" id="mfaResend" hidden></button><button type="button" class="btn-text" id="mfaSwitch" hidden></button>'
       + '<button type="button" class="btn-text" id="mfaOther">' + esc(t('mfa.other')) + '</button></div>';
-    var mode = 'email', timer = null, busy = false, hasTotp = false, watch = null;
-    // After an e-mailed code is sent, check its delivery for up to 16 minutes (a server that greylists can take
-    // ~10 minutes to answer). When the recipient's mail server rejected it (HTML and plain-text retry), explain.
-    function hideRej() { var r = q('mfaRej'); if (r) { r.hidden = true; r.innerHTML = ''; } }
-    function showRej(email) {
+    var mode = 'email', timer = null, busy = false, hasTotp = false, watch = null, slow = null;
+    // After an e-mailed code is sent, its delivery is checked every 4 s. The user never waits more than 20 s for
+    // feedback: if delivery is not confirmed by then, a notice explains what to check; when the recipient's mail
+    // server is known to have rejected the code (HTML and plain-text retry), the notice says so. Checking stops
+    // after 16 minutes (a server that greylists can take ~10 minutes to answer).
+    function hideRej() { clearTimeout(slow); var r = q('mfaRej'); if (r) { r.hidden = true; r.innerHTML = ''; } }
+    function showRej(email, rejected) {
       var r = q('mfaRej'); if (!r) return;
-      r.innerHTML = '<strong style="display:block;margin-bottom:4px">' + esc(t('mfa.rej.title')) + '</strong>' + esc(t('mfa.rej.body', { email: email || '' }))
+      r.innerHTML = '<strong style="display:block;margin-bottom:4px">' + esc(t(rejected ? 'mfa.rej.title' : 'mfa.slow.title')) + '</strong>'
+        + esc(rejected ? t('mfa.rej.body', { email: email || '' }) : t('mfa.slow.body'))
         + (hasTotp ? '<div style="margin-top:8px"><button type="button" class="btn-text" id="mfaRejTotp">' + esc(t('mfa.rej.totp')) + '</button></div>' : '')
         + '<div style="margin-top:8px">' + esc(t('mfa.rej.provider')) + '</div>';
+      r.style.borderColor = rejected ? 'var(--status-alert)' : 'var(--border-strong)';
+      r.style.background = rejected ? 'rgba(179,38,30,.06)' : 'var(--bg-raised)';
       r.hidden = false;
-      var b = q('mfaRejTotp'); if (b) b.addEventListener('click', function () { hideRej(); useTotp(); var s = q('mfaSwitch'); s.textContent = t('mfa.use_email'); });
+      var b = q('mfaRejTotp'); if (b) b.addEventListener('click', function () { hideRej(); useTotp(); });
     }
     function watchDelivery() {
       clearInterval(watch); hideRej();
-      var started = Date.now();
-      watch = setInterval(function () {
+      var started = Date.now(), email = '';
+      slow = setTimeout(function () { if (mode === 'email') showRej(email, false); }, 20000);
+      function check() {
         if (mode !== 'email' || !document.body.contains(box) || Date.now() - started > 16 * 60000) { clearInterval(watch); return; }
         A.callFn('clv-mfa', { action: 'delivery' }).then(function (r) {
-          if (!r || !r.ok) return;
-          if (r.state === 'delivered') clearInterval(watch);
-          else if (r.state === 'rejected') { clearInterval(watch); showRej(r.email); }
+          if (!r || !r.ok || mode !== 'email') return;
+          if (r.email) email = r.email;
+          if (r.state === 'delivered') { clearInterval(watch); hideRej(); }
+          else if (r.state === 'rejected') { clearInterval(watch); clearTimeout(slow); showRej(email, true); }
         });
-      }, 15000);
+      }
+      watch = setInterval(check, 4000);
     }
     var code = otpBox('mfaCode'), btn = q('mfaBtn'), msg = q('mfaMsg');
     function say(k, v, kind) { msg.className = 'msg' + (kind ? ' ' + kind : ''); msg.textContent = k ? t(k, v) : ''; }
