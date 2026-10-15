@@ -163,7 +163,10 @@ Deno.serve(async (req) => {
     (reqs || []).forEach((r: any) => { if (r.status === "pending" && !pending[r.user_id]) pending[r.user_id] = r; if (!lastReq[r.user_id]) lastReq[r.user_id] = r; });
     return json({ ok: true, members: (rows || []).map((r: any) => {
       const st = r.profile?.status || "registered";
-      const activated = !!r.profile?.last_login_at, verified = st === "verified", nda = !!signedAt[r.user_id];
+      const verified = st === "verified", nda = !!signedAt[r.user_id];
+      // Activated = has signed in. Verified KYC or a signed NDA prove a sign-in even when last_login_at
+      // was never stamped (sign-ins before the stamp existed, or a 2FA step left unfinished).
+      const activated = !!r.profile?.last_login_at || verified || nda;
       const next = r.revoked_at ? null : !activated ? "signup" : !verified ? "kyc" : !nda ? "nda" : null;
       return { user_id: r.user_id, email: r.profile?.email, name: r.profile?.full_name, company: r.profile?.company, status: st, lang: r.profile?.lang, activated, last_login_at: r.profile?.last_login_at || null, can_download: r.can_download, expires_at: r.expires_at, granted_at: r.granted_at, revoked_at: r.revoked_at, nda_signed_at: signedAt[r.user_id] || null, last_access: lastAt[r.user_id] || null, next_step: next, reminded: remAt[r.user_id] || null, pending_request: pending[r.user_id] || null, last_request: lastReq[r.user_id] || null };
     }) });
@@ -186,7 +189,7 @@ Deno.serve(async (req) => {
     if (!a || !prof) return json({ error: "not-member" }, 404);
     if (a.revoked_at) return json({ error: "revoked" }, 400);
     const { data: nda } = await admin.from("clv_signed_documents").select("id").eq("room_id", roomId).eq("user_id", userId).eq("doc_type", "nda").maybeSingle();
-    const step = !prof.last_login_at ? "signup" : prof.status !== "verified" ? "kyc" : !nda ? "nda" : null;
+    const step = !prof.last_login_at && prof.status !== "verified" && !nda ? "signup" : prof.status !== "verified" ? "kyc" : !nda ? "nda" : null;
     if (!step) return json({ ok: true, step: null });
     const L = pickLang(prof.lang);
     let link = `${APP_URL}/room.html?id=${roomId}`;
