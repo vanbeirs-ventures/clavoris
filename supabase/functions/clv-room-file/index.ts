@@ -3,14 +3,17 @@
 // NDA signed when the room requires it, download permission. Every delivery is logged in
 // clv_access_log and clv_downloads with a unique download code and SHA-256 fingerprints.
 // Data rooms deliver PDF only: every page is stamped with the user's identity, the time and
-// the download code (other file types placed in the folder are refused).
+// the download code (other file types placed in the folder are refused). Delivered documents carry
+// PDF permissions that switch off printing, copying text and editing (owner password random, never
+// stored); they still open without a password. The member's own signed NDA stays printable.
 // The user's first download triggers a confirmation mail (audit trail + confidentiality).
 //   { room_id, path }          -> a file inside the room folder (download)
 //   { room_id, path, view: true } -> the same file to read in the browser: watermarked the same way and logged
 //                                    as a "view"; allowed also where downloads are switched off
 //   { room_id, nda: true }     -> the caller's own signed NDA
 // Deploy: supabase functions deploy clv-room-file --no-verify-jwt
-import { PDFDocument, StandardFonts, rgb } from "https://esm.sh/pdf-lib@1.17.1";
+// @cantoo/pdf-lib: pdf-lib with PDF encryption (permissions), used to switch off printing.
+import { PDFDocument, StandardFonts, rgb } from "npm:@cantoo/pdf-lib@2.3.2";
 import { adminClient, APP_URL, clientIp, cors, isStaff, json, requireUser, sendMail } from "../_shared/clv.ts";
 import { mail, pickLang } from "../_shared/room-mail.ts";
 import { ncConfigured, ncGet, sha256Hex } from "../_shared/nc.ts";
@@ -30,6 +33,7 @@ async function stampPdf(bytes: Uint8Array, line: string): Promise<Uint8Array | n
       page.drawText(line, { x: 24, y: 14, size: 7.5, font, color: rgb(0.45, 0.45, 0.45) });
       page.drawText("CONFIDENTIAL", { x: width / 2 - 120, y: height / 2, size: 54, font, color: rgb(0.72, 0.53, 0.04), opacity: 0.08, rotate: { type: "degrees", angle: 35 } as any });
     }
+    pdf.encrypt({ userPassword: "", ownerPassword: crypto.randomUUID() + crypto.randomUUID(), permissions: { printing: false, modifying: false, copying: false, annotating: false, fillingForms: false, contentAccessibility: true, documentAssembly: false } });
     return await pdf.save();
   } catch { return null; }
 }
