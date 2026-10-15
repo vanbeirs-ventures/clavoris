@@ -262,7 +262,8 @@ export async function sendMail(to: string, subject: string, text: string, lang: 
     // Own SMTP submission (_shared/smtp.ts): standard headers (Message-ID, Date), one multipart/alternative.
     const r = await smtpSend({ host, port, user, pass, helo: "clavoris.com" }, {
       fromName: "Clavoris", from: MAIL_FROM, to: to.trim(), replyTo: MAIL_REPLY_TO, subject,
-      text: body, html: MAIL_HTML ? textToHtml(text, cta, L) : undefined,
+      // Test: plain text only on the mailbox.org route (its outgoing filter dropped the HTML version before).
+      text: body, html: MAIL_HTML && !alt ? textToHtml(text, cta, L) : undefined,
       // Standard unsubscribe header (shown by Gmail and Outlook as "Unsubscribe"); expected on automated mail.
       headers: { "List-Unsubscribe": `<mailto:${MAIL_REPLY_TO}?subject=unsubscribe>, <${UNSUB_URL()}>` },
     });
