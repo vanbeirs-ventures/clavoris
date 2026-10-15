@@ -183,7 +183,8 @@
         var actions = x.revoked_at ? '<button class="btn-text" type="button" data-react="' + esc(x.user_id) + '" data-room="' + esc(rm.id) + '">Reactivate</button>'
           : (x.next_step ? '<button class="btn-text" type="button" data-remind="' + esc(x.user_id) + '" data-room="' + esc(rm.id) + '" title="Send a reminder to continue with the ' + STEP[x.next_step] + '">Remind (' + STEP[x.next_step] + ')</button> · ' : '')
             + '<button class="btn-text" type="button" data-revoke="' + esc(x.user_id) + '" data-room="' + esc(rm.id) + '">Revoke</button>';
-        return '<tr' + (x.revoked_at ? ' style="opacity:.6"' : '') + '><td><div style="font-weight:500;color:var(--clavis-navy)">' + esc(x.name || '—') + '</div><div class="mono" style="font-size:11px;color:var(--fg-3)">' + esc(x.email) + '</div></td>'
+        return '<tr' + (x.revoked_at ? ' style="opacity:.6"' : '') + '><td><div style="font-weight:500;color:var(--clavis-navy)">' + esc(x.name || '—') + '</div><div class="mono" style="font-size:11px;color:var(--fg-3)">' + esc(x.email) + '</div>'
+          + (x.revoked_at ? '' : '<label style="display:flex;gap:6px;align-items:center;margin-top:5px;font-size:11.5px;color:var(--fg-2);cursor:pointer" title="This member answers the questions asked in this room\'s Q&amp;A and is notified of new questions"><input type="checkbox" data-answerer="' + esc(x.user_id) + '" data-room="' + esc(rm.id) + '"' + (x.answers_questions ? ' checked' : '') + '> Answers Q&amp;A questions</label>') + '</td>'
           + '<td>' + esc(x.company || '—') + '</td>'
           + '<td>' + (x.activated ? '<span class="chip verified">activated</span><div class="mono" style="font-size:10.5px;color:var(--fg-3);margin-top:2px">last login ' + esc(fmt(x.last_login_at)) + '</div>' : '<span class="chip pending">not activated</span><div class="mono" style="font-size:10.5px;color:var(--fg-3);margin-top:2px">invited ' + esc(fmt(x.granted_at)) + '</div>') + '</td>'
           + '<td><span class="chip ' + esc(x.status) + '">' + esc(String(x.status).replace('_', ' ')) + '</span></td>'
@@ -206,6 +207,14 @@
           note = prompt(ok ? 'Note to the member (optional):' : 'Reason given to the member (optional):', ''); if (note === null) return;
           b.disabled = true;
           A.callFn('clv-admin-rooms', { action: 'decide_extension', request_id: b.getAttribute('data-decide'), accept: ok, until: until || undefined, note: note }).then(function (x) { if (x.error) { q('roomsErr').textContent = x.error; b.disabled = false; } else loadRooms(); });
+        });
+      });
+      // Q&A answerer tag: these members answer the room's questions and are mailed new ones (without any
+      // tagged member, the company's admins answer).
+      [].forEach.call(tb.querySelectorAll('[data-answerer]'), function (c) {
+        c.addEventListener('change', function () {
+          c.disabled = true;
+          A.callFn('clv-admin-rooms', { action: 'set_answerer', room_id: c.getAttribute('data-room'), user_id: c.getAttribute('data-answerer'), on: c.checked }).then(function (x) { c.disabled = false; if (x.error) { q('roomsErr').textContent = x.error; c.checked = !c.checked; } });
         });
       });
       [].forEach.call(tb.querySelectorAll('[data-revoke]'), function (b) {
