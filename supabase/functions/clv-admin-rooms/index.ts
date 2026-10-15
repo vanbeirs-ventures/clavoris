@@ -2,7 +2,7 @@
 // Admin console for company accounts and data rooms (caller must be admin or super; an admin only
 // sees their own company's rooms, a super every company).
 //   { action: "companies" }                              -> company accounts (super: all; admin: own)
-//   { action: "save_company", company: {...} }           -> create / update a company (super)
+//   { action: "save_company", company: {...} }           -> create / update a company (super); a company admin updates their own
 //   { action: "list" }                                   -> rooms with member counts, pending extension requests
 //   { action: "save_room", room: {...}, nda_pdf_base64?, nda_pdf_name? } -> create / update a room (NDA PDF stored on Nextcloud)
 //   { action: "members", room_id }                       -> members incl. revoked, onboarding status, expiry, pending request
@@ -47,8 +47,9 @@ Deno.serve(async (req) => {
     return json({ ok: true, companies: (data || []).map((c: any) => ({ ...c, admins: (staff || []).filter((s: any) => s.company_id === c.id).map((s: any) => ({ id: s.id, email: s.email, name: s.full_name, role: s.role })) })), me: { role: me.role, company_id: me.company_id || null } });
   }
   if (action === "save_company") {
-    if (me.role !== "super") return json({ error: "forbidden" }, 403);
+    // A super creates and edits every company; a company admin edits the details of their own company.
     const c = body.company || {};
+    if (me.role !== "super" && !(c.id && String(c.id) === me.company_id)) return json({ error: "forbidden" }, 403);
     const row = { name: String(c.name || "").trim().slice(0, 200), legal_form: String(c.legal_form || "").trim().slice(0, 60) || null, country: String(c.country || "").trim().toUpperCase().slice(0, 2) || null, registration_no: String(c.registration_no || "").trim().slice(0, 60) || null, contact_email: String(c.contact_email || "").trim().toLowerCase().slice(0, 200) || null };
     if (!row.name) return json({ error: "name-required" }, 400);
     const res = c.id ? await admin.from("clv_companies").update(row).eq("id", String(c.id)).select("id").single() : await admin.from("clv_companies").insert({ ...row, created_by: me.id }).select("id").single();

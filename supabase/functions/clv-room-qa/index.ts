@@ -120,7 +120,7 @@ Deno.serve(async (req) => {
     const P = await profiles(to ? [to] : answererIds);
     for (const id of to ? [to] : answererIds) {
       const p = P[id];
-      if (!p?.email || id === me.id || p.notify?.qa === false) continue;
+      if (!p?.email || id === me.id || p.notify?.qa === false || p.notify?.qa_question === false) continue; // "new question" switched off
       const L = pickLang(p.lang), m = MAIL.question[L];
       const v = { name: p.full_name || FALLBACK[L], asker: `${me.full_name || me.email}${me.company ? " (" + me.company + ")" : ""}`, room: room.name, file: fileName ? fill(FILE_PART[L], { f: fileName }) : "", body: clip(text, 1500), link };
       await sendMail(p.email, fill(m.s, v), `${FROM_LINE[L]} ${owner}\n\n` + fill(m.t, v), L).catch((e) => console.error("qa question mail:", (e as Error).message));
@@ -140,7 +140,7 @@ Deno.serve(async (req) => {
     await admin.from("clv_room_questions").update(patch).eq("id", question.id);
     const P = await profiles([question.asker_id]);
     const p = P[question.asker_id];
-    if (p?.email && question.asker_id !== me.id && p.notify?.qa !== false) {
+    if (p?.email && question.asker_id !== me.id && p.notify?.qa !== false && p.notify?.qa_answer !== false) { // "answer to my question" switched on
       const L = pickLang(p.lang), m = MAIL.answer[L];
       const v = { name: p.full_name || FALLBACK[L], author: `${me.full_name || me.email} (${owner})`, room: room.name, question: clip(question.body, 600), body: clip(text, 2500), link };
       await sendMail(p.email, fill(m.s, v), `${FROM_LINE[L]} ${owner}\n\n` + fill(m.t, v), L).catch((e) => console.error("qa answer mail:", (e as Error).message));
