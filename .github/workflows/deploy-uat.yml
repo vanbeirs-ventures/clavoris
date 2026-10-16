@@ -1,0 +1,89 @@
+name: Deploy UAT (uat.clavoris.com)
+
+# User acceptance test environment. Runs only on pushes to the uat branch: main and production
+# (www.clavoris.com, Supabase project gihetiiuqawfhlwixncn) are never touched.
+#  - Functions: every clv-* function goes to the Supabase preview branch "uat" (boutplzforunjqmqrbhp).
+#  - Site: Bunny storage zone and pull zone "clavoris-uat" with hostname uat.clavoris.com, created on the
+#    first run by .github/uat_bunny.py. app/config.js is pointed to the preview branch at deploy time and
+#    a "Test environment" band is shown on every app page; search engines are kept out.
+# Mail from UAT goes only to the addresses in the branch secret CLAVORIS_MAIL_ALLOWLIST (see _shared/clv.ts).
+on:
+  push:
+    branches: [ uat ]
+  workflow_dispatch: {}
+
+concurrency:
+  group: uat
+  cancel-in-progress: false
+
+env:
+  UAT_HOST: uat.clavoris.com
+  UAT_ZONE: clavoris-uat
+  UAT_REF: boutplzforunjqmqrbhp
+  UAT_PUBLISHABLE_KEY: sb_publishable_ELnnL6zNJ01MYn9sEGKOBg_LBgGktaI
+
+jobs:
+  functions:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Deploy clv-* functions to the UAT branch
+        run: |
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then echo "::error::SUPABASE_ACCESS_TOKEN secret is not set"; exit 1; fi
+          fail=0
+          for dir in supabase/functions/clv-*/; do
+            name=$(basename "$dir")
+            echo "Deploying $name to $UAT_REF ..."
+            if ! supabase functions deploy "$name" --project-ref "$UAT_REF" --no-verify-jwt > "/tmp/$name.log" 2>&1; then
+              fail=1; cat "/tmp/$name.log"
+              echo "::error::$name: $(tail -c 700 "/tmp/$name.log" | tr '\n' ' ')"
+            fi
+          done
+          exit $fail
+
+  site:
+    runs-on: ubuntu-latest
+    env:
+      BUNNY_API_KEY: ${{ secrets.BUNNY_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Bunny storage zone, pull zone, hostname and certificate (created on the first run)
+        run: python3 .github/uat_bunny.py setup
+
+      - name: Point the app to the UAT branch, mark pages as test, keep search engines out
+        run: |
+          set -euo pipefail
+          V="${GITHUB_SHA::10}"
+          grep -rlE '\?v=[0-9a-z]+' --include='*.html' . | grep -v '^./.git/' | while read -r f; do
+            sed -i -E "s/\?v=[0-9a-z]+/?v=$V/g" "$f"
+          done
+          sed -i -E "s#https://gihetiiuqawfhlwixncn\.supabase\.co#https://${UAT_REF}.supabase.co#; s#sb_publishable_[A-Za-z0-9_]+#${UAT_PUBLISHABLE_KEY}#; s#https://www\.clavoris\.com/app#https://${UAT_HOST}/app#" app/config.js
+          cat >> app/config.js <<'JS'
+
+          // UAT only (added at deploy time): a band on every app page so nobody mistakes the test environment for production.
+          (function () {
+            function band() {
+              if (document.getElementById('clv-uat-band')) return;
+              var b = document.createElement('div');
+              b.id = 'clv-uat-band';
+              b.textContent = 'Test environment (UAT) · not production · data and mails are for testing only';
+              b.setAttribute('style', 'position:fixed;left:0;right:0;bottom:0;z-index:99999;background:#B8860B;color:#fff;font:600 12px/1.6 system-ui,sans-serif;text-align:center;padding:4px 8px;letter-spacing:.04em');
+              document.body.appendChild(b);
+            }
+            if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', band); else band();
+          })();
+          JS
+          printf 'User-agent: *\nDisallow: /\n' > robots.txt
+          grep -nE "url:|anonKey:|appUrl:" app/config.js
+
+      - name: Upload the site to the UAT storage zone
+        run: python3 .github/uat_bunny.py upload
+
+      - name: Purge the UAT CDN cache
+        run: python3 .github/uat_bunny.py purge
