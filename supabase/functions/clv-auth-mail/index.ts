@@ -6,6 +6,7 @@
 // enrolled addresses. Only addresses with a clv_profiles row are mailed.
 // Deploy: supabase functions deploy clv-auth-mail --no-verify-jwt
 import { adminClient, APP_URL, cors, json, mailConfigured, sendMail, ctaLabel } from "../_shared/clv.ts";
+import { isActivated } from "../_shared/activation.ts";
 import { mail, pickLang } from "../_shared/mail-i18n.ts";
 const withLang = (u: string, l: string) => u + (u.includes("?") ? "&" : "?") + "lang=" + l;
 
@@ -25,7 +26,7 @@ Deno.serve(async (req) => {
   recent.set(email, now);
 
   const admin = adminClient();
-  const { data: p } = await admin.from("clv_profiles").select("id, full_name, status, lang").eq("email", email).maybeSingle();
+  const { data: p } = await admin.from("clv_profiles").select("id, full_name, status, lang, last_login_at").eq("email", email).maybeSingle();
   if (!p || p.status === "suspended") return json({ ok: true });
 
   const { data: link, error } = await admin.auth.admin.generateLink({
@@ -34,12 +35,14 @@ Deno.serve(async (req) => {
   if (error || !link?.properties?.hashed_token) { console.error("clv-auth-mail generateLink failed:", error?.message || "no hashed_token"); return json({ ok: true }); }
   // Link to our own page carrying the token hash: the token is only consumed when the
   // user presses Continue there (verifyOtp), so link scanners cannot burn it.
-  const resetUrl = `${APP_URL}/reset.html?token_hash=${encodeURIComponent(link.properties.hashed_token)}&type=recovery`;
+  // An invited member who never signed in gets the same link with the welcome flow (first password, then profile).
+  const first = !(await isActivated(admin, p.id, p.last_login_at));
+  const resetUrl = `${APP_URL}/reset.html?token_hash=${encodeURIComponent(link.properties.hashed_token)}&type=recovery${first ? "&welcome=1" : ""}`;
 
   const L = pickLang(p.lang);
   const m = mail(L, "recovery", { name: p.full_name, link: withLang(resetUrl, L) });
   try {
-    const sent = await sendMail(email, m.subject, m.text, L, { url: withLang(resetUrl, L), label: ctaLabel(L, "reset") });
+    const sent = await sendMail(email, m.subject, m.text, L, { url: withLang(resetUrl, L), label: ctaLabel(L, first ? "activate" : "reset") });
     console.log("clv-auth-mail recovery mail", sent ? "sent" : "not sent (mail not configured)", "->", email);
   } catch (e) { console.error("clv-auth-mail sendMail failed:", (e as Error)?.message || String(e)); }
   return json({ ok: true });

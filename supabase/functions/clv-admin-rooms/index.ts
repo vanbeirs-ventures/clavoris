@@ -14,6 +14,7 @@
 //   { action: "set_answerer", room_id, user_id, on }      -> tag a member as answering the room's Q&A questions
 // Deploy: supabase functions deploy clv-admin-rooms --no-verify-jwt
 import { adminClient, APP_URL, audit, companyScope, cors, enrolUser, fmtDay, inScope, json, requireAdmin, sendMail, ctaLabel } from "../_shared/clv.ts";
+import { activationLink, isActivated } from "../_shared/activation.ts";
 import { mail, OPEN_CTA, pickLang, word } from "../_shared/room-mail.ts";
 import { ncConfigured, ncMkdirP, ncPut, sha256Hex } from "../_shared/nc.ts";
 import { overLimit } from "../_shared/plans.ts";
@@ -22,6 +23,9 @@ const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").repla
 const isDate = (s: unknown) => /^\d{4}-\d{2}-\d{2}$/.test(String(s || ""));
 // An access end date is stored as the end of that day (UTC) so the countdown reads naturally.
 const endOfDay = (d: string) => new Date(d + "T23:59:59Z").toISOString();
+
+// An account already in use is sent to the sign-in page, which then opens the room.
+const signInTo = (roomId: string, L: string) => `${APP_URL}/login.html?lang=${L}&next=${encodeURIComponent("room.html?id=" + roomId)}`;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
@@ -216,8 +220,21 @@ Deno.serve(async (req) => {
     if (error) return json({ error: error.message }, 400);
     if (!a) return json({ error: "not-revoked" }, 400);
     await audit(admin, me, "room-access-reactivated", userId, { room: room.slug });
-    const { data: prof } = await admin.from("clv_profiles").select("email, full_name, lang").eq("id", userId).maybeSingle();
-    if (prof) { const L = pickLang(prof.lang); const open = `${APP_URL}/room.html?id=${room.id}&lang=${L}`; const m = mail(L, "room_invite_existing", { name: prof.full_name, room: room.name, company: cname, owner: cname, until: expires ? word(L, "until_line", { date: fmtDay(expires, L) }) : "", link: open }); await sendMail(prof.email, m.subject, m.text, L, { url: open, label: OPEN_CTA[L] }).catch(() => false); }
+    const { data: prof } = await admin.from("clv_profiles").select("email, full_name, lang, last_login_at").eq("id", userId).maybeSingle();
+    if (prof) {
+      const L = pickLang(prof.lang), until = expires ? word(L, "until_line", { date: fmtDay(expires, L) }) : "";
+      // Never signed in: a fresh activation link (an earlier one may have expired). Otherwise: the sign-in page.
+      const act = (await isActivated(admin, userId, prof.last_login_at)) ? null : await activationLink(admin, prof.email);
+      if (act) {
+        const url = withLang(act, L) + `&room=${encodeURIComponent(room.name)}&by=${encodeURIComponent(cname)}`;
+        const m = mail(L, "room_invite_new", { name: prof.full_name, room: room.name, company: cname, owner: cname, until, link: url });
+        await sendMail(prof.email, m.subject, m.text, L, { url, label: ctaLabel(L, "activate") }).catch(() => false);
+      } else {
+        const url = signInTo(room.id, L);
+        const m = mail(L, "room_invite_existing", { name: prof.full_name, room: room.name, company: cname, owner: cname, until, link: url });
+        await sendMail(prof.email, m.subject, m.text, L, { url, label: OPEN_CTA[L] }).catch(() => false);
+      }
+    }
     return json({ ok: true, expires_at: expires });
   }
 
@@ -253,12 +270,12 @@ Deno.serve(async (req) => {
     if (body.expires_at && !isDate(body.expires_at)) return json({ error: "bad-date" }, 400);
 
     // 1. Enrol the user if needed (shared directory: an existing Minerva user keeps their passphrase).
-    let { data: prof } = await admin.from("clv_profiles").select("id, email, full_name, status, lang, salutation, first_name, last_name").eq("email", email).maybeSingle();
-    let created = false, linked = false, link = `${APP_URL}/login.html`;
+    let { data: prof } = await admin.from("clv_profiles").select("id, email, full_name, status, lang, salutation, first_name, last_name, last_login_at").eq("email", email).maybeSingle();
+    let created = false, linked = false, activate = false, link = `${APP_URL}/login.html`;
     if (!prof) {
       const en = await enrolUser(admin, email, name, company, lang, "user", { salutation, first_name: first || null, last_name: last || null });
       if ("error" in en) return json({ error: en.error }, 400);
-      prof = { id: en.id, email, full_name: name, status: "registered", lang, salutation, first_name: first || null, last_name: last || null };
+      prof = { id: en.id, email, full_name: name, status: "registered", lang, salutation, first_name: first || null, last_name: last || null, last_login_at: null };
       created = en.created; linked = en.linked; link = en.link;
       await audit(admin, me, "user-created", email, { via: "room-invite", room: room.slug, linked });
     } else if (prof.status === "suspended" || prof.status === "rejected") return json({ error: "user-blocked" }, 400);
@@ -270,6 +287,11 @@ Deno.serve(async (req) => {
       if (last && !prof.last_name) patch.last_name = last;
       if (name && !String(prof.full_name || "").trim()) patch.full_name = name;
       if (Object.keys(patch).length) { await admin.from("clv_profiles").update(patch).eq("id", prof.id); prof = { ...prof, ...patch }; }
+      // Enrolled earlier but never signed in (no password chosen yet): send a fresh activation link, not the sign-in page.
+      if (!(await isActivated(admin, prof.id, prof.last_login_at))) {
+        const act = await activationLink(admin, prof.email);
+        if (act) { activate = true; link = act; }
+      }
     }
 
     // 2. Assign (re-activate if previously revoked). End date: as chosen, else the room default.
@@ -284,16 +306,16 @@ Deno.serve(async (req) => {
     const L = pickLang(prof.lang || lang);
     const ctx = `&room=${encodeURIComponent(room.name)}&by=${encodeURIComponent(cname)}`;
     const login = `${APP_URL}/login.html?lang=${L}`;
-    const openRoom = `${APP_URL}/room.html?id=${room.id}&lang=${L}`;
+    const openRoom = signInTo(room.id, L);
     const until = expires ? word(L, "until_line", { date: fmtDay(expires, L) }) : "";
-    const m = created ? mail(L, "room_invite_new", { name, room: room.name, company: cname, owner: cname, until, link: withLang(link, L) + ctx })
+    const m = created || activate ? mail(L, "room_invite_new", { name: prof.full_name || name, room: room.name, company: cname, owner: cname, until, link: withLang(link, L) + ctx })
       : linked ? mail(L, "room_invite_linked", { name, room: room.name, company: cname, owner: cname, until, login, link: withLang(link, L) + ctx })
       : mail(L, "room_invite_existing", { name: prof.full_name, room: room.name, company: cname, owner: cname, until, link: openRoom });
     let mailed = false;
-    // New account: activation button. Existing account: a button straight into the room (sign-in first if needed).
-    const cta = (created || linked) ? { url: withLang(link, L) + ctx, label: ctaLabel(L, "activate") } : { url: openRoom, label: OPEN_CTA[L] };
+    // Account never used: activation button (set the password). Account in use: the sign-in page, which opens the room.
+    const cta = (created || linked || activate) ? { url: withLang(link, L) + ctx, label: ctaLabel(L, "activate") } : { url: openRoom, label: OPEN_CTA[L] };
     try { mailed = await sendMail(email, m.subject, m.text, L, cta); } catch (e) { console.error("clv-admin-rooms invite mail:", (e as Error).message); }
-    return json({ ok: true, user_id: prof.id, created, linked, mailed, expires_at: expires });
+    return json({ ok: true, user_id: prof.id, created, linked, activation: created || linked || activate, mailed, expires_at: expires });
   }
 
   return json({ error: "bad-action" }, 400);
