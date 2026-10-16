@@ -17,6 +17,7 @@
 // Secrets: ESIGN_API_KEY, ESIGN_USER_ID (optional ESIGN_METHODS). Deploy with --no-verify-jwt.
 import { PDFDocument } from "https://esm.sh/pdf-lib@1.17.1";
 import { adminClient, APP_URL, audit, clientIp, companyScope, cors, enrolUser, inScope, isStaff, json, requireUser, sendMail } from "../_shared/clv.ts";
+import { activationLink, isActivated } from "../_shared/activation.ts";
 import { wants } from "../_shared/notify.ts";
 import { overLimit } from "../_shared/plans.ts";
 import { ncConfigured, ncGet, ncMkdirP, ncPut, sha256Hex } from "../_shared/nc.ts";
@@ -147,14 +148,19 @@ Deno.serve(async (req) => {
     const role = body.role === "auditor" ? "auditor" : "signatory";
     const name = String(body.name || "").trim().slice(0, 120), company = String(body.company || "").trim().slice(0, 160) || null;
     const lang = pickLang(body.lang);
-    let { data: prof } = await admin.from("clv_profiles").select("id, email, full_name, status, lang, notify").eq("email", email).maybeSingle();
+    let { data: prof } = await admin.from("clv_profiles").select("id, email, full_name, status, lang, notify, last_login_at").eq("email", email).maybeSingle();
     let created = false, linked = false, link = `${APP_URL}/login.html`;
     if (!prof) {
       const en = await enrolUser(admin, email, name, company, lang);
       if ("error" in en) return json({ error: en.error }, 400);
-      prof = { id: en.id, email, full_name: name, status: "registered", lang, notify: {} }; created = en.created; linked = en.linked; link = en.link;
+      prof = { id: en.id, email, full_name: name, status: "registered", lang, notify: {}, last_login_at: null }; created = en.created; linked = en.linked; link = en.link;
       await audit(admin, me, "user-created", email, { via: "contract-party", contract: c.id, linked });
     } else if (prof.status === "suspended" || prof.status === "rejected") return json({ error: "user-blocked" }, 400);
+    else if (!(await isActivated(admin, prof.id, prof.last_login_at))) {
+      // Enrolled earlier but never signed in: the activation mail again, with a fresh link.
+      const act = await activationLink(admin, prof.email);
+      if (act) { created = true; link = act; }
+    }
     if (parties.some((p) => p.user_id === prof!.id)) return json({ error: "already-party" }, 400);
     const order = Number(body.order_no) || (signatoriesInOrder(parties).length + 1);
     const { error } = await admin.from("clv_contract_parties").insert({ contract_id: c.id, user_id: prof.id, role, order_no: role === "signatory" ? order : 0, status: "pending", added_by: me.id });
@@ -162,7 +168,7 @@ Deno.serve(async (req) => {
     await logEvent(admin, c.id, me.id, "party-added", { email, role, order: role === "signatory" ? order : null, created }, ip);
     const from = await contractFrom(admin, c);
     if (created || linked) {
-      const m = mail(lang, linked ? "contract_added_linked" : "contract_added_new", { name, from, title: c.title, role: word(lang, role === "auditor" ? "role_auditor" : "role_signatory"), link: withLang(link, lang), login: `${APP_URL}/login.html?lang=${lang}`, tail: word(lang, role === "auditor" ? "tail_auditor" : "tail_signatory") });
+      const m = mail(lang, linked ? "contract_added_linked" : "contract_added_new", { name: name || prof.full_name, from, title: c.title, role: word(lang, role === "auditor" ? "role_auditor" : "role_signatory"), link: withLang(link, lang), login: `${APP_URL}/login.html?lang=${lang}`, tail: word(lang, role === "auditor" ? "tail_auditor" : "tail_signatory") });
       sendMail(email, m.subject, m.text, lang).catch((e) => console.error("contract party mail", e));
     } else if (wants(prof.notify, "contract_new")) {
       // Existing user: "a contract has been assigned to you" (switchable under Account).
