@@ -92,19 +92,27 @@
   // when the user presses Continue, so mail link scanners cannot consume it.
   var params = new URLSearchParams(location.search);
   var tokenHash = params.get('token_hash');
+  // Password-reset mails carry a short-lived Clavoris code (5 minutes) instead of the Supabase token.
+  var resetCode = params.get('code');
   if (params.get('welcome') === '1') { try { sessionStorage.setItem('clv_welcome', '1'); if (params.get('room')) sessionStorage.setItem('clv_welcome_ctx', JSON.stringify({ room: params.get('room'), by: params.get('by') || '' })); } catch (e) {} }
   // Invited to a data room: say so on the sign-up screen (room name + inviting company from the link).
   (function () { var room = params.get('room'), by = params.get('by'); if (room) { var c = document.getElementById('ctx'); c.style.display = 'block'; c.textContent = window.ClavorisI18n.t('welcome.room', { room: room, company: by || 'Clavoris' }); } })();
   function start() {
     A.refresh().then(function () {
       if (A.isSignedIn()) { showForm(); return; }
-      if (tokenHash) { show('verify'); return; }
+      if (tokenHash || resetCode) { show('verify'); return; }
       show('noSession');
     });
   }
   q('vbtn').addEventListener('click', function () {
     var m = q('vmsg'); m.className = 'msg'; m.textContent = ''; q('vbtn').disabled = true;
-    A.verifyRecovery(tokenHash).then(function (r) {
+    var opened = resetCode
+      ? A.callFn('clv-auth-mail', { action: 'redeem', code: resetCode }).then(function (r) {
+          if (!r || !r.ok || !r.session) return { ok: false };
+          return A.client().auth.setSession(r.session).then(function () { return A.refresh(); }).then(function () { return { ok: A.isSignedIn() }; }, function () { return { ok: false }; });
+        })
+      : A.verifyRecovery(tokenHash);
+    opened.then(function (r) {
       if (!r.ok) { show('noSession'); return; }
       try { history.replaceState(null, '', location.pathname); } catch (e) {}
       showForm();
