@@ -46,8 +46,13 @@
       <div id="noSession" hidden>
         <p class="eyebrow" data-i18n="reset.eyebrow">Recovery</p>
         <h2 data-i18n="nosess.title">Link not valid</h2>
-        <p class="lead" data-i18n="nosess.lead">This recovery link has expired or was already used. Request a new one from the sign-in page.</p>
-        <a class="btn btn-primary btn-block" style="margin-top:24px" href="login.html" data-i18n="nosess.back">Back to sign in</a>
+        <p class="lead" data-i18n="nosess.lead">This link has expired or was already used. Enter your e-mail address and Clavoris sends you a new one.</p>
+        <form id="newLinkForm" autocomplete="on" onsubmit="return false;" style="margin-top:18px">
+          <div class="field"><label for="nlEmail" data-i18n="nosess.email">Your e-mail address</label><input id="nlEmail" type="email" autocomplete="email" data-i18n-placeholder="login.email_ph" placeholder="name@company.com"></div>
+          <p class="msg" id="nlMsg" role="status"></p>
+          <button class="btn btn-primary btn-block" type="submit" id="nlBtn" data-i18n="nosess.send">Send me a new link</button>
+        </form>
+        <div style="text-align:center;margin-top:14px"><a class="btn-text" href="login.html" data-i18n="nosess.back">Back to sign in</a></div>
       </div>
     </div>
   </section>
@@ -105,6 +110,22 @@
       showForm();
     });
   });
+  // Expired or used link: a new one is sent to the address entered (the server answers the same for unknown addresses).
+  q('newLinkForm').addEventListener('submit', function () {
+    var m = q('nlMsg'), e = q('nlEmail').value.trim();
+    m.className = 'msg'; m.textContent = '';
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) { m.className = 'msg err'; m.textContent = I.t('forgot.err_email'); return; }
+    q('nlBtn').disabled = true;
+    A.requestPasswordReset(e).then(function (r) {
+      q('nlBtn').disabled = false;
+      if (r && r.ok) { m.className = 'msg ok'; m.textContent = I.t('nosess.sent'); } else { m.className = 'msg err'; m.textContent = I.t('forgot.fail'); }
+    });
+  });
+  // Texts of the "new link" form (this page only).
+  I.add('en', { 'nosess.lead': 'This link has expired or was already used. Enter your e-mail address and Clavoris sends you a new one.', 'nosess.email': 'Your e-mail address', 'nosess.send': 'Send me a new link', 'nosess.sent': 'If this address has a Clavoris account, a new link is on its way. Check your inbox (and spam folder) in a few minutes.' });
+  I.add('nl', { 'nosess.lead': 'Deze link is verlopen of al gebruikt. Vul uw e-mailadres in en Clavoris stuurt u een nieuwe.', 'nosess.email': 'Uw e-mailadres', 'nosess.send': 'Stuur mij een nieuwe link', 'nosess.sent': 'Heeft dit adres een Clavoris-account, dan is een nieuwe link onderweg. Kijk binnen enkele minuten in uw inbox (en map met ongewenste e-mail).' });
+  I.add('fr', { 'nosess.lead': 'Ce lien a expiré ou a déjà été utilisé. Saisissez votre adresse e-mail et Clavoris vous en envoie un nouveau.', 'nosess.email': 'Votre adresse e-mail', 'nosess.send': 'M’envoyer un nouveau lien', 'nosess.sent': 'Si cette adresse dispose d’un compte Clavoris, un nouveau lien est en route. Consultez votre boîte de réception (et le dossier de courrier indésirable) dans quelques minutes.' });
+  I.apply(document);
   A.ready(function () { setTimeout(start, 400); });
   document.addEventListener('clv:recovery', start);
 
