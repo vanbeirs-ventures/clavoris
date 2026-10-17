@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Interactive document — Clavoris</title>
+<link rel="icon" href="../assets/clavoris-mark.png">
+<link rel="stylesheet" href="app.css?v=20261017a">
+<script>document.documentElement.classList.add('clv-checking');</script>
+<style>
+  /* The artifact fills the screen under the top band; it runs in a sandboxed frame with no network access. */
+  .art-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 0 10px; }
+  .art-head .ttl { font-family: var(--font-display); font-size: 22px; color: var(--clavis-navy); margin: 0; flex: 1; min-width: 0; }
+  .art-head .back { font-size: 13px; }
+  .art-meta { font-size: 11.5px; color: var(--fg-3); }
+  .art-stage { position: relative; border: 1px solid var(--border); border-radius: var(--r-md); overflow: hidden; background: #fff; height: calc(100vh - 190px); min-height: 520px; }
+  .art-stage iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: block; }
+  .art-wm { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 2; }
+  .art-wm span { position: absolute; white-space: nowrap; font: 500 12px/1 var(--font-body, system-ui), sans-serif; color: rgba(16, 36, 56, .085); transform: rotate(-24deg); user-select: none; }
+  .art-note { font-size: 12px; color: var(--fg-3); margin-top: 8px; line-height: 1.5; }
+  @media (max-width: 700px) { .art-stage { height: calc(100vh - 220px); } }
+  @media print { .art-stage.noprint { display: none !important; } }
+</style>
+</head>
+<body data-clv-restrict="full">
+<div class="app">
+  <nav class="nav" id="nav"></nav>
+  <main class="screen-wrap" data-screen-label="Interactive document">
+    <div class="art-head">
+      <a class="back btn-text" id="back" href="portal.html">‹ <span id="backTxt">Data room</span></a>
+      <h1 class="ttl" id="title">…</h1>
+      <span id="chips"></span>
+    </div>
+    <p class="msg err" id="err"></p>
+    <div class="art-stage" id="stage" hidden>
+      <iframe id="frame" title="Interactive document" sandbox="allow-scripts" referrerpolicy="no-referrer"></iframe>
+      <div class="art-wm" id="wm" aria-hidden="true"></div>
+    </div>
+    <p class="art-note" id="note"></p>
+  </main>
+</div>
+
+<script src="config.js?v=20261017a"></script>
+<script src="i18n.js?v=20261017a"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="clavoris-access.js?v=20261017a"></script>
+<script src="shell.js?v=20261017a"></script>
+<script>
+(function () {
+  'use strict';
+  var A = window.ClavorisAccess, S = window.ClavorisShell, I = window.ClavorisI18n, esc = S.esc;
+  I.add('en', { 'art.back': 'Data room', 'art.preview': 'Preview — not visible to members', 'art.version': 'version {v} · {date}', 'art.note': 'Confidential under the room’s NDA. This interactive document is read-only: you can switch views and scenarios, nothing you change is saved. Every opening is logged with your identity, the time and the view code shown in the watermark.', 'art.err.forbidden': 'You do not have access to this document.', 'art.err.notfound': 'This document is not available in this data room.', 'art.err.generic': 'The document could not be opened ({err}).' });
+  I.add('nl', { 'art.back': 'Dataroom', 'art.preview': 'Voorbeeld — niet zichtbaar voor leden', 'art.version': 'versie {v} · {date}', 'art.note': 'Vertrouwelijk onder de NDA van de dataroom. Dit interactieve document is alleen-lezen: u kunt weergaven en scenario’s wisselen, niets wat u wijzigt wordt bewaard. Elke opening wordt geregistreerd met uw identiteit, het tijdstip en de weergavecode in het watermerk.', 'art.err.forbidden': 'U hebt geen toegang tot dit document.', 'art.err.notfound': 'Dit document is niet beschikbaar in deze dataroom.', 'art.err.generic': 'Het document kon niet geopend worden ({err}).' });
+  I.add('fr', { 'art.back': 'Data room', 'art.preview': 'Aperçu — non visible pour les membres', 'art.version': 'version {v} · {date}', 'art.note': 'Confidentiel en vertu du NDA de la data room. Ce document interactif est en lecture seule : vous pouvez changer de vue et de scénario, rien de ce que vous modifiez n’est enregistré. Chaque ouverture est enregistrée avec votre identité, l’heure et le code de consultation affiché dans le filigrane.', 'art.err.forbidden': 'Vous n’avez pas accès à ce document.', 'art.err.notfound': 'Ce document n’est pas disponible dans cette data room.', 'art.err.generic': 'Le document n’a pas pu être ouvert ({err}).' });
+  function q(id) { return document.getElementById(id); }
+  var P = new URLSearchParams(location.search), roomId = P.get('room'), linkId = P.get('id');
+
+  // ---- runtime inside the sandbox: a read-only window.claude (db + user) over the published data snapshot ----
+  // Runs in an opaque origin (sandbox without allow-same-origin): no cookies, no storage, no access to this page,
+  // and the Content-Security-Policy below blocks every network request except the page's web fonts.
+  function runtime(D, cfg) {
+    var denied = function () { var e = new Error('This document is read-only in the data room.'); e.code = 'not_granted'; return Promise.reject(e); };
+    function snapDoc(id, data) { return { id: id, exists: data !== undefined, data: function () { return data === undefined ? undefined : JSON.parse(JSON.stringify(data)); } }; }
+    function query(name, opts) {
+      opts = opts || { where: [], order: null, limit: 0 };
+      var rows = function () {
+        var c = D[name] || {};
+        var list = Object.keys(c).map(function (id) { return { id: id, v: c[id] }; });
+        opts.where.forEach(function (w) {
+          list = list.filter(function (r) { var x = r.v ? r.v[w[0]] : undefined;
+            switch (w[1]) { case '==': return x === w[2]; case '!=': return x !== w[2]; case '<': return x < w[2]; case '<=': return x <= w[2]; case '>': return x > w[2]; case '>=': return x >= w[2];
+              case 'in': return (w[2] || []).indexOf(x) >= 0; case 'array-contains': return Array.isArray(x) && x.indexOf(w[2]) >= 0; default: return true; } });
+        });
+        if (opts.order) { var f = opts.order[0], d = opts.order[1] === 'desc' ? -1 : 1; list.sort(function (a, b) { var x = a.v && a.v[f], y = b.v && b.v[f]; return x === y ? 0 : (x > y ? d : -d); }); }
+        if (opts.limit) list = list.slice(0, opts.limit);
+        var docs = list.map(function (r) { return snapDoc(r.id, r.v); });
+        return { docs: docs, size: docs.length, empty: !docs.length, forEach: function (fn) { docs.forEach(fn); } };
+      };
+      var api = {
+        where: function (f, op, v) { return query(name, { where: opts.where.concat([[f, op, v]]), order: opts.order, limit: opts.limit }); },
+        orderBy: function (f, dir) { return query(name, { where: opts.where, order: [f, dir || 'asc'], limit: opts.limit }); },
+        limit: function (n) { return query(name, { where: opts.where, order: opts.order, limit: n }); },
+        get: function () { return Promise.resolve(rows()); },
+        onSnapshot: function (cb) { setTimeout(function () { try { cb(rows()); } catch (e) { console.error(e); } }, 0); return function () {}; },
+        add: denied,
+        doc: function (id) {
+          return {
+            id: id,
+            get: function () { return Promise.resolve(snapDoc(id, (D[name] || {})[id])); },
+            onSnapshot: function (cb) { setTimeout(function () { try { cb(snapDoc(id, (D[name] || {})[id])); } catch (e) { console.error(e); } }, 0); return function () {}; },
+            set: denied, update: denied, delete: denied
+          };
+        }
+      };
+      return api;
+    }
+    var db = { collection: function (n) { return query(String(n)); }, batch: function () { return { set: function () {}, update: function () {}, delete: function () {}, commit: denied }; } };
+    var user = { id: function () { return Promise.resolve('dataroom-viewer'); }, can: function () { return Promise.resolve(false); },
+      profiles: function (ids) { var o = {}; (ids || []).forEach(function (i) { o[i] = { name: cfg.team || 'Company team' }; }); return Promise.resolve(o); } };
+    window.claude = { use: function (cap) { return cap === 'db' ? Promise.resolve(db) : cap === 'user' ? Promise.resolve(user) : Promise.reject(Object.assign(new Error('Not available in the data room.'), { code: 'not_available' })); } };
+    // Activity inside the frame keeps the Clavoris session alive (inactivity sign-out after 10 minutes).
+    var last = 0; ['pointerdown', 'keydown', 'wheel', 'touchstart', 'mousemove'].forEach(function (ev) {
+      window.addEventListener(ev, function () { var n = Date.now(); if (n - last > 15000) { last = n; try { parent.postMessage({ clv: 'activity' }, '*'); } catch (e) {} } }, { passive: true, capture: true });
+    });
+  }
+
+  function cssEscapeSel(s) { return String(s).replace(/[{}<>]/g, ''); }
+  function buildDoc(r) {
+    var cfg = r.config || {};
+    var csp = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com data:; img-src data: blob:; media-src data: blob:; connect-src 'none'; frame-src 'none'; form-action 'none'; base-uri 'none'";
+    var hide = (cfg.hide || []).map(cssEscapeSel).filter(Boolean);
+    var style = (hide.length ? hide.join(',') + '{display:none!important}' : '')
+      + (cfg.print ? '' : '@media print{html,body{display:none!important}}');
+    var boot = '(' + runtime.toString() + ')(' + JSON.stringify(r.data || {}).replace(/</g, '\\u003c') + ',' + JSON.stringify({ team: r.watermark && r.watermark.team || '' }).replace(/</g, '\\u003c') + ');';
+    var head = '<meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="' + csp + '"><meta name="viewport" content="width=device-width, initial-scale=1">'
+      + '<script>' + boot + '<\/script>' + (style ? '<style>' + style + '</style>' : '');
+    var html = String(r.html || '');
+    // A full document gets the runtime as the first thing in <head>; a fragment (as published from claude.ai) is wrapped.
+    if (/<head[\s>]/i.test(html)) return html.replace(/<head(\s[^>]*)?>/i, function (m) { return m + head; });
+    if (/<html[\s>]/i.test(html)) return html.replace(/<html(\s[^>]*)?>/i, function (m) { return m + '<head>' + head + '</head>'; });
+    return '<!DOCTYPE html><html lang="en"><head>' + head + '</head><body>' + html + '</body></html>';
+  }
+
+  function watermark(w) {
+    var box = q('wm'), text = [w.name, w.email, new Date(w.at).toISOString().slice(0, 16).replace('T', ' ') + ' UTC', w.code].filter(Boolean).join(' · ');
+    var out = '', W = box.clientWidth || 1200, H = box.clientHeight || 800;
+    for (var y = -40, row = 0; y < H + 120; y += 120, row++) for (var x = (row % 2) * -180 - 80; x < W + 200; x += 380) out += '<span style="left:' + x + 'px;top:' + y + 'px">' + esc(text) + '</span>';
+    box.innerHTML = out;
+  }
+
+  function open() {
+    return A.callFn('clv-room-artifacts', { action: 'get', room_id: roomId, link_id: linkId }).then(function (r) {
+      if (r.error) { q('err').textContent = r.error === 'forbidden' ? I.t('art.err.forbidden') : (r.error === 'not-found' || r.error === 'not-published') ? I.t('art.err.notfound') : I.t('art.err.generic', { err: r.error }); q('title').textContent = ''; return; }
+      var a = r.artifact; document.title = a.title + ' — Clavoris'; q('title').textContent = a.title;
+      q('chips').innerHTML = (a.preview ? '<span class="chip pending">' + esc(I.t('art.preview')) + '</span> ' : '')
+        + '<span class="art-meta">' + esc(I.t('art.version', { v: a.version, date: S.fmtDate(a.published_at) })) + '</span>';
+      q('note').textContent = I.t('art.note');
+      var stage = q('stage'); stage.hidden = false; if (!(r.config && r.config.print)) stage.classList.add('noprint');
+      var f = q('frame');
+      window.addEventListener('message', function (ev) { if (ev.source === f.contentWindow && ev.data && ev.data.clv === 'activity') window.dispatchEvent(new Event('pointerdown')); });
+      f.srcdoc = buildDoc(r);
+      if (!r.config || r.config.watermark !== false) { watermark(r.watermark || {}); window.addEventListener('resize', function () { watermark(r.watermark || {}); }); }
+    });
+  }
+
+  A.ready(function () {
+    if (!A.clears('full')) return;
+    S.render('rooms');
+    q('backTxt').textContent = I.t('art.back');
+    if (roomId) q('back').href = 'room.html?id=' + encodeURIComponent(roomId);
+    if (!roomId || !linkId) { q('err').textContent = I.t('art.err.notfound'); return; }
+    open();
+  });
+})();
+</script>
+</body>
+</html>
