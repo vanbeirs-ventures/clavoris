@@ -12,13 +12,33 @@
   .clist { list-style: none; margin-top: 20px; }
   .clist li { border-top: 1px solid var(--border); }
   .clist li:first-child { border-top: none; }
-  .clist a.row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 20px; padding: 16px 20px; text-decoration: none; color: inherit; }
-  .clist a.row:hover { background: var(--parch-100); }
+  .clist .row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 20px; padding: 16px 20px; text-decoration: none; color: inherit; }
+  .clist .row:hover { background: var(--parch-100); }
+  .clist .t a { color: inherit; text-decoration: none; }
+  .clist .t a:hover { text-decoration: underline; }
+  .clist .m .act { display: block; margin-left: auto; }
+  .clist button.act { font: inherit; font-size: 12.5px; background: none; border: 0; padding: 0; cursor: pointer; color: var(--clavis-navy); text-decoration: underline; }
   .clist .t { font-family: var(--font-display); font-size: 17px; color: var(--clavis-navy); }
   .clist .d { font-size: 12.5px; color: var(--fg-2); margin-top: 3px; }
   .clist .m { text-align: right; font-size: 12px; color: var(--fg-3); white-space: nowrap; }
   .prog { display: inline-block; height: 6px; width: 120px; background: var(--parch-dark); border-radius: 3px; overflow: hidden; vertical-align: middle; margin-left: 8px; }
   .prog i { display: block; height: 100%; background: #2F9E5A; }
+  .cbar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
+  .seg { display: inline-flex; border: 1px solid var(--border); border-radius: var(--r-md); overflow: hidden; background: var(--bg-raised); }
+  .seg button { font: inherit; font-size: 13px; padding: 7px 14px; border: 0; background: none; color: var(--fg-2); cursor: pointer; border-left: 1px solid var(--border); }
+  .seg button:first-child { border-left: 0; }
+  .seg button[aria-pressed="true"] { background: var(--clavis-navy); color: #fff; }
+  .cbar select { font: inherit; font-size: 13px; padding: 7px 10px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--bg-raised); }
+  .clist .kind { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--fg-2); margin-left: 6px; }
+  .clist .kind svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .clist .act { font-size: 12.5px; color: var(--clavis-navy); text-decoration: underline; margin-top: 6px; display: inline-block; }
+  .newwrap { text-align: right; }
+  .newwrap .btn[disabled] { opacity: .45; cursor: not-allowed; }
+  .newwrap .why { font-size: 11.5px; color: var(--fg-3); margin-top: 6px; max-width: 260px; margin-left: auto; line-height: 1.45; }
+  .legend2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; margin-top: 18px; }
+  .legend2 > div { padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--bg-raised); font-size: 12.5px; color: var(--fg-2); line-height: 1.55; }
+  .legend2 b { color: var(--clavis-navy); font-weight: 500; display: block; margin-bottom: 2px; }
+  @media (max-width: 640px) { .clist .clist-x, .clist .row { grid-template-columns: 1fr; } .clist .m { text-align: left; } .clist .m .act { margin-left: 0; } .newwrap { text-align: left; } .newwrap .why { margin-left: 0; } }
 </style>
 </head>
 <body data-clv-restrict="full">
@@ -27,7 +47,7 @@
   <main class="screen-wrap" data-screen-label="Contracts" data-i18n-doctitle="contracts.title">
     <p class="eyebrow" data-i18n="contracts.title">Contracts</p>
     <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:16px">
-      <div><h1 class="page-title" data-i18n="contracts.title">Contracts</h1><p class="page-sub" data-i18n="contracts.sub">Agreements executed with eIDAS qualified electronic signatures. Signatories sign in order with their verified identity; auditors follow the execution.</p></div>
+      <div><h1 class="page-title" data-i18n="contracts.title">Contracts</h1><p class="page-sub" id="csub"></p></div>
       <div id="staffBtn"></div>
     </div>
     <p class="msg err" id="err"></p>
@@ -46,9 +66,14 @@
       </form>
     </section>
 
-    <div class="card" style="margin-top:24px">
+    <div class="cbar" id="cbar" hidden>
+      <div class="seg" role="group" id="seg"></div>
+      <select id="ctype" aria-label="Type"></select>
+    </div>
+    <div class="card" style="margin-top:12px">
       <ul class="clist" id="list" style="margin-top:0"><li><div style="padding:16px 20px;color:var(--fg-3);font-size:13px" data-i18n="common.loading">Loading…</div></li></ul>
     </div>
+    <div class="legend2" id="legend2"></div>
     <p class="note" data-i18n="contracts.note">A qualified electronic signature (QES) has the legal effect of a handwritten signature in every EU member state (eIDAS, art. 25). Clavoris creates it through its qualified trust service provider after identity proofing; the signatures are embedded in the executed PDF and can be validated with any PAdES-capable reader.</p>
   </main>
   <footer class="app-foot"><span data-i18n="footer.tag">Clavoris · Private Investment Enablement Platform</span><span class="loc" data-i18n="footer.loc">Antwerp · Luxembourg · Nordic · CSSF · FSMA · MiCA</span></footer>
@@ -65,21 +90,99 @@
   var A = window.ClavorisAccess, S = window.ClavorisShell, I = window.ClavorisI18n, esc = S.esc;
   function q(id) { return document.getElementById(id); }
   var STATUS = { draft: 'neutral', in_progress: 'pending', executed: 'verified', declined: 'rejected', cancelled: 'neutral' };
-
+  // The list holds every agreement the user has been presented with: contracts signed with a qualified electronic
+  // signature (QES, eIDAS) and data-room NDAs, which are confirmed with the verified identity (KYC) and an electronic
+  // acceptance, not with a QES. NDAs also stay in their data room ("Your NDA").
+  I.add('en', { 'cl.sub': 'Every agreement presented to you: contracts signed with a qualified electronic signature and data-room non-disclosure agreements confirmed with your verified identity.', 'cl.all': 'All', 'cl.todo': 'To sign', 'cl.done': 'Signed', 'cl.types': 'All types', 'cl.t_contract': 'Contracts (QES)', 'cl.t_nda': 'Data-room NDAs', 'cl.k_contract': 'Contract', 'cl.k_nda': 'Data-room NDA', 'cl.m_qes': 'Qualified e-signature · eIDAS', 'cl.m_kyc': 'Verified identity + electronic acceptance', 'cl.nda_title': 'NDA · {room}', 'cl.nda_todo': 'To sign', 'cl.nda_signed': 'Signed {date} · version {v}', 'cl.nda_cs': 'Countersigned by {company} on {date}', 'cl.nda_cs_wait': 'Awaiting countersignature by {company}', 'cl.nda_open': 'Open the data room to sign', 'cl.nda_dl': 'Open in the data room', 'cl.cs_title': 'NDA countersignature · {room}', 'cl.cs_todo': 'To countersign', 'cl.cs_wait': '{n} signed copy(ies) waiting for your countersignature', 'cl.cs_done': 'Countersigned {date} · applies to every copy of version {v}', 'cl.cs_open': 'Countersign in the data room', 'cl.open': 'Open', 'cl.dl': 'Download PDF', 'cl.dl_signed': 'Download signed PDF', 'cl.dl_fail': 'The download failed ({err}).', 'cl.member': 'member', 'cl.company': 'company', 'cl.none_filter': 'Nothing in this selection.', 'cl.paid_only': 'Sending your own contracts for qualified signature is part of the Clavoris paid plans.', 'cl.contact': 'Contact Clavoris', 'cl.leg_qes_t': 'Qualified electronic signature (QES)', 'cl.leg_qes': 'Used for contracts. Signed with itsme or Evrotrust after identity verification; legally equivalent to a handwritten signature in every EU member state (eIDAS, art. 25).', 'cl.leg_kyc_t': 'Verified identity + electronic acceptance', 'cl.leg_kyc': 'Used for data-room NDAs. You accept the agreement after your identity has been verified (KYC); Clavoris records your identity, the time, your IP address and a fingerprint of the text, and adds a signature page to your copy.' });
+  I.add('nl', { 'cl.sub': 'Elke overeenkomst die u werd voorgelegd: contracten ondertekend met een gekwalificeerde elektronische handtekening en geheimhoudingsovereenkomsten van datarooms, bevestigd met uw geverifieerde identiteit.', 'cl.all': 'Alle', 'cl.todo': 'Te ondertekenen', 'cl.done': 'Ondertekend', 'cl.types': 'Alle soorten', 'cl.t_contract': 'Contracten (QES)', 'cl.t_nda': 'NDA\'s van datarooms', 'cl.k_contract': 'Contract', 'cl.k_nda': 'NDA dataroom', 'cl.m_qes': 'Gekwalificeerde e-handtekening · eIDAS', 'cl.m_kyc': 'Geverifieerde identiteit + elektronische aanvaarding', 'cl.nda_title': 'NDA · {room}', 'cl.nda_todo': 'Te ondertekenen', 'cl.nda_signed': 'Ondertekend {date} · versie {v}', 'cl.nda_cs': 'Tegengetekend door {company} op {date}', 'cl.nda_cs_wait': 'Wacht op tegenhandtekening door {company}', 'cl.nda_open': 'Open de dataroom om te ondertekenen', 'cl.nda_dl': 'Openen in de dataroom', 'cl.cs_title': 'Tegenhandtekening NDA · {room}', 'cl.cs_todo': 'Tegen te tekenen', 'cl.cs_wait': '{n} ondertekend(e) exempla(a)r(en) wachten op uw tegenhandtekening', 'cl.cs_done': 'Tegengetekend {date} · geldt voor elk exemplaar van versie {v}', 'cl.cs_open': 'Tegentekenen in de dataroom', 'cl.open': 'Openen', 'cl.dl': 'Pdf downloaden', 'cl.dl_signed': 'Ondertekende pdf downloaden', 'cl.dl_fail': 'Het downloaden is mislukt ({err}).', 'cl.member': 'lid', 'cl.company': 'onderneming', 'cl.none_filter': 'Niets in deze selectie.', 'cl.paid_only': 'Eigen contracten laten ondertekenen met een gekwalificeerde handtekening maakt deel uit van de betalende Clavoris-plannen.', 'cl.contact': 'Contact opnemen met Clavoris', 'cl.leg_qes_t': 'Gekwalificeerde elektronische handtekening (QES)', 'cl.leg_qes': 'Gebruikt voor contracten. Ondertekend met itsme of Evrotrust na identiteitsverificatie; juridisch gelijkwaardig aan een handgeschreven handtekening in elke EU-lidstaat (eIDAS, art. 25).', 'cl.leg_kyc_t': 'Geverifieerde identiteit + elektronische aanvaarding', 'cl.leg_kyc': 'Gebruikt voor NDA\'s van datarooms. U aanvaardt de overeenkomst nadat uw identiteit geverifieerd is (KYC); Clavoris registreert uw identiteit, het tijdstip, uw IP-adres en een vingerafdruk van de tekst, en voegt een handtekeningpagina toe aan uw exemplaar.' });
+  I.add('fr', { 'cl.sub': 'Chaque accord qui vous a été présenté : contrats signés par signature électronique qualifiée et accords de confidentialité des data rooms confirmés avec votre identité vérifiée.', 'cl.all': 'Tous', 'cl.todo': 'À signer', 'cl.done': 'Signés', 'cl.types': 'Tous les types', 'cl.t_contract': 'Contrats (QES)', 'cl.t_nda': 'NDA des data rooms', 'cl.k_contract': 'Contrat', 'cl.k_nda': 'NDA data room', 'cl.m_qes': 'Signature électronique qualifiée · eIDAS', 'cl.m_kyc': 'Identité vérifiée + acceptation électronique', 'cl.nda_title': 'NDA · {room}', 'cl.nda_todo': 'À signer', 'cl.nda_signed': 'Signé le {date} · version {v}', 'cl.nda_cs': 'Contresigné par {company} le {date}', 'cl.nda_cs_wait': 'En attente de la contre-signature de {company}', 'cl.nda_open': 'Ouvrir la data room pour signer', 'cl.nda_dl': 'Ouvrir dans la data room', 'cl.cs_title': 'Contre-signature NDA · {room}', 'cl.cs_todo': 'À contresigner', 'cl.cs_wait': '{n} exemplaire(s) signé(s) en attente de votre contre-signature', 'cl.cs_done': 'Contresigné le {date} · vaut pour chaque exemplaire de la version {v}', 'cl.cs_open': 'Contresigner dans la data room', 'cl.open': 'Ouvrir', 'cl.dl': 'Télécharger le PDF', 'cl.dl_signed': 'Télécharger le PDF signé', 'cl.dl_fail': 'Le téléchargement a échoué ({err}).', 'cl.member': 'membre', 'cl.company': 'société', 'cl.none_filter': 'Rien dans cette sélection.', 'cl.paid_only': 'Faire signer vos propres contrats par signature qualifiée fait partie des formules payantes de Clavoris.', 'cl.contact': 'Contacter Clavoris', 'cl.leg_qes_t': 'Signature électronique qualifiée (QES)', 'cl.leg_qes': 'Utilisée pour les contrats. Signée avec itsme ou Evrotrust après vérification d\'identité ; équivalente à une signature manuscrite dans chaque État membre de l\'UE (eIDAS, art. 25).', 'cl.leg_kyc_t': 'Identité vérifiée + acceptation électronique', 'cl.leg_kyc': 'Utilisée pour les NDA des data rooms. Vous acceptez l\'accord après la vérification de votre identité (KYC) ; Clavoris enregistre votre identité, l\'heure, votre adresse IP et une empreinte du texte, et ajoute une page de signature à votre exemplaire.' });
+  var ICO = { qes: '<svg viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 5-3.5 8.5-7 10-3.5-1.5-7-5-7-10V6z"/><path d="M9 12l2 2 4-4"/></svg>', kyc: '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2.5"/><path d="M5.5 16.5c.7-1.6 2-2.5 3.5-2.5s2.8.9 3.5 2.5M14 10h4M14 13h3"/></svg>' };
+  var items = [], view = { state: 'all', type: '' };
+  function fmtD(d) { return S.fmtDate(d); }
+  function toItems(r) {
+    var out = (r.contracts || []).map(function (c) {
+      var todo = !!c.my_turn, done = c.status === 'executed' || c.my_status === 'signed';
+      return { kind: 'contract', todo: todo, done: done, at: c.executed_at || c.launched_at || c.created_at, c: c };
+    });
+    (r.ndas || []).forEach(function (n) {
+      if (n.kind === 'countersign') out.push({ kind: 'nda', cs: true, todo: !n.countersigned_at, done: !!n.countersigned_at, at: n.countersigned_at || n.since, n: n });
+      else out.push({ kind: 'nda', todo: !n.signed_at, done: !!n.signed_at, at: n.signed_at || n.since, n: n });
+    });
+    return out.sort(function (a, b) { return (b.todo - a.todo) || (String(b.at || '') > String(a.at || '') ? 1 : -1); });
+  }
+  function kindLine(kind) {
+    return kind === 'contract' ? '<span class="chip neutral">' + esc(I.t('cl.k_contract')) + '</span><span class="kind">' + ICO.qes + esc(I.t('cl.m_qes')) + '</span>'
+      : '<span class="chip neutral">' + esc(I.t('cl.k_nda')) + '</span><span class="kind">' + ICO.kyc + esc(I.t('cl.m_kyc')) + '</span>';
+  }
+  function rowContract(it) {
+    var c = it.c, st = [STATUS[c.status] || 'neutral', STATUS[c.status] ? I.t('cstatus.' + c.status) : c.status];
+    var pct = c.signatories ? Math.round(100 * c.signed / c.signatories) : 0;
+    var href = 'contract.html?id=' + esc(c.id), signedCopy = c.status === 'executed' && c.can_download_executed;
+    return '<li><div class="row">'
+      + '<div><div class="t"><a href="' + href + '">' + esc(c.title) + '</a>' + (c.my_turn ? ' <span class="chip pending">' + I.t('contracts.your_turn') + '</span>' : '') + '</div>'
+      + '<div class="d" style="margin-top:6px">' + kindLine('contract') + '</div>'
+      + '<div class="d" style="margin-top:6px"><span class="chip ' + st[0] + '">' + st[1] + '</span> &nbsp; ' + esc(I.t('contracts.signed_of', { signed: c.signed, total: c.signatories })) + '<span class="prog"><i style="width:' + pct + '%"></i></span>' + (c.auditors ? ' &nbsp;· ' + esc(I.t('contracts.auditors', { n: c.auditors })) : '') + '</div>'
+      + '<div class="d">' + esc(c.original_name || '') + (c.description ? ' · ' + esc(c.description) : '') + '</div></div>'
+      + '<div class="m">' + (c.my_role ? '<span class="chip info">' + esc(I.t('role.' + c.my_role)) + '</span><br>' : '') + esc(fmtD(it.at))
+      + '<a class="act" href="' + href + '">' + esc(I.t('cl.open')) + '</a>'
+      + '<button class="act" type="button" data-cdl="' + esc(c.id) + '" data-which="' + (signedCopy ? 'executed' : 'original') + '" data-name="' + esc(c.original_name || 'contract.pdf') + '">' + esc(I.t(signedCopy ? 'cl.dl_signed' : 'cl.dl')) + '</button></div></div></li>';
+  }
+  function rowNda(it) {
+    var n = it.n, href = 'room.html?id=' + encodeURIComponent(n.room_id), state, detail, action, role;
+    if (it.cs) {
+      state = n.countersigned_at ? '<span class="chip verified">' + esc(I.t('cl.done')) + '</span>' : '<span class="chip pending">' + esc(I.t('cl.cs_todo')) + '</span>';
+      detail = n.countersigned_at ? I.t('cl.cs_done', { date: fmtD(n.countersigned_at), v: n.version }) : I.t('cl.cs_wait', { n: n.waiting || 0 });
+      action = n.countersigned_at ? I.t('cl.nda_dl') : I.t('cl.cs_open'); role = I.t('cl.company');
+    } else {
+      state = n.signed_at ? '<span class="chip verified">' + esc(I.t('cl.done')) + '</span>' : '<span class="chip pending">' + esc(I.t('cl.nda_todo')) + '</span>';
+      detail = n.signed_at ? I.t('cl.nda_signed', { date: fmtD(n.signed_at), v: n.version }) + ' · ' + (n.countersigned_at ? I.t('cl.nda_cs', { company: n.company, date: fmtD(n.countersigned_at) }) : I.t('cl.nda_cs_wait', { company: n.company })) : '';
+      action = n.signed_at ? I.t('cl.nda_dl') : I.t('cl.nda_open'); role = I.t('cl.member');
+    }
+    return '<li><div class="row">'
+      + '<div><div class="t"><a href="' + esc(href) + '">' + esc(I.t(it.cs ? 'cl.cs_title' : 'cl.nda_title', { room: n.room })) + '</a></div>'
+      + '<div class="d" style="margin-top:6px">' + kindLine('nda') + '</div>'
+      + '<div class="d" style="margin-top:6px">' + state + (detail ? ' &nbsp; ' + esc(detail) : '') + '</div>'
+      + '<div class="d">' + esc(n.company) + '</div></div>'
+      + '<div class="m"><span class="chip info">' + esc(role) + '</span><br>' + esc(fmtD(it.at))
+      + '<a class="act" href="' + esc(href) + '">' + esc(action) + '</a>'
+      + (!it.cs && n.signed_at ? '<button class="act" type="button" data-ndl="' + esc(n.room_id) + '">' + esc(I.t('cl.dl_signed')) + '</button>' : '') + '</div></div></li>';
+  }
+  function paint() {
+    var shown = items.filter(function (it) { return (view.state === 'all' || (view.state === 'todo' ? it.todo : it.done)) && (!view.type || it.kind === view.type); });
+    var cnt = { all: items.length, todo: items.filter(function (x) { return x.todo; }).length, done: items.filter(function (x) { return x.done; }).length };
+    q('seg').innerHTML = ['all', 'todo', 'done'].map(function (k) { return '<button type="button" data-st="' + k + '" aria-pressed="' + (view.state === k) + '">' + esc(I.t('cl.' + k)) + ' (' + cnt[k] + ')</button>'; }).join('');
+    [].forEach.call(q('seg').querySelectorAll('[data-st]'), function (b) { b.addEventListener('click', function () { view.state = b.getAttribute('data-st'); paint(); }); });
+    q('list').innerHTML = shown.length ? shown.map(function (it) { return it.kind === 'contract' ? rowContract(it) : rowNda(it); }).join('')
+      : '<li><div style="padding:16px 20px;color:var(--fg-3);font-size:13px">' + esc(items.length ? I.t('cl.none_filter') : I.t('contracts.none')) + '</div></li>';
+    // Contracts and NDAs are delivered as they are: no watermark and no print restriction (a QES-signed PDF must
+    // not be altered, or its signature breaks). Every download is logged.
+    function done(b) { return function (x) { b.disabled = false; if (!x.ok) q('err').textContent = I.t('cl.dl_fail', { err: x.error || '' }); }; }
+    [].forEach.call(q('list').querySelectorAll('[data-cdl]'), function (b) { b.addEventListener('click', function () { b.disabled = true; S.downloadFn('clv-contracts', { action: 'download', id: b.getAttribute('data-cdl'), which: b.getAttribute('data-which') }, b.getAttribute('data-name')).then(done(b)); }); });
+    [].forEach.call(q('list').querySelectorAll('[data-ndl]'), function (b) { b.addEventListener('click', function () { b.disabled = true; S.downloadFn('clv-contracts', { action: 'nda_pdf', room_id: b.getAttribute('data-ndl') }, 'NDA.pdf').then(done(b)); }); });
+  }
   function load() {
     A.callFn('clv-contracts', { action: 'list' }).then(function (r) {
       if (r.error) { q('err').textContent = I.t('contracts.err', { err: r.error }); return; }
-      var ul = q('list'), cs = r.contracts || [];
-      ul.innerHTML = cs.length ? cs.map(function (c) {
-        var st = [STATUS[c.status] || 'neutral', STATUS[c.status] ? I.t('cstatus.' + c.status) : c.status];
-        var pct = c.signatories ? Math.round(100 * c.signed / c.signatories) : 0;
-        return '<li><a class="row" href="contract.html?id=' + esc(c.id) + '">'
-          + '<div><div class="t">' + esc(c.title) + (c.my_turn ? ' <span class="chip pending">' + I.t('contracts.your_turn') + '</span>' : '') + '</div>'
-          + '<div class="d">' + esc(c.original_name) + (c.description ? ' · ' + esc(c.description) : '') + '</div>'
-          + '<div class="d" style="margin-top:6px"><span class="chip ' + st[0] + '">' + st[1] + '</span> &nbsp; ' + esc(I.t('contracts.signed_of', { signed: c.signed, total: c.signatories })) + '<span class="prog"><i style="width:' + pct + '%"></i></span>' + (c.auditors ? ' &nbsp;· ' + esc(I.t('contracts.auditors', { n: c.auditors })) : '') + '</div></div>'
-          + '<div class="m">' + (c.my_role ? '<span class="chip info">' + esc(I.t('role.' + c.my_role)) + '</span><br>' : '') + esc(S.fmtDate(c.executed_at || c.launched_at || c.created_at)) + '</div></a></li>';
-      }).join('') : '<li><div style="padding:16px 20px;color:var(--fg-3);font-size:13px">' + I.t('contracts.none') + '</div></li>';
+      items = toItems(r);
+      q('cbar').hidden = false;
+      q('ctype').innerHTML = '<option value="">' + esc(I.t('cl.types')) + '</option><option value="contract">' + esc(I.t('cl.t_contract')) + '</option><option value="nda">' + esc(I.t('cl.t_nda')) + '</option>';
+      q('ctype').value = view.type;
+      paint();
+      newButton(r);
     });
+  }
+  q('ctype').addEventListener('change', function () { view.type = q('ctype').value; paint(); });
+  q('csub').textContent = I.t('cl.sub');
+  q('legend2').innerHTML = '<div><b>' + ICO.qes.replace('<svg', '<svg style="width:15px;height:15px;vertical-align:-3px;margin-right:6px;fill:none;stroke:currentColor;stroke-width:1.8"') + esc(I.t('cl.leg_qes_t')) + '</b>' + esc(I.t('cl.leg_qes')) + '</div><div><b>' + ICO.kyc.replace('<svg', '<svg style="width:15px;height:15px;vertical-align:-3px;margin-right:6px;fill:none;stroke:currentColor;stroke-width:1.8"') + esc(I.t('cl.leg_kyc_t')) + '</b>' + esc(I.t('cl.leg_kyc')) + '</div>';
+
+  // "New contract": enabled for a company account on a paid plan that includes contracts (and Clavoris staff);
+  // shown disabled, with the reason, to everyone else.
+  function newButton(r) {
+    var can = !!r.can_create;
+    q('staffBtn').innerHTML = '<div class="newwrap"><button class="btn btn-primary" type="button" id="toggleNew"' + (can ? '' : ' disabled aria-describedby="newWhy"') + '>' + I.t('contracts.new') + '</button>'
+      + (can ? '' : '<div class="why" id="newWhy">' + esc(I.t('cl.paid_only')) + ' <a href="mailto:access@clavoris.com?subject=Clavoris%20plans">' + esc(I.t('cl.contact')) + '</a></div>') + '</div>';
+    if (!can) return;
+    q('toggleNew').addEventListener('click', function () { q('newCard').hidden = !q('newCard').hidden; if (!q('newCard').hidden) q('title').focus(); });
   }
 
   function readFile(f) { return new Promise(function (res, rej) { var r = new FileReader(); r.onload = function () { res(String(r.result).split(',')[1] || ''); }; r.onerror = rej; r.readAsDataURL(f); }); }
@@ -87,9 +190,7 @@
   A.ready(function () {
     if (!A.clears('full')) return;
     S.render('contracts');
-    if (A.isAdmin()) {
-      q('staffBtn').innerHTML = '<button class="btn btn-primary" type="button" id="toggleNew">' + I.t('contracts.new') + '</button>';
-      q('toggleNew').addEventListener('click', function () { q('newCard').hidden = !q('newCard').hidden; if (!q('newCard').hidden) q('title').focus(); });
+    {
       q('newForm').addEventListener('submit', function () {
         var m = q('newMsg'); m.className = 'msg'; m.textContent = '';
         var f = q('file').files[0], title = q('title').value.trim();
