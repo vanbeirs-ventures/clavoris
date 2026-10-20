@@ -1,7 +1,7 @@
 // supabase/functions/clv-room-docs/index.ts
 // Documents of a data room, managed by the company that owns it (admin of that company, or super).
 // The room's folder is created automatically under the Clavoris data-room folder, named after the room;
-// the storage location is never shown or chosen in the interface. Data rooms hold PDF, JPEG and PNG.
+// the storage location is never shown or chosen in the interface. Data rooms hold PDF, JPEG, PNG and Excel (.xlsx, .xls).
 //   { action: "list", room_id }                                   -> files and folders of the room
 //   { action: "upload", room_id, name, folder?, file_base64 }     -> add / replace one PDF (max 25 MB)
 //   { action: "delete", room_id, path }                           -> remove one PDF
@@ -60,19 +60,22 @@ Deno.serve(async (req) => {
   if (action === "upload") {
     const name = clean(body.name);
     const folder = cleanFolder(body.folder);
-    if (!name || !/\.(pdf|jpe?g|png)$/i.test(name)) return json({ error: "pdf-only" }, 400);
+    if (!name || !/\.(pdf|jpe?g|png|xlsx|xls)$/i.test(name)) return json({ error: "pdf-only" }, 400);
     if (folder && reserved(folder)) return json({ error: "bad-folder" }, 400);
     let bytes: Uint8Array;
     try { bytes = Uint8Array.from(atob(String(body.file_base64 || "")), (ch) => ch.charCodeAt(0)); } catch { return json({ error: "bad-file" }, 400); }
     if (bytes.length > MAX) return json({ error: "too-large" }, 400);
-    // Content check, not just the extension: the file must really be a PDF, JPEG or PNG.
-    const kind = /\.png$/i.test(name) ? "png" : /\.jpe?g$/i.test(name) ? "jpg" : "pdf";
+    // Content check, not just the extension: the file must really be a PDF, JPEG, PNG or Excel workbook
+    // (.xlsx is a ZIP container, .xls an OLE compound file).
+    const kind = /\.png$/i.test(name) ? "png" : /\.jpe?g$/i.test(name) ? "jpg" : /\.xlsx$/i.test(name) ? "xlsx" : /\.xls$/i.test(name) ? "xls" : "pdf";
     const ok = bytes.length >= 100 && (kind === "pdf" ? String.fromCharCode(...bytes.slice(0, 5)) === "%PDF-"
       : kind === "png" ? bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47
+      : kind === "xlsx" ? bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 0x03 && bytes[3] === 0x04
+      : kind === "xls" ? bytes[0] === 0xd0 && bytes[1] === 0xcf && bytes[2] === 0x11 && bytes[3] === 0xe0
       : bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff);
     if (!ok) return json({ error: "pdf-only" }, 400);
     const dir = folder ? `${root}/${folder}` : root;
-    try { await ncMkdirP(dir); await ncPut(`${dir}/${name}`, bytes, kind === "pdf" ? "application/pdf" : kind === "png" ? "image/png" : "image/jpeg"); } catch (e) { return json({ error: "storage-failed", detail: (e as Error).message }, 502); }
+    try { await ncMkdirP(dir); await ncPut(`${dir}/${name}`, bytes, kind === "pdf" ? "application/pdf" : kind === "png" ? "image/png" : kind === "xlsx" ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" : kind === "xls" ? "application/vnd.ms-excel" : "image/jpeg"); } catch (e) { return json({ error: "storage-failed", detail: (e as Error).message }, 502); }
     const sha = await sha256Hex(bytes);
     await audit(admin, me, "room-document-uploaded", room.slug, { file: (folder ? folder + "/" : "") + name, size: bytes.length, sha256: sha });
     return json({ ok: true, path: (folder ? folder + "/" : "") + name, size: bytes.length, sha256: sha });

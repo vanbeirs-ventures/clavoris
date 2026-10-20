@@ -1,6 +1,6 @@
 /* Clavoris admin — data-room documents.
    Adds a "Documents" button to every data room in Admin › Data rooms. The company that owns the room
-   uploads its documents there (PDF, JPEG or PNG, max 25 MB each, optional sub-folders shown to members as they are); the storage location is
+   uploads its documents there (PDF, JPEG, PNG or Excel, max 25 MB each, optional sub-folders shown to members as they are); the storage location is
    created automatically from the room name and never shown. Files go through clv-room-docs.
    Also: "+ New user" is reserved to Clavoris (super) — company admins add people by inviting them
    to a data room. The invitation form gets optional Mr / Mrs, first and last name fields.
@@ -15,15 +15,15 @@
   var MAX = 25 * 1024 * 1024;
   // Texts about the accepted file types, in the profile language (EN / NL / FR), chosen when used.
   var TX = {
-    en: { pdfonly: 'Only PDF, JPEG and PNG files are accepted.', bad: 'Only PDF, JPEG and PNG files are accepted: ', none: 'Choose one or more files (PDF, JPEG, PNG).', files: 'Files (PDF, JPEG, PNG)', hidden: 'not shown to members', hiddenT: 'Not shown to members: data rooms deliver PDF, JPEG and PNG only',
-      hint: 'PDF, JPEG or PNG, up to 25 MB per file. Members see the folders and documents after signing the room’s NDA, with the same folder structure; every view and download is watermarked with their name and logged (an image is delivered inside a watermarked PDF page). Members are told about new and updated files by e-mail (within 15 minutes).' },
-    nl: { pdfonly: 'Enkel pdf-, jpeg- en png-bestanden worden aanvaard.', bad: 'Enkel pdf-, jpeg- en png-bestanden worden aanvaard: ', none: 'Kies een of meer bestanden (pdf, jpeg, png).', files: 'Bestanden (pdf, jpeg, png)', hidden: 'niet zichtbaar voor leden', hiddenT: 'Niet zichtbaar voor leden: datarooms leveren enkel pdf, jpeg en png',
-      hint: 'Pdf, jpeg of png, tot 25 MB per bestand. Leden zien de mappen en documenten, met dezelfde mappenstructuur, nadat ze de NDA van de dataroom ondertekend hebben; elke raadpleging en download krijgt een watermerk met hun naam en wordt geregistreerd (een afbeelding wordt geleverd in een pdf-pagina met watermerk). Leden krijgen binnen 15 minuten een e-mail over nieuwe en gewijzigde bestanden.' },
-    fr: { pdfonly: 'Seuls les fichiers PDF, JPEG et PNG sont acceptés.', bad: 'Seuls les fichiers PDF, JPEG et PNG sont acceptés : ', none: 'Choisissez un ou plusieurs fichiers (PDF, JPEG, PNG).', files: 'Fichiers (PDF, JPEG, PNG)', hidden: 'non visible pour les membres', hiddenT: 'Non visible pour les membres : les data rooms ne livrent que des PDF, JPEG et PNG',
-      hint: 'PDF, JPEG ou PNG, jusqu’à 25 Mo par fichier. Les membres voient les dossiers et documents, avec la même structure de dossiers, après avoir signé le NDA de la data room ; chaque consultation et téléchargement porte un filigrane à leur nom et est enregistré (une image est livrée dans une page PDF filigranée). Les membres sont avertis par e-mail des fichiers nouveaux et modifiés (dans les 15 minutes).' }
+    en: { pdfonly: 'Only PDF, JPEG, PNG and Excel files are accepted.', bad: 'Only PDF, JPEG, PNG and Excel files are accepted: ', none: 'Choose one or more files (PDF, JPEG, PNG, Excel).', files: 'Files (PDF, JPEG, PNG, Excel)', hidden: 'not shown to members', hiddenT: 'Not shown to members: data rooms deliver PDF, JPEG, PNG and Excel only',
+      hint: 'PDF, JPEG, PNG or Excel (.xlsx, .xls), up to 25 MB per file. Members see the folders and documents after signing the room’s NDA, with the same folder structure; every view and download of a PDF or image is watermarked with their name and logged (an image is delivered inside a watermarked PDF page). Excel files can be downloaded only, as the original workbook without watermark; the download code is in the file name and every download is logged. Members are told about new and updated files by e-mail (within 15 minutes).' },
+    nl: { pdfonly: 'Enkel pdf-, jpeg-, png- en Excel-bestanden worden aanvaard.', bad: 'Enkel pdf-, jpeg-, png- en Excel-bestanden worden aanvaard: ', none: 'Kies een of meer bestanden (pdf, jpeg, png, Excel).', files: 'Bestanden (pdf, jpeg, png, Excel)', hidden: 'niet zichtbaar voor leden', hiddenT: 'Niet zichtbaar voor leden: datarooms leveren enkel pdf, jpeg, png en Excel',
+      hint: 'Pdf, jpeg, png of Excel (.xlsx, .xls), tot 25 MB per bestand. Leden zien de mappen en documenten, met dezelfde mappenstructuur, nadat ze de NDA van de dataroom ondertekend hebben; elke raadpleging en download van een pdf of afbeelding krijgt een watermerk met hun naam en wordt geregistreerd (een afbeelding wordt geleverd in een pdf-pagina met watermerk). Excel-bestanden kunnen enkel gedownload worden, als het oorspronkelijke bestand zonder watermerk; de downloadcode staat in de bestandsnaam en elke download wordt geregistreerd. Leden krijgen binnen 15 minuten een e-mail over nieuwe en gewijzigde bestanden.' },
+    fr: { pdfonly: 'Seuls les fichiers PDF, JPEG, PNG et Excel sont acceptés.', bad: 'Seuls les fichiers PDF, JPEG, PNG et Excel sont acceptés : ', none: 'Choisissez un ou plusieurs fichiers (PDF, JPEG, PNG, Excel).', files: 'Fichiers (PDF, JPEG, PNG, Excel)', hidden: 'non visible pour les membres', hiddenT: 'Non visible pour les membres : les data rooms ne livrent que des PDF, JPEG, PNG et Excel',
+      hint: 'PDF, JPEG, PNG ou Excel (.xlsx, .xls), jusqu’à 25 Mo par fichier. Les membres voient les dossiers et documents, avec la même structure de dossiers, après avoir signé le NDA de la data room ; chaque consultation et téléchargement d’un PDF ou d’une image porte un filigrane à leur nom et est enregistré (une image est livrée dans une page PDF filigranée). Les fichiers Excel se téléchargent uniquement, en version originale sans filigrane ; le code de téléchargement figure dans le nom du fichier et chaque téléchargement est enregistré. Les membres sont avertis par e-mail des fichiers nouveaux et modifiés (dans les 15 minutes).' }
   };
   function tx(k) { var l = window.ClavorisI18n && window.ClavorisI18n.lang; return (TX[l] || TX.en)[k]; }
-  var ERR = { 'pdf-only': 'Only PDF, JPEG and PNG files are accepted.', 'too-large': 'The file is larger than 25 MB.', 'storage-not-configured': 'Document storage is not connected yet (Document storage › Connect).', 'bad-folder': 'This folder name cannot be used.', 'not-found': 'You can only manage documents of your own company’s data rooms.' };
+  var ERR = { 'pdf-only': 'Only PDF, JPEG, PNG and Excel files are accepted.', 'too-large': 'The file is larger than 25 MB.', 'storage-not-configured': 'Document storage is not connected yet (Document storage › Connect).', 'bad-folder': 'This folder name cannot be used.', 'not-found': 'You can only manage documents of your own company’s data rooms.' };
 
   // ---- modal ----
   var wrap = document.createElement('div');
@@ -35,7 +35,7 @@
     + '<div class="g3" style="align-items:end">'
     + '<div class="field" style="margin-top:0"><label for="dmFolder">Folder</label><select id="dmFolder"></select></div>'
     + '<div class="field" style="margin-top:0"><label for="dmNew">or new folder</label><input id="dmNew" type="text" placeholder="e.g. 01 Financials"></div>'
-    + '<div class="field" style="margin-top:0"><label for="dmFiles" id="dmFilesLbl"></label><input id="dmFiles" type="file" accept="application/pdf,.pdf,image/jpeg,.jpg,.jpeg,image/png,.png" multiple></div>'
+    + '<div class="field" style="margin-top:0"><label for="dmFiles" id="dmFilesLbl"></label><input id="dmFiles" type="file" accept="application/pdf,.pdf,image/jpeg,.jpg,.jpeg,image/png,.png,.xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" multiple></div>'
     + '</div>'
     + '<p class="msg" id="dmMsg" role="status"></p>'
     + '<button class="btn btn-primary" type="button" id="dmUpload">Upload</button>'
@@ -55,7 +55,7 @@
       sel.innerHTML = '<option value="">(main folder)</option>' + dirs.map(function (d) { return '<option value="' + esc(d.path) + '">' + esc(d.path) + '</option>'; }).join('');
       if (keep && dirs.some(function (d) { return d.path === keep; })) sel.value = keep;
       q('dmRows').innerHTML = files.length ? files.map(function (f) {
-        var pdf = /\.(pdf|jpe?g|png)$/i.test(f.name);
+        var pdf = /\.(pdf|jpe?g|png|xlsx|xls)$/i.test(f.name);
         return '<tr><td>' + esc(f.path) + (pdf ? '' : ' <span class="chip alert" title="' + esc(tx('hiddenT')) + '">' + esc(tx('hidden')) + '</span>') + '</td>'
           + '<td class="mono">' + esc(size(f.size)) + '</td><td class="mono">' + esc(day(f.modified)) + '</td>'
           + '<td><button class="btn-text" type="button" data-del="' + esc(f.path) + '">Delete</button></td></tr>';
@@ -74,7 +74,7 @@
   q('dmUpload').addEventListener('click', function () {
     var files = [].slice.call(q('dmFiles').files || []);
     if (!files.length) { msg(tx('none'), 'err'); return; }
-    var bad = files.filter(function (f) { return !/\.(pdf|jpe?g|png)$/i.test(f.name) || (f.type && !/^(application\/pdf|image\/jpeg|image\/png)$/.test(f.type)); });
+    var bad = files.filter(function (f) { return !/\.(pdf|jpe?g|png|xlsx|xls)$/i.test(f.name) || (f.type && !/^(application\/pdf|image\/jpeg|image\/png|application\/vnd\.openxmlformats-officedocument\.spreadsheetml\.sheet|application\/vnd\.ms-excel|application\/octet-stream)$/.test(f.type)); });
     if (bad.length) { msg(tx('bad') + bad.map(function (f) { return f.name; }).join(', '), 'err'); return; }
     var big = files.filter(function (f) { return f.size > MAX; });
     if (big.length) { msg('Larger than 25 MB: ' + big.map(function (f) { return f.name; }).join(', '), 'err'); return; }

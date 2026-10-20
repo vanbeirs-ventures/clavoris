@@ -112,11 +112,12 @@ Deno.serve(async (req) => {
         const root = room.nextcloud_folder || "";
         // The room shows the folder structure of its Nextcloud folder as it is (up to 6 levels deep).
         const all = await ncTree(root, 6);
-        // Data rooms deliver PDF, JPEG and PNG: every delivered document is watermarked with the recipient,
-        // the time and the download code (images are delivered inside a watermarked PDF page). Other file
-        // types placed in the folder are not listed (and not downloadable).
+        // Data rooms deliver PDF, JPEG and PNG, watermarked with the recipient, the time and the download code
+        // (images inside a watermarked PDF page), and Excel workbooks (.xlsx, .xls) as the original file, for
+        // download only, with the same download code in the file name and the same download record. Other
+        // file types placed in the folder are not listed (and not downloadable).
         tree = all.filter((e) => !/^_(users|nda)(\/|$)/.test(e.path.slice(root.length + 1)))
-          .filter((e) => e.dir || /\.(pdf|jpe?g|png)$/i.test(e.name))
+          .filter((e) => e.dir || /\.(pdf|jpe?g|png|xlsx|xls)$/i.test(e.name))
           .map((e) => ({ name: e.name, path: e.path.slice(root.length + 1), dir: e.dir, size: e.size, modified: e.modified, mime: e.mime }));
         // Drop folders left empty by the filter (no document anywhere below them).
         tree = tree.filter((e) => !e.dir || tree.some((f) => !f.dir && f.path.startsWith(e.path + "/")));

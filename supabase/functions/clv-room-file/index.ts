@@ -3,7 +3,9 @@
 // NDA signed when the room requires it, download permission. Every delivery is logged in
 // clv_access_log and clv_downloads with a unique download code and SHA-256 fingerprints.
 // Data rooms deliver PDF, JPEG and PNG: every page is stamped with the user's identity, the time and
-// the download code (other file types placed in the folder are refused). A JPEG or PNG is delivered
+// the download code. Excel workbooks (.xlsx, .xls) are delivered as the original file, for download only
+// (no browser view, no watermark inside the workbook): the download code is in the file name and the
+// download is recorded like any other. Other file types placed in the folder are refused. A JPEG or PNG is delivered
 // inside a one-page PDF carrying the same stamp and protections, so an image never leaves unmarked. Delivered documents carry
 // PDF permissions that switch off printing, copying text and editing (owner password random, never
 // stored); they still open without a password. The member's own signed NDA stays printable.
@@ -27,6 +29,8 @@ function genCode(): string {
 }
 
 const IMAGE = /\.(jpe?g|png)$/i;
+const EXCEL = /\.(xlsx|xls)$/i;
+const EXCEL_TYPE = (name: string) => /\.xls$/i.test(name) ? "application/vnd.ms-excel" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 // One page sized to the image (longest side 842 pt, A4 height), the image filling the page.
 async function imageToPdf(bytes: Uint8Array, png: boolean): Promise<Uint8Array | null> {
   try {
@@ -97,7 +101,8 @@ Deno.serve(async (req) => {
     const rel = String(body.path || "").replace(/^\/+/, "");
     if (!rel || rel.includes("..") || /^_(users|nda)(\/|$)/.test(rel)) return json({ error: "bad-path" }, 400);
     target = `${room.nextcloud_folder}/${rel}`; fileName = rel.split("/").pop() || "file"; action = body.view === true ? "view" : "download";
-    if (!/\.(pdf|jpe?g|png)$/i.test(fileName)) return json({ error: "pdf-only" }, 400); // data rooms deliver watermarked PDF, JPEG and PNG only
+    if (!/\.(pdf|jpe?g|png|xlsx|xls)$/i.test(fileName)) return json({ error: "pdf-only" }, 400); // watermarked PDF, JPEG and PNG; Excel as the original
+    if (action === "view" && EXCEL.test(fileName)) return json({ error: "download-only" }, 400); // a workbook cannot be shown in the browser viewer
   }
 
   let res: Response;
@@ -159,5 +164,5 @@ Deno.serve(async (req) => {
       sendMail(me.email, m.subject, m.text, L).catch((e) => console.error("clv-room-file: first-download mail failed", e));
     }
   }
-  return new Response(delivered, { status: 200, headers: { ...cors, "content-type": isImage ? "application/pdf" : res.headers.get("content-type") || "application/octet-stream", "content-disposition": `attachment; filename="${outName.replace(/"/g, "")}"`, "access-control-expose-headers": "content-disposition, x-clavoris-sha256", "x-clavoris-sha256": await sha256Hex(delivered) } });
+  return new Response(delivered, { status: 200, headers: { ...cors, "content-type": isImage ? "application/pdf" : EXCEL.test(fileName) ? EXCEL_TYPE(fileName) : res.headers.get("content-type") || "application/octet-stream", "content-disposition": `attachment; filename="${outName.replace(/"/g, "")}"`, "access-control-expose-headers": "content-disposition, x-clavoris-sha256", "x-clavoris-sha256": await sha256Hex(delivered) } });
 });
