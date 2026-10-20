@@ -8,6 +8,7 @@
 //   { action: "members", room_id }                       -> members incl. revoked, onboarding status, expiry, pending request
 //   { action: "invite", room_id, email, lang?, salutation? ("mr"|"mrs"), first_name?, last_name?, name?, company?, expires_at? }
 //                                                         -> enrol-if-needed + assign + invitation mail
+//   { action: "directory", room_id, q?, from_room? }    -> people to invite (search; super: all, company admin: its rooms' members)
 //   { action: "set_expiry", room_id, user_id, expires_at } -> change the access end date
 //   { action: "decide_extension", request_id, accept, until?, note? } -> accept / reject an extension request (mails the user)
 //   { action: "revoke" | "reactivate" | "remind", room_id, user_id }
@@ -154,6 +155,46 @@ Deno.serve(async (req) => {
   const { data: room } = await admin.from("clv_rooms").select("id, slug, name, default_expiry_days, company_id, qes_nda_required").eq("id", roomId).maybeSingle();
   if (!room || !inScope(me, room.company_id)) return json({ error: "not-found" }, 404);
   const cname = await companyName(room.company_id);
+
+  if (action === "directory") {
+    // People who can be invited to this room without typing their address: name, organisation and status.
+    // A super admin sees every active account; a company admin only people who are or were members of its
+    // own company's rooms (never another company's investors). Suspended and rejected accounts are left out.
+    const term = String(body.q || "").replace(/[",()%*\\]/g, " ").replace(/\s+/g, " ").trim().slice(0, 80);
+    const fromRoom = String(body.from_room || "");
+    let ownRooms: { id: string; name: string }[] = [];
+    { let rq = admin.from("clv_rooms").select("id, name, company_id").order("created_at", { ascending: false }); if (scope) rq = rq.eq("company_id", scope); const { data } = await rq; ownRooms = (data || []).map((r: any) => ({ id: r.id, name: r.name })); }
+    let ids: string[] | null = null;
+    if (me.role !== "super") {
+      const rIds = ownRooms.map((r) => r.id);
+      const { data: asg } = rIds.length ? await admin.from("clv_room_assignments").select("user_id").in("room_id", rIds) : { data: [] as any[] };
+      ids = [...new Set((asg || []).map((a: any) => a.user_id as string))];
+    }
+    if (fromRoom) {
+      if (!ownRooms.some((r) => r.id === fromRoom)) return json({ error: "not-found" }, 404);
+      const { data: asg } = await admin.from("clv_room_assignments").select("user_id").eq("room_id", fromRoom);
+      const inRoom = new Set((asg || []).map((a: any) => a.user_id as string));
+      ids = (ids ?? [...inRoom]).filter((id) => inRoom.has(id));
+    }
+    const rooms = ownRooms.filter((r) => r.id !== roomId);
+    if (ids && !ids.length) return json({ ok: true, users: [], rooms });
+    let pq = admin.from("clv_profiles").select("id, email, full_name, salutation, first_name, last_name, company, job_title, lang, role, status, last_login_at").not("status", "in", "(suspended,rejected)").order("full_name", { ascending: true, nullsFirst: false }).limit(term ? 12 : 200);
+    if (ids) pq = pq.in("id", ids.slice(0, 1000));
+    if (term) pq = pq.or(["email", "full_name", "first_name", "last_name", "company"].map((c) => `${c}.ilike."%${term}%"`).join(","));
+    const { data: people, error } = await pq;
+    if (error) return json({ error: error.message }, 400);
+    const pIds = (people || []).map((p: any) => p.id);
+    const { data: here } = pIds.length ? await admin.from("clv_room_assignments").select("user_id").eq("room_id", roomId).is("revoked_at", null).in("user_id", pIds) : { data: [] as any[] };
+    const { data: ndas } = pIds.length ? await admin.from("clv_signed_documents").select("user_id").eq("doc_type", "nda").in("user_id", pIds) : { data: [] as any[] };
+    const member = new Set((here || []).map((h: any) => h.user_id)), signedAny = new Set((ndas || []).map((n: any) => n.user_id));
+    const name = (p: any) => String(p.full_name || "").trim() || [p.first_name, p.last_name].filter(Boolean).join(" ");
+    return json({ ok: true, rooms, users: (people || []).map((p: any) => ({
+      id: p.id, email: p.email, name: name(p), salutation: p.salutation || "", first_name: p.first_name || "", last_name: p.last_name || "",
+      company: p.company || "", job_title: p.job_title || "", lang: p.lang || "en", staff: p.role === "admin" || p.role === "super",
+      verified: p.status === "verified", activated: !!p.last_login_at || p.status === "verified" || signedAny.has(p.id),
+      last_login_at: p.last_login_at || null, member: member.has(p.id),
+    })) });
+  }
 
   if (action === "members") {
     // Every assignment, including revoked ones (tagged, with the option to reactivate), with the
