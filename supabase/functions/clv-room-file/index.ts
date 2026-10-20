@@ -15,8 +15,10 @@
 //                                    as a "view"; allowed also where downloads are switched off
 //   { room_id, nda: true }     -> the caller's own signed NDA
 // Deploy: supabase functions deploy clv-room-file --no-verify-jwt
-// @cantoo/pdf-lib: pdf-lib with PDF encryption (permissions), used to switch off printing.
-import { PDFDocument, StandardFonts, rgb } from "npm:@cantoo/pdf-lib@2.3.2";
+// @cantoo/pdf-lib: pdf-lib with PDF encryption (permissions), used to switch off printing. Loaded through esm.sh:
+// with the npm: specifier the edge runtime failed to boot (its CommonJS dependency @pdf-lib/standard-fonts did not
+// resolve: "does not provide an export named FontNames"), which took views and downloads offline from 15 October.
+import { PDFDocument, StandardFonts, rgb } from "https://esm.sh/@cantoo/pdf-lib@2.3.2";
 import { adminClient, APP_URL, clientIp, cors, inScope, isStaff, json, requireUser, sendMail } from "../_shared/clv.ts";
 import { mail, pickLang } from "../_shared/room-mail.ts";
 import { ncConfigured, ncGet, sha256Hex } from "../_shared/nc.ts";
