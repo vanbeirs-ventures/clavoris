@@ -32,6 +32,9 @@ function genCode(): string {
 
 const IMAGE = /\.(jpe?g|png)$/i;
 const EXCEL = /\.(xlsx|xls)$/i;
+// Content-Disposition with any file name: an ASCII fallback plus the exact name (RFC 6266 / 5987). A name with an
+// accent or another non-ASCII character in a plain header made the response fail ("not a valid ByteString").
+const disposition = (kind: string, name: string) => `${kind}; filename="${name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^\x20-\x7e]/g, "_").replace(/["\\]/g, "")}"; filename*=UTF-8''${encodeURIComponent(name)}`;
 const EXCEL_TYPE = (name: string) => /\.xls$/i.test(name) ? "application/vnd.ms-excel" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 // One page sized to the image (longest side 842 pt, A4 height), the image filling the page.
 async function imageToPdf(bytes: Uint8Array, png: boolean): Promise<Uint8Array | null> {
@@ -131,7 +134,7 @@ Deno.serve(async (req) => {
     // Reading in the browser: the same stamp (identity, time, a view code); no download record or mail.
     const stamped = room.watermark !== false || isImage ? await stampPdf(pdfSource, `Clavoris · ${room.name} · ${me.full_name || me.email} (${me.email}) · ${now.toISOString().slice(0, 16).replace("T", " ")} UTC · ${wm.view} ${genCode()}`, wm.mark) : null;
     delivered = stamped || pdfSource;
-    return new Response(delivered, { status: 200, headers: { ...cors, "content-type": "application/pdf", "content-disposition": `inline; filename="${fileName.replace(/"/g, "")}"`, "cache-control": "no-store" } });
+    return new Response(delivered, { status: 200, headers: { ...cors, "content-type": "application/pdf", "content-disposition": disposition("inline", fileName), "cache-control": "no-store" } });
   }
   if (action === "download") {
     const code = genCode();
@@ -168,5 +171,5 @@ Deno.serve(async (req) => {
       sendMail(me.email, m.subject, m.text, L).catch((e) => console.error("clv-room-file: first-download mail failed", e));
     }
   }
-  return new Response(delivered, { status: 200, headers: { ...cors, "content-type": isImage ? "application/pdf" : EXCEL.test(fileName) ? EXCEL_TYPE(fileName) : res.headers.get("content-type") || "application/octet-stream", "content-disposition": `attachment; filename="${outName.replace(/"/g, "")}"`, "access-control-expose-headers": "content-disposition, x-clavoris-sha256", "x-clavoris-sha256": await sha256Hex(delivered) } });
+  return new Response(delivered, { status: 200, headers: { ...cors, "content-type": isImage ? "application/pdf" : EXCEL.test(fileName) ? EXCEL_TYPE(fileName) : res.headers.get("content-type") || "application/octet-stream", "content-disposition": disposition("attachment", outName), "access-control-expose-headers": "content-disposition, x-clavoris-sha256", "x-clavoris-sha256": await sha256Hex(delivered) } });
 });
