@@ -249,6 +249,8 @@
     q('newModal').hidden = true; q('editModal').hidden = true; q('invModal').hidden = false;
   }
   q('imClose').addEventListener('click', function () { q('invModal').hidden = true; });
+  // Lets admin-invite.js refresh the room cards and the user list after inviting several people at once.
+  window.ClavorisAdminRefresh = function () { loadRooms(); load(); };
   q('invForm').addEventListener('submit', function () {
     var m = q('iMsg'); m.className = 'msg'; m.textContent = '';
     var email = q('iEmail').value.trim();
