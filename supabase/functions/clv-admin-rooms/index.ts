@@ -13,12 +13,18 @@
 //   { action: "decide_extension", request_id, accept, until?, note? } -> accept / reject an extension request (mails the user)
 //   { action: "revoke" | "reactivate" | "remind", room_id, user_id }
 //   { action: "set_answerer", room_id, user_id, on }      -> tag a member as answering the room's Q&A questions
+//   { action: "add_self", room_id }                      -> add the calling staff member to the room's member list (company team)
+//   { action: "team", company_id }                       -> staff of a company account, with the plan's staff seats
+//   { action: "team_invite", company_id, email, lang?, salutation?, first_name?, last_name? } -> add a staff member (mail)
+//   { action: "team_remove", company_id, user_id }       -> remove a staff member from the team (becomes an ordinary user)
+//   { action: "team_resend", company_id, user_id }       -> send the team invitation again
 // Deploy: supabase functions deploy clv-admin-rooms --no-verify-jwt
 import { adminClient, APP_URL, audit, companyScope, cors, enrolUser, fmtDay, inScope, json, requireAdmin, sendMail, ctaLabel } from "../_shared/clv.ts";
 import { activationLink, isActivated } from "../_shared/activation.ts";
 import { existingSteps, mail, OPEN_CTA, pickLang, word } from "../_shared/room-mail.ts";
 import { ncConfigured, ncMkdirP, ncPut, sha256Hex } from "../_shared/nc.ts";
-import { overLimit } from "../_shared/plans.ts";
+import { limitOf, overLimit, planOf } from "../_shared/plans.ts";
+import { TEAM_CTA, teamMail } from "../_shared/team-mail.ts";
 const withLang = (u: string, l: string) => u + (u.includes("?") ? "&" : "?") + "lang=" + l;
 const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "room";
 const isDate = (s: unknown) => /^\d{4}-\d{2}-\d{2}$/.test(String(s || ""));
@@ -62,6 +68,95 @@ Deno.serve(async (req) => {
     if (res.error) return json({ error: res.error.message }, 400);
     await audit(admin, me, c.id ? "company-updated" : "company-created", row.name, { id: res.data.id });
     return json({ ok: true, id: res.data.id });
+  }
+
+  /* ---------------- company team (staff of a company account) ---------------- */
+  // A company admin manages the team of their own company; a Clavoris super admin the team of any company.
+  // Staff of a company see and manage only that company's data rooms, contracts and products.
+  if (action === "team" || action === "team_invite" || action === "team_remove" || action === "team_resend") {
+    const companyId = String(body.company_id || "");
+    if (!companyId || !inScope(me, companyId)) return json({ error: "forbidden" }, 403);
+    const { data: comp } = await admin.from("clv_companies").select("id, name").eq("id", companyId).maybeSingle();
+    if (!comp) return json({ error: "not-found" }, 404);
+    const staffSel = "id, email, full_name, first_name, last_name, salutation, job_title, lang, role, status, last_login_at, created_at";
+    // Untyped client for the team queries (their select lists are composed at run time).
+    const db: any = admin;
+    const seats = async () => {
+      const { plan } = await planOf(admin, companyId);
+      const { count } = await db.from("clv_profiles").select("id", { count: "exact", head: true }).eq("company_id", companyId).is("deleted_at", null);
+      return { plan: plan.code, limit: limitOf(plan, "users"), used: count || 0 };
+    };
+    const { data: meP } = await db.from("clv_profiles").select("full_name").eq("id", me.id).maybeSingle();
+    const byName = String(meP?.full_name || "").trim() || me.email;
+    const sendTeamMail = async (p: any, activateLink: string | null) => {
+      const L = pickLang(p.lang);
+      const name = String(p.full_name || "").trim() || [p.first_name, p.last_name].filter(Boolean).join(" ") || p.email;
+      const link = activateLink ? withLang(activateLink, L) : `${APP_URL}/login.html?lang=${L}&next=${encodeURIComponent("admin.html")}`;
+      const m = teamMail(L, activateLink ? "team_new" : "team_existing", { name, by: byName, company: comp.name, link });
+      try { return await sendMail(p.email, m.subject, m.text, L, { url: link, label: activateLink ? TEAM_CTA[L].activate : TEAM_CTA[L].open }); } catch (e) { console.error("team mail:", (e as Error).message); return false; }
+    };
+
+    if (action === "team") {
+      const { data: people } = await db.from("clv_profiles").select(staffSel).eq("company_id", companyId).in("role", ["admin", "super"]).is("deleted_at", null).order("full_name", { ascending: true, nullsFirst: false });
+      const team = [];
+      for (const p of people || []) team.push({ id: p.id, email: p.email, name: String(p.full_name || "").trim() || [p.first_name, p.last_name].filter(Boolean).join(" "), job_title: p.job_title || "", role: p.role, status: p.status, last_login_at: p.last_login_at, created_at: p.created_at, self: p.id === me.id, activated: await isActivated(admin, p.id, p.last_login_at, p.status) });
+      return json({ ok: true, company: { id: comp.id, name: comp.name }, team, seats: await seats(), can_manage: true });
+    }
+
+    if (action === "team_invite") {
+      const email = String(body.email || "").trim().toLowerCase().slice(0, 200);
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json({ error: "email-invalid" }, 400);
+      const salutation = ["mr", "mrs"].includes(String(body.salutation || "")) ? String(body.salutation) : null;
+      const nm = (v: unknown) => String(v || "").replace(/\s+/g, " ").trim().slice(0, 80);
+      const first = nm(body.first_name), last = nm(body.last_name), name = [first, last].filter(Boolean).join(" ");
+      const lang = pickLang(body.lang);
+      let { data: prof } = await db.from("clv_profiles").select(staffSel + ", company_id").eq("email", email).maybeSingle();
+      if (prof && prof.role === "super") return json({ error: "is-clavoris-staff" }, 400);
+      if (prof && prof.role === "admin" && prof.company_id === companyId) return json({ error: "already-in-team" }, 400);
+      if (prof && prof.role === "admin" && prof.company_id) return json({ error: "staff-of-other-company" }, 400);
+      if (prof && (prof.status === "suspended" || prof.status === "rejected")) return json({ error: "user-blocked" }, 400);
+      // Staff seats of the company's plan (Clavoris super admins are not limited).
+      if (me.role !== "super") { const over = await overLimit(admin, companyId, "users"); if (over) return json(over, 403); }
+      let activate: string | null = null, created = false;
+      if (!prof) {
+        const en = await enrolUser(admin, email, name, comp.name, lang, "admin", { salutation, first_name: first || null, last_name: last || null });
+        if ("error" in en) return json({ error: en.error }, 400);
+        await db.from("clv_profiles").update({ company_id: companyId }).eq("id", en.id);
+        const { data: p2 } = await db.from("clv_profiles").select(staffSel + ", company_id").eq("id", en.id).maybeSingle();
+        prof = p2; created = en.created;
+        if (!(await isActivated(admin, en.id, null, "registered"))) activate = en.link;
+      } else {
+        const patch: Record<string, unknown> = { role: "admin", company_id: companyId };
+        if (salutation && !prof.salutation) patch.salutation = salutation;
+        if (first && !prof.first_name) patch.first_name = first;
+        if (last && !prof.last_name) patch.last_name = last;
+        if (name && !String(prof.full_name || "").trim()) patch.full_name = name;
+        await db.from("clv_profiles").update(patch).eq("id", prof.id);
+        prof = { ...prof, ...patch };
+        if (!(await isActivated(admin, prof.id, prof.last_login_at, prof.status))) activate = await activationLink(admin, prof.email);
+      }
+      await audit(admin, me, "team-member-added", email, { company: comp.name, created });
+      const mailed = await sendTeamMail(prof, activate);
+      return json({ ok: true, user_id: prof.id, created, activation: !!activate, mailed, seats: await seats() });
+    }
+
+    const userId = String(body.user_id || "");
+    const { data: member } = await db.from("clv_profiles").select(staffSel + ", company_id").eq("id", userId).maybeSingle();
+    if (!member || member.company_id !== companyId || member.role !== "admin") return json({ error: "not-in-team" }, 404);
+
+    if (action === "team_remove") {
+      if (member.id === me.id) return json({ error: "self" }, 400);
+      // The person keeps their account, their room memberships and their signed documents, as an ordinary user.
+      await db.from("clv_profiles").update({ role: "user", company_id: null }).eq("id", member.id);
+      await audit(admin, me, "team-member-removed", member.email, { company: comp.name });
+      return json({ ok: true, seats: await seats() });
+    }
+
+    // team_resend
+    const act = (await isActivated(admin, member.id, member.last_login_at, member.status)) ? null : await activationLink(admin, member.email);
+    const mailed = await sendTeamMail(member, act);
+    await audit(admin, me, "team-invitation-resent", member.email, { company: comp.name, activation: !!act });
+    return json({ ok: true, mailed, activation: !!act });
   }
 
   /* ---------------- rooms ---------------- */
@@ -196,11 +291,21 @@ Deno.serve(async (req) => {
     })) });
   }
 
+  if (action === "add_self") {
+    // The calling staff member joins the room's member list as part of the company team: no invitation mail,
+    // no access end date, no NDA of their own.
+    const { data: ex } = await admin.from("clv_room_assignments").select("id").eq("room_id", roomId).eq("user_id", me.id).maybeSingle();
+    if (ex) await admin.from("clv_room_assignments").update({ revoked_at: null, revoked_by: null, expires_at: null, granted_by: me.id, granted_at: new Date().toISOString() }).eq("id", ex.id);
+    else await admin.from("clv_room_assignments").insert({ room_id: roomId, user_id: me.id, can_download: true, expires_at: null, granted_by: me.id });
+    await audit(admin, me, "room-team-joined", me.email, { room: room.slug });
+    return json({ ok: true });
+  }
+
   if (action === "members") {
     // Every assignment, including revoked ones (tagged, with the option to reactivate), with the
     // full onboarding status: activated (first sign-in), KYC, NDA, access end date, last access,
     // last reminder and any pending extension request.
-    const { data: rows } = await admin.from("clv_room_assignments").select("id, user_id, can_download, expires_at, granted_at, revoked_at, answers_questions, profile:clv_profiles!clv_room_assignments_user_id_fkey(email, full_name, company, status, last_login_at, lang)").eq("room_id", roomId).order("granted_at", { ascending: false });
+    const { data: rows } = await admin.from("clv_room_assignments").select("id, user_id, can_download, expires_at, granted_at, revoked_at, answers_questions, profile:clv_profiles!clv_room_assignments_user_id_fkey(email, full_name, company, status, last_login_at, lang, role, company_id)").eq("room_id", roomId).order("granted_at", { ascending: false });
     const ids = (rows || []).map((r: any) => r.user_id);
     const { data: signed } = ids.length ? await admin.from("clv_signed_documents").select("user_id, signed_at").eq("room_id", roomId).eq("doc_type", "nda").in("user_id", ids) : { data: [] as any[] };
     const { data: last } = ids.length ? await admin.from("clv_access_log").select("user_id, ts, action").eq("room_id", roomId).in("user_id", ids).order("ts", { ascending: false }).limit(500) : { data: [] as any[] };
@@ -222,8 +327,10 @@ Deno.serve(async (req) => {
       const st = r.profile?.status || "registered";
       const verified = st === "verified", nda = !!signedAt[r.user_id];
       const activated = inUse[r.user_id];
-      const next = r.revoked_at ? null : !activated ? "signup" : !verified ? "kyc" : !nda ? "nda" : null;
-      return { user_id: r.user_id, email: r.profile?.email, name: r.profile?.full_name, company: r.profile?.company, status: st, lang: r.profile?.lang, activated, last_login_at: r.profile?.last_login_at || null, can_download: r.can_download, answers_questions: !!r.answers_questions, expires_at: r.expires_at, granted_at: r.granted_at, revoked_at: r.revoked_at, nda_signed_at: signedAt[r.user_id] || null, last_access: lastAt[r.user_id] || null, next_step: next, reminded: remAt[r.user_id] || null, pending_request: pending[r.user_id] || null, last_request: lastReq[r.user_id] || null };
+      // Company team: staff of the company that runs the room (or a Clavoris super admin); no NDA, no reminders.
+      const team = r.profile?.role === "super" || (r.profile?.role === "admin" && !!room.company_id && r.profile?.company_id === room.company_id);
+      const next = r.revoked_at || team ? null : !activated ? "signup" : !verified ? "kyc" : !nda ? "nda" : null;
+      return { team, user_id: r.user_id, email: r.profile?.email, name: r.profile?.full_name, company: r.profile?.company, status: st, lang: r.profile?.lang, activated, last_login_at: r.profile?.last_login_at || null, can_download: r.can_download, answers_questions: !!r.answers_questions, expires_at: r.expires_at, granted_at: r.granted_at, revoked_at: r.revoked_at, nda_signed_at: signedAt[r.user_id] || null, last_access: lastAt[r.user_id] || null, next_step: next, reminded: remAt[r.user_id] || null, pending_request: pending[r.user_id] || null, last_request: lastReq[r.user_id] || null };
     }) });
   }
 
@@ -321,12 +428,14 @@ Deno.serve(async (req) => {
     if (body.expires_at && !isDate(body.expires_at)) return json({ error: "bad-date" }, 400);
 
     // 1. Enrol the user if needed (shared directory: an existing Minerva user keeps their passphrase).
-    let { data: prof } = await admin.from("clv_profiles").select("id, email, full_name, status, lang, salutation, first_name, last_name, last_login_at").eq("email", email).maybeSingle();
+    let { data: prof } = await admin.from("clv_profiles").select("id, email, full_name, status, lang, salutation, first_name, last_name, last_login_at, role, company_id").eq("email", email).maybeSingle();
     let created = false, linked = false, activate = false, link = `${APP_URL}/login.html`;
+    // A member of the company team (staff of the company that runs the room): no access end date and no NDA.
+    const team = !!prof && (prof.role === "super" || (prof.role === "admin" && !!room.company_id && prof.company_id === room.company_id));
     if (!prof) {
       const en = await enrolUser(admin, email, name, company, lang, "user", { salutation, first_name: first || null, last_name: last || null });
       if ("error" in en) return json({ error: en.error }, 400);
-      prof = { id: en.id, email, full_name: name, status: "registered", lang, salutation, first_name: first || null, last_name: last || null, last_login_at: null };
+      prof = { id: en.id, email, full_name: name, status: "registered", lang, salutation, first_name: first || null, last_name: last || null, last_login_at: null, role: "user", company_id: null };
       created = en.created; linked = en.linked; link = en.link;
       await audit(admin, me, "user-created", email, { via: "room-invite", room: room.slug, linked });
       // Already a user of another platform of the group, who has signed in there: treated as an existing
@@ -348,8 +457,8 @@ Deno.serve(async (req) => {
       }
     }
 
-    // 2. Assign (re-activate if previously revoked). End date: as chosen, else the room default.
-    const expires = isDate(body.expires_at) ? endOfDay(String(body.expires_at)) : room.default_expiry_days ? new Date(Date.now() + room.default_expiry_days * 86400000).toISOString() : null;
+    // 2. Assign (re-activate if previously revoked). End date: as chosen, else the room default; none for the team.
+    const expires = team ? null : isDate(body.expires_at) ? endOfDay(String(body.expires_at)) : room.default_expiry_days ? new Date(Date.now() + room.default_expiry_days * 86400000).toISOString() : null;
     const { data: existing } = await admin.from("clv_room_assignments").select("id, revoked_at").eq("room_id", roomId).eq("user_id", prof.id).maybeSingle();
     if (existing) await admin.from("clv_room_assignments").update({ revoked_at: null, revoked_by: null, expires_at: expires, reminded_7d_at: null, reminded_24h_at: null, granted_by: me.id, granted_at: new Date().toISOString() }).eq("id", existing.id);
     else await admin.from("clv_room_assignments").insert({ room_id: roomId, user_id: prof.id, can_download: true, expires_at: expires, granted_by: me.id });
@@ -366,7 +475,7 @@ Deno.serve(async (req) => {
     let steps = { steps: "", kyc: false };
     if (!(created || linked || activate)) {
       const { data: nda } = await admin.from("clv_signed_documents").select("id").eq("room_id", roomId).eq("user_id", prof.id).eq("doc_type", "nda").limit(1);
-      steps = existingSteps(L, { verified: prof.status === "verified", ndaRequired: !!room.qes_nda_required, ndaSigned: !!(nda && nda.length) });
+      steps = existingSteps(L, { verified: prof.status === "verified", ndaRequired: !!room.qes_nda_required && !team, ndaSigned: !!(nda && nda.length) });
     }
     const m = created || activate ? mail(L, "room_invite_new", { name: prof.full_name || name, room: room.name, company: cname, owner: cname, until, link: withLang(link, L) + ctx })
       : linked ? mail(L, "room_invite_linked", { name, room: room.name, company: cname, owner: cname, until, login, link: withLang(link, L) + ctx })
@@ -375,7 +484,7 @@ Deno.serve(async (req) => {
     // Account never used: activation button (set the password). Account in use: the sign-in page, which opens the room.
     const cta = (created || linked || activate) ? { url: withLang(link, L) + ctx, label: ctaLabel(L, "activate") } : { url: openRoom, label: OPEN_CTA[L] };
     try { mailed = await sendMail(email, m.subject, m.text, L, cta); } catch (e) { console.error("clv-admin-rooms invite mail:", (e as Error).message); }
-    return json({ ok: true, user_id: prof.id, created, linked, existing: !(created || linked || activate), activation: created || linked || activate, mailed, expires_at: expires });
+    return json({ ok: true, user_id: prof.id, team, created, linked, existing: !(created || linked || activate), activation: created || linked || activate, mailed, expires_at: expires });
   }
 
   return json({ error: "bad-action" }, 400);
