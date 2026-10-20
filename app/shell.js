@@ -161,7 +161,9 @@
       return fetch(CFG.url + '/functions/v1/' + name, { method: 'POST', headers: { 'content-type': 'application/json', 'apikey': CFG.anonKey, 'authorization': 'Bearer ' + token }, body: JSON.stringify(body || {}) });
     }).then(function (res) {
       if (!res.ok) return res.json().catch(function () { return {}; }).then(function (b) { return { ok: false, error: b.error || ('http-' + res.status) }; });
-      var cd = res.headers.get('content-disposition') || ''; var m = cd.match(/filename="?([^";]+)"?/);
+      var cd = res.headers.get('content-disposition') || ''; var m = cd.match(/filename="?([^";]+)"?/), mu = cd.match(/filename\*=UTF-8''([^;]+)/i);
+      // The exact name (accents included) comes in filename*; filename holds an ASCII fallback.
+      if (mu) { try { m = [null, decodeURIComponent(mu[1])]; } catch (e) {} }
       return res.blob().then(function (blob) {
         var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = (m && m[1]) || fallbackName || 'download';
         document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 2000);

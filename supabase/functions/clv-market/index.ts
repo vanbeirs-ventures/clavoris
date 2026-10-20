@@ -166,7 +166,7 @@ Deno.serve(async (req) => {
       }
       const sha = await sha256Hex(delivered);
       await logAccess(admin, me, p.id, "download", req, { path: rel, sha256: sha });
-      return new Response(delivered, { headers: { ...cors, "content-type": res.headers.get("content-type") || "application/octet-stream", "content-disposition": `attachment; filename="${name.replace(/"/g, "")}"`, "x-clavoris-sha256": sha, "access-control-expose-headers": "content-disposition, x-clavoris-sha256" } });
+      return new Response(delivered, { headers: { ...cors, "content-type": res.headers.get("content-type") || "application/octet-stream", "content-disposition": `attachment; filename="${name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^\x20-\x7e]/g, "_").replace(/["\\]/g, "")}"; filename*=UTF-8''${encodeURIComponent(name)}`, "x-clavoris-sha256": sha, "access-control-expose-headers": "content-disposition, x-clavoris-sha256" } });
     }
 
     if (action === "subscribe") {
