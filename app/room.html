@@ -15,7 +15,14 @@
   .tree li { border-top: 1px solid var(--border); }
   .tree li:first-child { border-top: none; }
   .tree .row { display: flex; align-items: center; gap: 12px; padding: 11px 16px; font-size: 13.5px; }
-  .tree .row.dir { background: var(--parch-100); font-weight: 500; color: var(--clavis-navy); }
+  .tree .row.dir { background: var(--parch-100); font-weight: 500; color: var(--clavis-navy); cursor: pointer; user-select: none; }
+  .tree .row.dir:hover { background: var(--parch-200, var(--parch-100)); }
+  .tree .row.dir:focus-visible { outline: 2px solid var(--seal-gold); outline-offset: -2px; }
+  .tree .row .chev { width: 14px; height: 14px; flex: none; color: var(--fg-3); transition: transform .15s ease; }
+  .tree .row .chev svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; display: block; }
+  .tree .row.dir[aria-expanded="true"] .chev { transform: rotate(90deg); }
+  .tree .row.dir .cnt { font-size: 11.5px; color: var(--fg-3); font-weight: 400; white-space: nowrap; }
+  @media (prefers-reduced-motion: reduce) { .tree .row .chev { transition: none; } }
   .tree .row .ic { width: 18px; height: 18px; flex: none; color: var(--seal-gold); }
   .tree .row .ic svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
   .tree .row .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -187,7 +194,16 @@
   function q(id) { return document.getElementById(id); }
   var roomId = new URLSearchParams(location.search).get('id');
   var state = null;
+  // Folder accordion: one folder open at a time. state.openDir = the deepest open folder ('' = all closed);
+  // opening a folder closes every folder that is not one of its parents.
+  I.add('en', { 'room.tree.count': '{n} document(s)', 'room.tree.toggle': 'Open or close the folder {name}' });
+  I.add('nl', { 'room.tree.count': '{n} document(en)', 'room.tree.toggle': 'Map {name} openen of sluiten' });
+  I.add('fr', { 'room.tree.count': '{n} document(s)', 'room.tree.toggle': 'Ouvrir ou fermer le dossier {name}' });
+  function parentOf(path) { var i = path.lastIndexOf('/'); return i < 0 ? '' : path.slice(0, i); }
+  function isOpen(path) { var o = (state && state.openDir) || ''; return !!o && (o === path || o.indexOf(path + '/') === 0); }
+  function toggleDir(path) { state.openDir = isOpen(path) ? parentOf(path) : path; renderTree(); }
   var ICON = {
+    chev: '<svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>',
     folder: '<svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>',
     file: '<svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>'
   };
@@ -239,10 +255,16 @@
     var t = state.tree || [], ul = q('tree');
     if (state.storage_error) { ul.innerHTML = '<li><div class="row"><span class="nm" style="color:var(--fg-3)">' + esc(I.t('room.tree.unavailable', { err: state.storage_error })) + '</span></div></li>'; return; }
     if (!t.length) { ul.innerHTML = '<li><div class="row"><span class="nm" style="color:var(--fg-3)">' + I.t('room.tree.empty') + '</span></div></li>'; return; }
-    ul.innerHTML = t.map(function (e) {
+    if (state.openDir && !t.some(function (e) { return e.dir && e.path === state.openDir; })) state.openDir = '';
+    ul.innerHTML = t.filter(function (e) { var p = parentOf(e.path); return !p || isOpen(p); }).map(function (e) {
       var depth = e.path.split('/').length - 1;
       var pad = 'style="padding-left:' + (16 + depth * 22) + 'px"';
-      if (e.dir) return '<li><div class="row dir" ' + pad + '><span class="ic">' + ICON.folder + '</span><span class="nm">' + esc(e.name) + '</span></div></li>';
+      if (e.dir) {
+        var n = t.filter(function (f) { return !f.dir && f.path.indexOf(e.path + '/') === 0; }).length, open = isOpen(e.path);
+        return '<li><div class="row dir" role="button" tabindex="0" aria-expanded="' + open + '" data-dir="' + esc(e.path) + '" aria-label="' + esc(I.t('room.tree.toggle', { name: e.name })) + '" ' + pad + '>'
+          + '<span class="chev" aria-hidden="true">' + ICON.chev + '</span><span class="ic">' + ICON.folder + '</span><span class="nm">' + esc(e.name) + '</span>'
+          + '<span class="cnt">' + esc(I.t('room.tree.count', { n: n })) + '</span></div></li>';
+      }
       var can = state.me.can_download && state.room.downloads_allowed;
       return '<li><div class="row" ' + pad + '><span class="ic">' + ICON.file + '</span><span class="nm" title="' + esc(e.path) + '">' + esc(e.name) + '</span>'
         + '<span class="meta">' + esc(S.fmtSize(e.size)) + ' · ' + esc(S.fmtDate(e.modified)) + '</span>'
@@ -250,6 +272,10 @@
         + (can ? '<button class="btn-text dl" type="button" data-dl="' + esc(e.path) + '">' + I.t('common.download') + '</button>' : '')
         + (!state.me.expired ? '<button class="btn-text ask" type="button" data-ask="' + esc(e.path) + '" title="' + esc(I.t('qa.ask_file')) + '" aria-label="' + esc(I.t('qa.ask_file')) + '">?</button>' : '') + '</span></div></li>';
     }).join('');
+    [].forEach.call(ul.querySelectorAll('[data-dir]'), function (d) {
+      d.addEventListener('click', function () { toggleDir(d.getAttribute('data-dir')); });
+      d.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); toggleDir(d.getAttribute('data-dir')); var again = ul.querySelector('[data-dir="' + d.getAttribute('data-dir').replace(/"/g, '\\"') + '"]'); if (again) again.focus(); } });
+    });
     [].forEach.call(ul.querySelectorAll('[data-view]'), function (b) { b.addEventListener('click', function () { openViewer(b.getAttribute('data-view')); }); });
     [].forEach.call(ul.querySelectorAll('[data-ask]'), function (b) { b.addEventListener('click', function () { askAbout(b.getAttribute('data-ask')); }); });
     fillFileSelect();
