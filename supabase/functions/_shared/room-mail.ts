@@ -40,14 +40,36 @@ const fillV = (s: string, v: V) => s.replace(/\{(\w+)\}/g, (_, k) => String(v[k]
 export const OPEN_CTA: Record<Lang, string> = { en: "Open the data room", nl: "Open de dataroom", fr: "Ouvrir la data room" };
 const START = /\n\n(Start here:|Begin hier:|Commencez ici :)\n/;
 
+// Invitation to a further data room for someone who already has an account (signed in before, here or on
+// another platform of the group): no registration, no activation link, no new password. The mail says so,
+// leads straight to the sign-in page (which then opens the room) and lists only what is still open for
+// this room: identity verification when not yet done, and the room's own NDA ({steps}, see existingSteps).
+const EXISTING: Record<Lang, { s: string; t: string }> = {
+  en: { s: "Clavoris data room: {room}", t: "Dear {name},\n\n{company} has given you access to the data room \"{room}\".{until}\n\nYour e-mail address already has an account, so there is nothing to register or activate. Sign in with your usual e-mail address and password; the data room opens straight after signing in:\n{link}\n\nWhat remains for this data room:\n{steps}\n\nForgotten your password? Choose \"Forgotten your password?\" on the sign-in page." },
+  nl: { s: "Clavoris dataroom: {room}", t: "Beste {name},\n\n{company} heeft u toegang gegeven tot de dataroom \"{room}\".{until}\n\nUw e-mailadres heeft al een account, dus u hoeft zich niet te registreren of te activeren. Meld u aan met uw gebruikelijke e-mailadres en wachtwoord; de dataroom opent meteen na het aanmelden:\n{link}\n\nWat er nog moet gebeuren voor deze dataroom:\n{steps}\n\nWachtwoord vergeten? Kies \"Wachtwoord vergeten?\" op de aanmeldpagina." },
+  fr: { s: "Data room Clavoris : {room}", t: "Cher/Chère {name},\n\n{company} vous a donné accès à la data room « {room} ».{until}\n\nVotre adresse e-mail dispose déjà d'un compte : aucune inscription ni activation n'est nécessaire. Connectez-vous avec votre adresse e-mail et votre mot de passe habituels ; la data room s'ouvre dès la connexion :\n{link}\n\nCe qu'il reste à faire pour cette data room :\n{steps}\n\nMot de passe oublié ? Choisissez « Mot de passe oublié ? » sur la page de connexion." },
+};
+const STEP: Record<Lang, Record<string, string>> = {
+  en: { kyc_done: "- Your identity is already verified; no new check is needed.", kyc_todo: "- Complete your identity verification: a few minutes with your identity document and your phone or webcam. You are guided through it after signing in.", nda: "- Sign the data room's non-disclosure agreement electronically. Each data room has its own agreement, also when you have signed one for another room.", nda_done: "- You have already signed this data room's non-disclosure agreement.", docs: "- The documents then open. Every download is personal, watermarked with your name and recorded.", docs_open: "- The documents are available as soon as you have signed in. Every download is personal, watermarked with your name and recorded." },
+  nl: { kyc_done: "- Uw identiteit is al geverifieerd; een nieuwe controle is niet nodig.", kyc_todo: "- Voltooi uw identiteitsverificatie: enkele minuten met uw identiteitsdocument en uw telefoon of webcam. U wordt er na het aanmelden doorheen geleid.", nda: "- Onderteken de geheimhoudingsovereenkomst van de dataroom elektronisch. Elke dataroom heeft een eigen overeenkomst, ook als u er al een voor een andere dataroom ondertekend hebt.", nda_done: "- U hebt de geheimhoudingsovereenkomst van deze dataroom al ondertekend.", docs: "- Daarna gaan de documenten open. Elke download is persoonlijk, voorzien van een watermerk met uw naam en wordt geregistreerd.", docs_open: "- De documenten zijn beschikbaar zodra u aangemeld bent. Elke download is persoonlijk, voorzien van een watermerk met uw naam en wordt geregistreerd." },
+  fr: { kyc_done: "- Votre identité est déjà vérifiée ; aucun nouveau contrôle n'est nécessaire.", kyc_todo: "- Effectuez votre vérification d'identité : quelques minutes avec votre pièce d'identité et votre téléphone ou webcam. Vous y êtes guidé(e) après la connexion.", nda: "- Signez électroniquement l'accord de confidentialité de la data room. Chaque data room a son propre accord, même si vous en avez déjà signé un pour une autre data room.", nda_done: "- Vous avez déjà signé l'accord de confidentialité de cette data room.", docs: "- Les documents s'ouvrent ensuite. Chaque téléchargement est personnel, porte un filigrane à votre nom et est enregistré.", docs_open: "- Les documents sont disponibles dès votre connexion. Chaque téléchargement est personnel, porte un filigrane à votre nom et est enregistré." },
+};
+// The open steps for this person and this room. Identity verification is only asked where the room has an NDA.
+export function existingSteps(lang: Lang, s: { verified: boolean; ndaRequired: boolean; ndaSigned: boolean }): { steps: string; kyc: boolean } {
+  const t = STEP[lang] || STEP.en;
+  if (!s.ndaRequired || s.ndaSigned) return { steps: (s.ndaSigned ? t.nda_done + "\n" : "") + t.docs_open, kyc: false };
+  return { steps: [s.verified ? t.kyc_done : t.kyc_todo, t.nda, t.docs].join("\n"), kyc: !s.verified };
+}
+
 export function mail(lang: Lang, key: string, vars: V = {}): { subject: string; text: string } {
-  const m = key === "ext_requested" ? { subject: fillV((EXT_REQ[lang] || EXT_REQ.en).s, vars), text: fillV((EXT_REQ[lang] || EXT_REQ.en).t, vars) } : base(lang, key, vars);
+  const own = key === "ext_requested" ? EXT_REQ : key === "room_invite_existing" ? EXISTING : null;
+  const m = own ? { subject: fillV((own[lang] || own.en).s, vars), text: fillV((own[lang] || own.en).t, vars) } : base(lang, key, vars);
   const text = m.text
     .replace(/the Clavoris data room/g, "the data room")
     .replace(/de Clavoris-dataroom/g, "de dataroom")
     .replace(/la data room Clavoris/g, "la data room");
   let body = text;
-  if (key === "room_invite_new" || key === "room_invite_linked") {
+  if (key === "room_invite_new" || key === "room_invite_linked" || (key === "room_invite_existing" && vars.kyc)) {
     const note = KYC_NOTE[lang] || KYC_NOTE.en;
     body = START.test(body) ? body.replace(START, (m0) => "\n\n" + note + m0) : body + "\n\n" + note;
   }

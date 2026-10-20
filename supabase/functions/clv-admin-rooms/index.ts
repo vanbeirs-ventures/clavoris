@@ -15,7 +15,7 @@
 // Deploy: supabase functions deploy clv-admin-rooms --no-verify-jwt
 import { adminClient, APP_URL, audit, companyScope, cors, enrolUser, fmtDay, inScope, json, requireAdmin, sendMail, ctaLabel } from "../_shared/clv.ts";
 import { activationLink, isActivated } from "../_shared/activation.ts";
-import { mail, OPEN_CTA, pickLang, word } from "../_shared/room-mail.ts";
+import { existingSteps, mail, OPEN_CTA, pickLang, word } from "../_shared/room-mail.ts";
 import { ncConfigured, ncMkdirP, ncPut, sha256Hex } from "../_shared/nc.ts";
 import { overLimit } from "../_shared/plans.ts";
 const withLang = (u: string, l: string) => u + (u.includes("?") ? "&" : "?") + "lang=" + l;
@@ -151,7 +151,7 @@ Deno.serve(async (req) => {
 
   const roomId = String(body.room_id || "");
   if (!roomId) return json({ error: "room-required" }, 400);
-  const { data: room } = await admin.from("clv_rooms").select("id, slug, name, default_expiry_days, company_id").eq("id", roomId).maybeSingle();
+  const { data: room } = await admin.from("clv_rooms").select("id, slug, name, default_expiry_days, company_id, qes_nda_required").eq("id", roomId).maybeSingle();
   if (!room || !inScope(me, room.company_id)) return json({ error: "not-found" }, 404);
   const cname = await companyName(room.company_id);
 
@@ -170,12 +170,17 @@ Deno.serve(async (req) => {
     const remAt: Record<string, { ts: string; step: string }> = {}; (rem || []).forEach((r: any) => { if (!remAt[r.target] && r.detail?.room === room.slug) remAt[r.target] = { ts: r.created_at, step: r.detail?.step || "" }; });
     const pending: Record<string, any> = {}, lastReq: Record<string, any> = {};
     (reqs || []).forEach((r: any) => { if (r.status === "pending" && !pending[r.user_id]) pending[r.user_id] = r; if (!lastReq[r.user_id]) lastReq[r.user_id] = r; });
+    // Activated = the account is in use (see isActivated): signed in, verified, an NDA signed in any room, or an
+    // existing user of another platform of the group. Only the members not obviously active are looked up.
+    const inUse: Record<string, boolean> = {};
+    for (const r of rows || []) {
+      const p = (r as any).profile;
+      inUse[r.user_id] = !!p?.last_login_at || p?.status === "verified" || !!signedAt[r.user_id] || await isActivated(admin, r.user_id, p?.last_login_at || null, p?.status || null);
+    }
     return json({ ok: true, members: (rows || []).map((r: any) => {
       const st = r.profile?.status || "registered";
       const verified = st === "verified", nda = !!signedAt[r.user_id];
-      // Activated = has signed in. Verified KYC or a signed NDA prove a sign-in even when last_login_at
-      // was never stamped (sign-ins before the stamp existed, or a 2FA step left unfinished).
-      const activated = !!r.profile?.last_login_at || verified || nda;
+      const activated = inUse[r.user_id];
       const next = r.revoked_at ? null : !activated ? "signup" : !verified ? "kyc" : !nda ? "nda" : null;
       return { user_id: r.user_id, email: r.profile?.email, name: r.profile?.full_name, company: r.profile?.company, status: st, lang: r.profile?.lang, activated, last_login_at: r.profile?.last_login_at || null, can_download: r.can_download, answers_questions: !!r.answers_questions, expires_at: r.expires_at, granted_at: r.granted_at, revoked_at: r.revoked_at, nda_signed_at: signedAt[r.user_id] || null, last_access: lastAt[r.user_id] || null, next_step: next, reminded: remAt[r.user_id] || null, pending_request: pending[r.user_id] || null, last_request: lastReq[r.user_id] || null };
     }) });
@@ -198,14 +203,17 @@ Deno.serve(async (req) => {
     if (!a || !prof) return json({ error: "not-member" }, 404);
     if (a.revoked_at) return json({ error: "revoked" }, 400);
     const { data: nda } = await admin.from("clv_signed_documents").select("id").eq("room_id", roomId).eq("user_id", userId).eq("doc_type", "nda").maybeSingle();
-    const step = !prof.last_login_at && prof.status !== "verified" && !nda ? "signup" : prof.status !== "verified" ? "kyc" : !nda ? "nda" : null;
+    // An account already in use never gets an activation mail, only the sign-in page and the open step.
+    const activated = !!nda || await isActivated(admin, userId, prof.last_login_at, prof.status);
+    const step = !activated ? "signup" : prof.status !== "verified" ? "kyc" : !nda ? "nda" : null;
     if (!step) return json({ ok: true, step: null });
     const L = pickLang(prof.lang);
     let link = `${APP_URL}/room.html?id=${roomId}`;
     if (step === "signup") {
       const { data: l } = await admin.auth.admin.generateLink({ type: "recovery", email: prof.email, options: { redirectTo: APP_URL + "/reset.html" } });
       link = l?.properties?.hashed_token ? `${APP_URL}/reset.html?token_hash=${encodeURIComponent(l.properties.hashed_token)}&type=recovery&welcome=1&lang=${L}&room=${encodeURIComponent(room.name)}&by=${encodeURIComponent(cname)}` : `${APP_URL}/login.html?lang=${L}`;
-    } else if (step === "kyc") link = `${APP_URL}/kyc.html?next=room.html%3Fid%3D${roomId}`;
+    } else if (step === "kyc") link = `${APP_URL}/login.html?lang=${L}&next=${encodeURIComponent("kyc.html?next=room.html%3Fid%3D" + roomId)}`;
+    else link = signInTo(roomId, L);
     const m = mail(L, "remind_" + step, { name: prof.full_name, room: room.name, owner: cname, link });
     let mailed = false;
     try { mailed = await sendMail(prof.email, m.subject, m.text, L, step === "signup" ? { url: link, label: ctaLabel(L, "activate") } : undefined); } catch (e) { console.error("clv-admin-rooms remind mail:", (e as Error).message); }
@@ -220,18 +228,20 @@ Deno.serve(async (req) => {
     if (error) return json({ error: error.message }, 400);
     if (!a) return json({ error: "not-revoked" }, 400);
     await audit(admin, me, "room-access-reactivated", userId, { room: room.slug });
-    const { data: prof } = await admin.from("clv_profiles").select("email, full_name, lang, last_login_at").eq("id", userId).maybeSingle();
+    const { data: prof } = await admin.from("clv_profiles").select("email, full_name, lang, last_login_at, status").eq("id", userId).maybeSingle();
     if (prof) {
       const L = pickLang(prof.lang), until = expires ? word(L, "until_line", { date: fmtDay(expires, L) }) : "";
       // Never signed in: a fresh activation link (an earlier one may have expired). Otherwise: the sign-in page.
-      const act = (await isActivated(admin, userId, prof.last_login_at)) ? null : await activationLink(admin, prof.email);
+      const act = (await isActivated(admin, userId, prof.last_login_at, prof.status)) ? null : await activationLink(admin, prof.email);
       if (act) {
         const url = withLang(act, L) + `&room=${encodeURIComponent(room.name)}&by=${encodeURIComponent(cname)}`;
         const m = mail(L, "room_invite_new", { name: prof.full_name, room: room.name, company: cname, owner: cname, until, link: url });
         await sendMail(prof.email, m.subject, m.text, L, { url, label: ctaLabel(L, "activate") }).catch(() => false);
       } else {
         const url = signInTo(room.id, L);
-        const m = mail(L, "room_invite_existing", { name: prof.full_name, room: room.name, company: cname, owner: cname, until, link: url });
+        const { data: nda } = await admin.from("clv_signed_documents").select("id").eq("room_id", roomId).eq("user_id", userId).eq("doc_type", "nda").limit(1);
+        const st = existingSteps(L, { verified: prof.status === "verified", ndaRequired: !!room.qes_nda_required, ndaSigned: !!(nda && nda.length) });
+        const m = mail(L, "room_invite_existing", { name: prof.full_name, room: room.name, company: cname, owner: cname, until, link: url, steps: st.steps, kyc: st.kyc ? "1" : "" });
         await sendMail(prof.email, m.subject, m.text, L, { url, label: OPEN_CTA[L] }).catch(() => false);
       }
     }
@@ -278,6 +288,9 @@ Deno.serve(async (req) => {
       prof = { id: en.id, email, full_name: name, status: "registered", lang, salutation, first_name: first || null, last_name: last || null, last_login_at: null };
       created = en.created; linked = en.linked; link = en.link;
       await audit(admin, me, "user-created", email, { via: "room-invite", room: room.slug, linked });
+      // Already a user of another platform of the group, who has signed in there: treated as an existing
+      // user (signs in with the password they have), not sent an activation link.
+      if (linked && await isActivated(admin, en.id, null, "registered")) linked = false;
     } else if (prof.status === "suspended" || prof.status === "rejected") return json({ error: "user-blocked" }, 400);
     else {
       // Existing account: fill in only what is still empty; what the person entered themselves stays.
@@ -288,7 +301,7 @@ Deno.serve(async (req) => {
       if (name && !String(prof.full_name || "").trim()) patch.full_name = name;
       if (Object.keys(patch).length) { await admin.from("clv_profiles").update(patch).eq("id", prof.id); prof = { ...prof, ...patch }; }
       // Enrolled earlier but never signed in (no password chosen yet): send a fresh activation link, not the sign-in page.
-      if (!(await isActivated(admin, prof.id, prof.last_login_at))) {
+      if (!(await isActivated(admin, prof.id, prof.last_login_at, prof.status))) {
         const act = await activationLink(admin, prof.email);
         if (act) { activate = true; link = act; }
       }
@@ -308,14 +321,20 @@ Deno.serve(async (req) => {
     const login = `${APP_URL}/login.html?lang=${L}`;
     const openRoom = signInTo(room.id, L);
     const until = expires ? word(L, "until_line", { date: fmtDay(expires, L) }) : "";
+    // Existing account: no registration; the mail lists only what is still open for this room.
+    let steps = { steps: "", kyc: false };
+    if (!(created || linked || activate)) {
+      const { data: nda } = await admin.from("clv_signed_documents").select("id").eq("room_id", roomId).eq("user_id", prof.id).eq("doc_type", "nda").limit(1);
+      steps = existingSteps(L, { verified: prof.status === "verified", ndaRequired: !!room.qes_nda_required, ndaSigned: !!(nda && nda.length) });
+    }
     const m = created || activate ? mail(L, "room_invite_new", { name: prof.full_name || name, room: room.name, company: cname, owner: cname, until, link: withLang(link, L) + ctx })
       : linked ? mail(L, "room_invite_linked", { name, room: room.name, company: cname, owner: cname, until, login, link: withLang(link, L) + ctx })
-      : mail(L, "room_invite_existing", { name: prof.full_name, room: room.name, company: cname, owner: cname, until, link: openRoom });
+      : mail(L, "room_invite_existing", { name: prof.full_name || name, room: room.name, company: cname, owner: cname, until, link: openRoom, steps: steps.steps, kyc: steps.kyc ? "1" : "" });
     let mailed = false;
     // Account never used: activation button (set the password). Account in use: the sign-in page, which opens the room.
     const cta = (created || linked || activate) ? { url: withLang(link, L) + ctx, label: ctaLabel(L, "activate") } : { url: openRoom, label: OPEN_CTA[L] };
     try { mailed = await sendMail(email, m.subject, m.text, L, cta); } catch (e) { console.error("clv-admin-rooms invite mail:", (e as Error).message); }
-    return json({ ok: true, user_id: prof.id, created, linked, activation: created || linked || activate, mailed, expires_at: expires });
+    return json({ ok: true, user_id: prof.id, created, linked, existing: !(created || linked || activate), activation: created || linked || activate, mailed, expires_at: expires });
   }
 
   return json({ error: "bad-action" }, 400);
