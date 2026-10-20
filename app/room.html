@@ -199,6 +199,10 @@
   I.add('en', { 'room.tree.count': '{n} document(s)', 'room.tree.toggle': 'Open or close the folder {name}' });
   I.add('nl', { 'room.tree.count': '{n} document(en)', 'room.tree.toggle': 'Map {name} openen of sluiten' });
   I.add('fr', { 'room.tree.count': '{n} document(s)', 'room.tree.toggle': 'Ouvrir ou fermer le dossier {name}' });
+  // Members are shown in two groups: the company team (staff of the company running the room, by name) and the investors.
+  I.add('en', { 'room.grp.team': 'Company team · {company}', 'room.grp.investors': 'Investors' });
+  I.add('nl', { 'room.grp.team': 'Team van de onderneming · {company}', 'room.grp.investors': 'Beleggers' });
+  I.add('fr', { 'room.grp.team': 'Équipe de la société · {company}', 'room.grp.investors': 'Investisseurs' });
   function parentOf(path) { var i = path.lastIndexOf('/'); return i < 0 ? '' : path.slice(0, i); }
   function isOpen(path) { var o = (state && state.openDir) || ''; return !!o && (o === path || o.indexOf(path + '/') === 0); }
   function toggleDir(path) { state.openDir = isOpen(path) ? parentOf(path) : path; renderTree(); }
@@ -350,12 +354,19 @@
       A.callFn('clv-room-nda', { action: 'store', room_id: roomId }).then(function (x) { if (x && x.stored) { state.nda.has_file = true; renderSide(); } }).catch(function () {});
     }
     var m = r.members || [];
-    q('members').innerHTML = m.length ? m.map(function (x) {
+    var teamM = m.filter(function (x) { return x.team; }), invM = m.filter(function (x) { return !x.team; });
+    var grp = function (t) { return '<li style="border-top:none;padding:12px 0 2px"><span style="font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--seal-gold);font-weight:600">' + esc(t) + '</span></li>'; };
+    var teamRow = function (x) {
+      return '<li><div class="nm"><span class="pres ' + esc(x.presence || 'never') + '" title="' + esc(x.last_seen ? I.t('room.last_seen', { date: S.fmtDate(x.last_seen) }) : I.t('room.never_visited')) + '"></span>' + esc(x.name) + (x.self ? ' <span style="font-weight:400;color:var(--fg-3)">(' + esc(I.t('room.member.you')) + ')</span>' : '') + '</div>'
+        + (x.job_title ? '<div class="org">' + esc(x.job_title) + '</div>' : '') + '</li>';
+    };
+    var teamHtml = teamM.length ? grp(I.t('room.grp.team', { company: r.room.company || '' })) + teamM.map(teamRow).join('') + (invM.length ? grp(I.t('room.grp.investors')) : '') : '';
+    q('members').innerHTML = !m.length ? '<li style="color:var(--fg-3)">' + I.t('room.members.none') + '</li>' : teamHtml + invM.map(function (x) {
       return '<li><div class="nm"><span class="pres ' + esc(x.presence || 'never') + '" title="' + esc(x.last_seen ? I.t('room.last_seen', { date: S.fmtDate(x.last_seen) }) : I.t('room.never_visited')) + '"></span>' + (x.name ? esc(x.name) + (x.self ? ' <span style="font-weight:400;color:var(--fg-3)">(' + esc(I.t('room.member.you')) + ')</span>' : '') + (x.private ? ' <span class="chip neutral" style="font-size:10.5px;padding:1px 8px">' + esc(I.t('room.member.private_tag')) + '</span>' : '') : '<span class="mono" style="font-weight:500">' + esc(I.t('room.member.id', { id: x.member_id || '' })) + '</span>' + (x.private ? ' <span class="chip neutral" style="font-size:10.5px;padding:1px 8px">' + esc(I.t('room.member.private_tag')) + '</span>' : '')) + '</div>'
         + (x.company || x.job_title ? '<div class="org">' + esc([x.company, x.job_title].filter(Boolean).join(' · ')) + '</div>' : '')
         + (x.email || (x.name && x.member_id && (x.self || x.private)) ? '<div class="mono" style="font-size:11px;color:var(--fg-3)">' + esc([x.name ? x.member_id : '', x.email].filter(Boolean).join(' · ')) + '</div>' : '')
         + '<div style="margin-top:4px">' + (x.verified ? '<span class="chip verified">KYC</span> ' : '') + (x.nda_signed ? '<span class="chip info">NDA</span>' : '') + '</div></li>';
-    }).join('') : '<li style="color:var(--fg-3)">' + I.t('room.members.none') + '</li>';
+    }).join('');
   }
 
   function loadNda() {
