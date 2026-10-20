@@ -17,7 +17,7 @@
 // Deploy: supabase functions deploy clv-room-file --no-verify-jwt
 // @cantoo/pdf-lib: pdf-lib with PDF encryption (permissions), used to switch off printing.
 import { PDFDocument, StandardFonts, rgb } from "npm:@cantoo/pdf-lib@2.3.2";
-import { adminClient, APP_URL, clientIp, cors, isStaff, json, requireUser, sendMail } from "../_shared/clv.ts";
+import { adminClient, APP_URL, clientIp, cors, inScope, isStaff, json, requireUser, sendMail } from "../_shared/clv.ts";
 import { mail, pickLang } from "../_shared/room-mail.ts";
 import { ncConfigured, ncGet, sha256Hex } from "../_shared/nc.ts";
 import { DOWNLOAD_ALERT_PER_HOUR, raiseRedFlag } from "../_shared/alerts.ts";
@@ -76,11 +76,13 @@ Deno.serve(async (req) => {
   if (!roomId) return json({ error: "room-required" }, 400);
   if (!(await ncConfigured())) return json({ error: "storage-not-configured" }, 503);
 
-  const { data: room } = await admin.from("clv_rooms").select("id, name, nextcloud_folder, qes_nda_required, downloads_allowed, watermark, company:clv_companies(name)").eq("id", roomId).maybeSingle();
+  const { data: room } = await admin.from("clv_rooms").select("id, name, company_id, nextcloud_folder, qes_nda_required, downloads_allowed, watermark, company:clv_companies(name)").eq("id", roomId).maybeSingle();
   if (!room || !room.nextcloud_folder) return json({ error: "not-found" }, 404);
+  // Staff rights only in the rooms of the staff member's own company (a super admin: everywhere).
+  const staffHere = isStaff(me) && inScope(me, room.company_id);
 
   let canDownload = true;
-  if (!isStaff(me)) {
+  if (!staffHere) {
     const { data: a } = await admin.from("clv_room_assignments").select("can_download, expires_at").eq("room_id", roomId).eq("user_id", me.id).is("revoked_at", null).maybeSingle();
     if (!a) return json({ error: "forbidden" }, 403);
     // After the access end date the member may still open the room and fetch their own signed NDA,
@@ -96,7 +98,7 @@ Deno.serve(async (req) => {
     if (!nda?.nextcloud_path) return json({ error: "no-nda" }, 404);
     target = nda.countersigned_path || nda.nextcloud_path; fileName = target.split("/").pop() || "NDA.pdf"; action = "download-nda";
   } else {
-    if (room.qes_nda_required && !nda && !isStaff(me)) return json({ error: "nda-required" }, 403);
+    if (room.qes_nda_required && !nda && !staffHere) return json({ error: "nda-required" }, 403);
     if (!canDownload && body.view !== true) return json({ error: "download-not-allowed" }, 403);
     const rel = String(body.path || "").replace(/^\/+/, "");
     if (!rel || rel.includes("..") || /^_(users|nda)(\/|$)/.test(rel)) return json({ error: "bad-path" }, 400);
@@ -154,7 +156,7 @@ Deno.serve(async (req) => {
     }).then(() => {}, (e: unknown) => console.error("clv-room-file: download record failed", e));
 
     // Red flag: an unusual number of downloads from this room within an hour (members only).
-    if (!isStaff(me)) {
+    if (!staffHere) {
       const { count: lastHour } = await admin.from("clv_downloads").select("id", { count: "exact", head: true }).eq("user_id", me.id).eq("room_id", roomId).gte("created_at", new Date(Date.now() - 3600000).toISOString());
       if ((lastHour || 0) >= DOWNLOAD_ALERT_PER_HOUR) await raiseRedFlag(admin, "downloads", { userId: me.id, roomId, key: `dl:${me.id}:${roomId}`, vars: { n: String(lastHour), room: room.name } }).catch((e: Error) => console.error("red flag:", e.message));
     }

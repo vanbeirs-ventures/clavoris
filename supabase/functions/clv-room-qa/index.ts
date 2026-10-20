@@ -62,7 +62,8 @@ Deno.serve(async (req) => {
   const { data: asg } = await admin.from("clv_room_assignments").select("user_id, expires_at, answers_questions, revoked_at").eq("room_id", roomId).is("revoked_at", null);
   const mine = (asg || []).find((a: any) => a.user_id === me.id);
   let ndaOnly = false;
-  if (!staff && !isStaff(me)) {
+  // Staff of another company are ordinary members here (no access without an assignment).
+  if (!staff) {
     if (!mine) return json({ error: "forbidden" }, 403);
     if (mine.expires_at && new Date(mine.expires_at) < new Date()) return json({ error: "expired" }, 403);
     if (room.qes_nda_required) {
