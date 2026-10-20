@@ -1,7 +1,9 @@
 // supabase/functions/clv-contracts/index.ts
 // Contracts executed with eIDAS qualified electronic signatures (e-Signature.eu: itsme® / Evrotrust).
 // Caller = any signed-in user; staff (admin/super) manage contracts, parties see their own.
-//   { action: "list" }                                        -> contracts the caller is party to (staff: all)
+//   { action: "list" }                                        -> contracts the caller is party to (staff: also their company's), the
+//                                                                data-room NDAs presented to them, and whether they may create contracts
+//   { action: "nda_pdf", room_id }                            -> the caller's own signed NDA of that room (printable; also after leaving)
 //   { action: "get", id }                                     -> contract, parties, events, caller's rights
 //   { action: "create", title, description, file_name, pdf_base64 }   (staff; PDF only)
 //   { action: "add_party", id, email, name, company, role, order_no } (staff; draft only)
@@ -13,13 +15,14 @@
 //   { action: "sign_start", id }                              -> returns the caller's embedded signing link
 //   { action: "sign_check", id }                              -> syncs with the provider (signed parties, finished document)
 //   { action: "balance" }                                     (staff) -> signature credits left at the provider
-//   { action: "download", id, which: original|executed|certificate|audit } -> binary
+//   { action: "download", id, which: original|executed|certificate|audit } -> binary (signatories, auditors and the company's staff;
+//      delivered as stored: no watermark and no print restriction, a QES-signed PDF must not be altered)
 // Secrets: ESIGN_API_KEY, ESIGN_USER_ID (optional ESIGN_METHODS). Deploy with --no-verify-jwt.
 import { PDFDocument } from "https://esm.sh/pdf-lib@1.17.1";
 import { adminClient, APP_URL, audit, clientIp, companyScope, cors, enrolUser, inScope, isStaff, json, requireUser, sendMail } from "../_shared/clv.ts";
 import { activationLink, isActivated } from "../_shared/activation.ts";
 import { wants } from "../_shared/notify.ts";
-import { overLimit } from "../_shared/plans.ts";
+import { limitOf, overLimit, planOf } from "../_shared/plans.ts";
 import { ncConfigured, ncGet, ncMkdirP, ncPut, sha256Hex } from "../_shared/nc.ts";
 import { bytesToB64, esign, esignBalance, esignConfigured, esignGetRequest, ESIGN_METHODS, type EsignRequest, esignResult, normalizePhone, splitName } from "../_shared/esign.ts";
 import { mail, pickLang, word } from "../_shared/mail-i18n.ts";
@@ -44,51 +47,104 @@ Deno.serve(async (req) => {
   const ip = clientIp(req), ua = req.headers.get("user-agent") || "";
 
   // ---- helpers ----
-  async function loadContract(id: string): Promise<{ c: Contract; parties: Party[]; mine: Party | null } | Response> {
+  // manage = staff of the company that owns the contract (or a Clavoris super admin). Staff of another company
+  // who are a party to the contract see it as a party only.
+  async function loadContract(id: string): Promise<{ c: Contract; parties: Party[]; mine: Party | null; manage: boolean } | Response> {
     const { data } = await admin.from("clv_contracts").select("*").eq("id", id).maybeSingle();
     if (!data) return json({ error: "not-found" }, 404);
     const parties = await loadParties(admin, id);
     const mine = parties.find((p) => p.user_id === me.id) || null;
-    if (!mine && !(staff && inScope(me, (data as any).company_id))) return json({ error: "forbidden" }, 403);
-    return { c: data as Contract, parties, mine };
+    const manage = staff && inScope(me, (data as any).company_id);
+    if (!mine && !manage) return json({ error: "forbidden" }, 403);
+    return { c: data as Contract, parties, mine, manage };
   }
 
   if (action === "list") {
-    let ids: string[] | null = null;
-    if (!staff) {
-      const { data: mine } = await admin.from("clv_contract_parties").select("contract_id").eq("user_id", me.id);
-      ids = (mine || []).map((r: { contract_id: string }) => r.contract_id);
-      if (!ids.length) return json({ ok: true, contracts: [], staff });
-    }
-    let q = admin.from("clv_contracts").select("id, title, description, status, original_name, created_at, launched_at, executed_at, company_id").order("created_at", { ascending: false });
-    if (ids) q = q.in("id", ids);
-    else if (companyScope(me)) q = q.eq("company_id", companyScope(me)!);
-    const { data: cs } = await q;
-    const cids = (cs || []).map((c: { id: string }) => c.id);
+    // Contracts: those the caller is a party to, plus (staff) every contract of their own company.
+    const { data: mine } = await admin.from("clv_contract_parties").select("contract_id").eq("user_id", me.id);
+    const partyIds = (mine || []).map((r: { contract_id: string }) => r.contract_id);
+    const sel = "id, title, description, status, original_name, created_at, launched_at, executed_at, company_id";
+    const lists: any[][] = [];
+    if (partyIds.length) { const { data } = await admin.from("clv_contracts").select(sel).in("id", partyIds); lists.push(data || []); }
+    if (staff) { let q = admin.from("clv_contracts").select(sel); if (companyScope(me)) q = q.eq("company_id", companyScope(me)!); const { data } = await q; lists.push(data || []); }
+    const byId = new Map<string, any>(); lists.flat().forEach((c: any) => byId.set(c.id, c));
+    const cs = [...byId.values()].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+    const cids = cs.map((c: { id: string }) => c.id);
     const { data: ps } = cids.length ? await admin.from("clv_contract_parties").select("contract_id, user_id, role, status, order_no").in("contract_id", cids) : { data: [] as any[] };
-    const out = (cs || []).map((c: any) => {
+    const out = cs.map((c: any) => {
       const pp = (ps || []).filter((p: any) => p.contract_id === c.id);
       const sig = pp.filter((p: any) => p.role === "signatory");
       const my = pp.find((p: any) => p.user_id === me.id);
-      return { ...c, signatories: sig.length, signed: sig.filter((p: any) => p.status === "signed").length, auditors: pp.filter((p: any) => p.role === "auditor").length, my_role: my?.role || (staff ? "staff" : null), my_status: my?.status || null, my_turn: !!my && my.role === "signatory" && ["invited", "opened", "signing"].includes(my.status) && c.status === "in_progress" };
+      const manage = staff && inScope(me, c.company_id);
+      return { ...c, signatories: sig.length, signed: sig.filter((p: any) => p.status === "signed").length, auditors: pp.filter((p: any) => p.role === "auditor").length, my_role: my?.role || (manage ? "staff" : null), my_status: my?.status || null, my_turn: !!my && my.role === "signatory" && ["invited", "opened", "signing"].includes(my.status) && c.status === "in_progress", can_download_executed: c.status === "executed" && (manage || my?.role === "signatory" || my?.role === "auditor") };
     });
-    return json({ ok: true, contracts: out, staff });
+
+    // Data-room NDAs: rooms the caller is (or was) a member of that require an NDA, signed or still to sign; and for
+    // the company's staff, the countersignature of the NDAs of their company's rooms. A member of the company team
+    // (staff of the room's company) does not sign the room's NDA.
+    const ndas: any[] = [];
+    const { data: asg } = await admin.from("clv_room_assignments").select("room_id, granted_at, revoked_at").eq("user_id", me.id);
+    const { data: signedDocs } = await admin.from("clv_signed_documents").select("room_id, doc_version, signed_at, countersigned_at").eq("user_id", me.id).eq("doc_type", "nda").order("signed_at", { ascending: false });
+    const roomIds = [...new Set([...(asg || []).map((a: any) => a.room_id), ...(signedDocs || []).map((d: any) => d.room_id)])].filter(Boolean);
+    const ownRooms = staff ? await (async () => { let q = admin.from("clv_rooms").select("id"); if (companyScope(me)) q = q.eq("company_id", companyScope(me)!); const { data } = await q; return (data || []).map((r: any) => r.id as string); })() : [];
+    const allRooms = [...new Set([...roomIds, ...ownRooms])];
+    const { data: rooms } = allRooms.length ? await admin.from("clv_rooms").select("id, name, company_id, qes_nda_required, annex_version, company:clv_companies(name)").in("id", allRooms) : { data: [] as any[] };
+    const roomById = new Map((rooms || []).map((r: any) => [r.id, r]));
+    for (const rid of roomIds) {
+      const r: any = roomById.get(rid); if (!r) continue;
+      const doc = (signedDocs || []).find((d: any) => d.room_id === rid);
+      const a = (asg || []).find((x: any) => x.room_id === rid);
+      if (staff && inScope(me, r.company_id)) continue; // company team: no NDA of its own
+      if (!doc && (!r.qes_nda_required || !a || a.revoked_at)) continue; // nothing signed and nothing to sign
+      ndas.push({ kind: "member", room_id: rid, room: r.name, company: r.company?.name || "", since: a?.granted_at || null, signed_at: doc?.signed_at || null, version: doc?.doc_version || r.annex_version, countersigned_at: doc?.countersigned_at || null, left: !!a?.revoked_at || !a });
+    }
+    if (ownRooms.length) {
+      const nda = (rooms || []).filter((r: any) => ownRooms.includes(r.id) && r.qes_nda_required);
+      const { data: cs2 } = nda.length ? await admin.from("clv_nda_countersignatures").select("room_id, signed_at, versions").in("room_id", nda.map((r: any) => r.id)).is("revoked_at", null) : { data: [] as any[] };
+      const { data: copies } = nda.length ? await admin.from("clv_signed_documents").select("room_id, doc_version, countersigned_at").eq("doc_type", "nda").in("room_id", nda.map((r: any) => r.id)) : { data: [] as any[] };
+      for (const r of nda as any[]) {
+        const v = r.annex_version;
+        const sig = (cs2 || []).find((x: any) => x.room_id === r.id && (x.versions || []).some((y: any) => y.version === v));
+        const waiting = (copies || []).filter((d: any) => d.room_id === r.id && !d.countersigned_at).length;
+        ndas.push({ kind: "countersign", room_id: r.id, room: r.name, company: r.company?.name || "", version: v, countersigned_at: sig?.signed_at || null, waiting, since: null });
+      }
+    }
+
+    // Creating contracts: Clavoris super admins, and staff of a company account whose plan includes contracts.
+    let can_create = me.role === "super";
+    if (!can_create && staff && me.company_id) { const { plan } = await planOf(admin, me.company_id); can_create = plan.code !== "free" && limitOf(plan, "contracts") !== 0; }
+    return json({ ok: true, contracts: out, ndas, staff, can_create });
+  }
+
+  if (action === "nda_pdf") {
+    // The caller's own signed NDA of a data room, as stored (with the Clavoris signature page and, once given, the
+    // company's countersignature page). Printable. Available also after the access ended or the member left.
+    const roomId = String(body.room_id || "");
+    const { data: doc } = await admin.from("clv_signed_documents").select("id, nextcloud_path, countersigned_path, doc_version").eq("room_id", roomId).eq("user_id", me.id).eq("doc_type", "nda").order("signed_at", { ascending: false }).limit(1).maybeSingle();
+    const path = doc?.countersigned_path || doc?.nextcloud_path;
+    if (!path) return json({ error: "no-nda" }, 404);
+    let res: Response;
+    try { res = await ncGet(path); } catch (e) { return json({ error: "file-unavailable", detail: (e as Error).message }, 404); }
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    const name = path.split("/").pop() || "NDA.pdf";
+    await admin.from("clv_access_log").insert({ user_id: me.id, room_id: roomId, file_path: path, action: "download-nda", ip, user_agent: ua }).then(() => {}, () => {});
+    return new Response(bytes, { status: 200, headers: { ...cors, "content-type": "application/pdf", "content-disposition": `attachment; filename="${name.replace(/"/g, "")}"`, "access-control-expose-headers": "content-disposition" } });
   }
 
   if (action === "get") {
     const r = await loadContract(String(body.id || "")); if (r instanceof Response) return r;
-    const { c, parties, mine } = r;
+    const { c, parties, mine, manage } = r;
     const { data: events } = await admin.from("clv_contract_events").select("ts, user_id, event, detail, ip").eq("contract_id", c.id).order("ts", { ascending: false }).limit(200);
     const names = new Map(parties.map((p) => [p.user_id, p.profile?.full_name || p.profile?.email || ""]));
     const nxt = nextSignatory(parties);
     const myTurn = !!mine && mine.role === "signatory" && c.status === "in_progress" && !!nxt && nxt.id === mine.id;
-    const canExecuted = c.status === "executed" && (staff || (mine?.role === "signatory"));
+    const canExecuted = c.status === "executed" && (manage || mine?.role === "signatory" || mine?.role === "auditor");
     return json({
-      ok: true, staff,
-      contract: { id: c.id, title: c.title, description: c.description, status: c.status, original_name: c.original_name, sha256_original: c.sha256_original, sha256_executed: c.sha256_executed, pages: c.pages, created_at: c.created_at, launched_at: c.launched_at, executed_at: c.executed_at, esign_id_sign: staff ? c.esign_id_sign : null, esign_status: staff ? c.esign_status : null, has_audit_trail: !!c.audit_trail_path },
+      ok: true, staff: manage,
+      contract: { id: c.id, title: c.title, description: c.description, status: c.status, original_name: c.original_name, sha256_original: c.sha256_original, sha256_executed: c.sha256_executed, pages: c.pages, created_at: c.created_at, launched_at: c.launched_at, executed_at: c.executed_at, esign_id_sign: manage ? c.esign_id_sign : null, esign_status: manage ? c.esign_status : null, has_audit_trail: !!c.audit_trail_path },
       parties: parties.map(partyView),
-      events: (events || []).map((e: any) => ({ ...e, who: e.user_id ? names.get(e.user_id) || "" : "Clavoris", detail: staff || mine?.role === "auditor" ? e.detail : { } })),
-      me: { role: mine?.role || (staff ? "staff" : null), status: mine?.status || null, my_turn: myTurn, can_download_original: true, can_download_executed: canExecuted, can_manage: staff, next_signatory: nxt ? partyView(nxt).name : null },
+      events: (events || []).map((e: any) => ({ ...e, who: e.user_id ? names.get(e.user_id) || "" : "Clavoris", detail: manage || mine?.role === "auditor" ? e.detail : { } })),
+      me: { role: mine?.role || (manage ? "staff" : null), status: mine?.status || null, my_turn: myTurn, can_download_original: true, can_download_executed: canExecuted, can_manage: manage, next_signatory: nxt ? partyView(nxt).name : null },
       qes_configured: esignConfigured(),
     });
   }
@@ -113,6 +169,8 @@ Deno.serve(async (req) => {
   if (action === "create") {
     if (!staff) return json({ error: "forbidden" }, 403);
     // The company account's plan sets how many contracts it may have (Clavoris super admins are not limited).
+    // Staff without a company account cannot create contracts (only a company on a paid plan can).
+    if (me.role !== "super" && !me.company_id) return json({ error: "plan-limit", module: "contracts", plan: "free", limit: 0, used: 0 }, 403);
     if (me.role !== "super") { const over = await overLimit(admin, me.company_id, "contracts"); if (over) return json(over, 403); }
     if (!(await ncConfigured())) return json({ error: "storage-not-configured" }, 503);
     const title = String(body.title || "").trim().slice(0, 200);
@@ -141,6 +199,7 @@ Deno.serve(async (req) => {
   if (action === "add_party") {
     if (!staff) return json({ error: "forbidden" }, 403);
     const r = await loadContract(String(body.id || "")); if (r instanceof Response) return r;
+    if (!r.manage) return json({ error: "forbidden" }, 403);
     const { c, parties } = r;
     if (c.status !== "draft") return json({ error: "not-draft" }, 400);
     const email = String(body.email || "").trim().toLowerCase().slice(0, 200);
@@ -182,6 +241,7 @@ Deno.serve(async (req) => {
   if (action === "remove_party") {
     if (!staff) return json({ error: "forbidden" }, 403);
     const r = await loadContract(String(body.id || "")); if (r instanceof Response) return r;
+    if (!r.manage) return json({ error: "forbidden" }, 403);
     if (r.c.status !== "draft") return json({ error: "not-draft" }, 400);
     await admin.from("clv_contract_parties").delete().eq("id", String(body.party_id || "")).eq("contract_id", r.c.id);
     await logEvent(admin, r.c.id, me.id, "party-removed", { party_id: body.party_id }, ip);
@@ -191,6 +251,7 @@ Deno.serve(async (req) => {
   if (action === "launch") {
     if (!staff) return json({ error: "forbidden" }, 403);
     const r = await loadContract(String(body.id || "")); if (r instanceof Response) return r;
+    if (!r.manage) return json({ error: "forbidden" }, 403);
     const c = r.c; let parties = r.parties;
     if (c.status !== "draft") return json({ error: "not-draft" }, 400);
     const sigs = signatoriesInOrder(parties);
@@ -239,6 +300,7 @@ Deno.serve(async (req) => {
     // Staff: re-send "your signature is requested" to the signatory whose turn it is.
     if (!staff) return json({ error: "forbidden" }, 403);
     const r = await loadContract(String(body.id || "")); if (r instanceof Response) return r;
+    if (!r.manage) return json({ error: "forbidden" }, 403);
     const { c, parties } = r;
     if (c.status !== "in_progress") return json({ error: "not-in-progress" }, 400);
     const nxt = nextSignatory(parties);
@@ -253,6 +315,7 @@ Deno.serve(async (req) => {
   if (action === "cancel") {
     if (!staff) return json({ error: "forbidden" }, 403);
     const r = await loadContract(String(body.id || "")); if (r instanceof Response) return r;
+    if (!r.manage) return json({ error: "forbidden" }, 403);
     if (r.c.status === "executed") return json({ error: "already-executed" }, 400);
     let provider: string | null = null;
     if (r.c.esign_id_sign && r.c.status === "in_progress" && esignConfigured()) {
@@ -310,13 +373,13 @@ Deno.serve(async (req) => {
 
   if (action === "download") {
     const r = await loadContract(String(body.id || "")); if (r instanceof Response) return r;
-    const { c, mine } = r;
+    const { c, mine, manage } = r;
     const which = String(body.which || "original");
     let path: string | null = null, name = "";
     if (which === "original") { path = c.original_path; name = c.original_name; }
     else if (which === "executed" || which === "certificate" || which === "audit") {
       if (c.status !== "executed") return json({ error: "not-executed" }, 400);
-      if (!staff && mine?.role !== "signatory") return json({ error: "signatories-only" }, 403);
+      if (!manage && mine?.role !== "signatory" && mine?.role !== "auditor") return json({ error: "parties-only" }, 403);
       const base = c.original_name.replace(/\.pdf$/i, "");
       path = which === "executed" ? c.executed_path : which === "certificate" ? c.certificate_path : c.audit_trail_path;
       name = which === "executed" ? base + "__EXECUTED.pdf" : which === "certificate" ? base + "__certificate-of-completion.pdf" : base + "__audit-trail.pdf";

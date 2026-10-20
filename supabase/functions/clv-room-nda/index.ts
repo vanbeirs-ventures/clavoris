@@ -16,7 +16,7 @@
 // carries validation.method so an eIDAS QES signature (e-Signature.eu) can replace it later.
 // Deploy: supabase functions deploy clv-room-nda --no-verify-jwt
 import { PDFDocument, StandardFonts, rgb } from "https://esm.sh/pdf-lib@1.17.1";
-import { adminClient, audit, clientIp, cors, isStaff, json, profileComplete, requireUser, sameName } from "../_shared/clv.ts";
+import { adminClient, audit, clientIp, cors, inScope, isStaff, json, profileComplete, requireUser, sameName } from "../_shared/clv.ts";
 import { ncConfigured, ncGet, ncMkdirP, ncPut, sha256Hex } from "../_shared/nc.ts";
 
 function wrap(text: string, max: number): string[] {
@@ -180,7 +180,9 @@ Deno.serve(async (req) => {
   const { data: room } = await admin.from("clv_rooms").select("id, slug, name, company_id, nextcloud_folder, qes_nda_required, annex_text, annex_version, nda_pdf_path, nda_pdf_name, nda_pdf_sha256, company:clv_companies(name)").eq("id", roomId).maybeSingle();
   if (!room) return json({ error: "not-found" }, 404);
   const companyName = (room as any).company?.name || "Clavoris";
-  if (!isStaff(me)) {
+  // Staff rights only in the rooms of the staff member's own company (a super admin: everywhere).
+  const staffHere = isStaff(me) && inScope(me, room.company_id);
+  if (!staffHere) {
     const { data: a } = await admin.from("clv_room_assignments").select("id, expires_at").eq("room_id", roomId).eq("user_id", me.id).is("revoked_at", null).maybeSingle();
     if (!a) return json({ error: "forbidden" }, 403);
     // After the access end date the member may still read / store their NDA, but not sign a new one.
@@ -207,7 +209,7 @@ Deno.serve(async (req) => {
   }
 
   if (action === "countersign_status" || action === "countersign") {
-    if (!isStaff(me)) return json({ error: "forbidden" }, 403);
+    if (!staffHere) return json({ error: "forbidden" }, 403);
     const shaCurrent = room.nda_pdf_sha256 || await sha256Hex(text);
     // Only an identity-verified administrator of the company that runs the room signs for it.
     const why = me.company_id !== room.company_id ? "not-company-admin" : (me.status !== "verified" || !(me.kyc_session_id || me.sumsub_applicant_id)) ? "kyc-required" : "";
@@ -278,7 +280,7 @@ Deno.serve(async (req) => {
 
   if (action !== "sign") return json({ error: "bad-action" }, 400);
   if (!room.qes_nda_required) return json({ ok: true, already: true });
-  if (me.status !== "verified" && !isStaff(me)) return json({ error: "kyc-required" }, 403);
+  if (me.status !== "verified" && !staffHere) return json({ error: "kyc-required" }, 403);
   if (body.accept !== true) return json({ error: "accept-required" }, 400);
   if (!profileComplete(me)) return json({ error: "profile-incomplete" }, 400);
   const typed = String(body.typed_name || "").trim();
