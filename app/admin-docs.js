@@ -126,7 +126,7 @@
       + '<div class="field"><label for="iSal">Title</label><select id="iSal"><option value="">—</option><option value="mr">Mr</option><option value="mrs">Mrs</option></select></div>'
       + '<div class="field"><label for="iFirst">First name</label><input id="iFirst" type="text" autocomplete="off"></div>'
       + '<div class="field"><label for="iLast">Last name</label><input id="iLast" type="text" autocomplete="off"></div></div>'
-      + '<span class="hint" style="display:block;margin-top:6px">Optional. With a title and last name the e-mails open with “Dear Mr Van Beirs,” in the chosen language; without, they use a neutral greeting. The person can still correct their name in their profile.</span>';
+      + '<span class="hint" style="display:block;margin-top:6px;font-size:11.5px;line-height:1.5;color:var(--fg-3)">Optional. With a title and last name the e-mails open with “Dear Mr Van Beirs,” in the chosen language; without, they use a neutral greeting. The person can still correct their name in their profile.</span>';
     langField.parentNode.insertBefore(invBox, langField);
     var call = A.callFn;
     A.callFn = function (fn, body) {
