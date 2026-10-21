@@ -83,7 +83,7 @@ Deno.serve(async (req) => {
     // the company's staff, the countersignature of the NDAs of their company's rooms. A member of the company team
     // (staff of the room's company) does not sign the room's NDA.
     const ndas: any[] = [];
-    const { data: asg } = await admin.from("clv_room_assignments").select("room_id, granted_at, revoked_at, kyc_waived").eq("user_id", me.id);
+    const { data: asg } = await admin.from("clv_room_assignments").select("room_id, granted_at, revoked_at, kyc_waived, nda_waived").eq("user_id", me.id);
     const { data: signedDocs } = await admin.from("clv_signed_documents").select("room_id, doc_version, signed_at, countersigned_at, validation").eq("user_id", me.id).eq("doc_type", "nda").order("signed_at", { ascending: false });
     const roomIds = [...new Set([...(asg || []).map((a: any) => a.room_id), ...(signedDocs || []).map((d: any) => d.room_id)])].filter(Boolean);
     const ownRooms = staff ? await (async () => { let q = admin.from("clv_rooms").select("id"); if (companyScope(me)) q = q.eq("company_id", companyScope(me)!); const { data } = await q; return (data || []).map((r: any) => r.id as string); })() : [];
@@ -95,7 +95,7 @@ Deno.serve(async (req) => {
       const doc = (signedDocs || []).find((d: any) => d.room_id === rid);
       const a = (asg || []).find((x: any) => x.room_id === rid);
       if (staff && inScope(me, r.company_id)) continue; // company team: no NDA of its own
-      if (!doc && (!r.qes_nda_required || !a || a.revoked_at)) continue; // nothing signed and nothing to sign
+      if (!doc && (!r.qes_nda_required || !a || a.revoked_at || a.nda_waived)) continue; // nothing signed and nothing to sign ("NDA off")
       ndas.push({ kind: "member", room_id: rid, room: r.name, company: r.company?.name || "", since: a?.granted_at || null, signed_at: doc?.signed_at || null, version: doc?.doc_version || r.annex_version, countersigned_at: doc?.countersigned_at || null, left: !!a?.revoked_at || !a,
         // Signature type: electronic acceptance after identity verification, or without it where the company
         // running the room switched identity verification off for this person ("KYC off").
