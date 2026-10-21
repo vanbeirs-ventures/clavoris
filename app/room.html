@@ -219,8 +219,28 @@
 
   function load() {
     return A.callFn('clv-room', { room_id: roomId }).then(function (r) {
-      if (r.error) { q('err').textContent = r.error === 'forbidden' ? I.t('room.err.forbidden') : r.error === 'expired' ? I.t('room.err.expired') : I.t('room.err.generic', { err: r.error }); q('title').textContent = I.t('room.eyebrow'); return; }
+      if (r.error === 'forbidden') { noAccess(); return; }
+      if (r.error) { q('err').textContent = r.error === 'expired' ? I.t('room.err.expired') : I.t('room.err.generic', { err: r.error }); q('title').textContent = I.t('room.eyebrow'); return; }
       state = r; render();
+    });
+  }
+
+  // The signed-in account is not a member of this room (for instance a link opened while signed in with another of the
+  // person's addresses): say which account is signed in and offer their own rooms or another sign-in.
+  I.add('en', { 'room.noaccess.title': 'This data room is not open to this account', 'room.noaccess.body': 'You are signed in as {email}. This account has no access to this data room. If you were invited at another e-mail address, sign in with that address; otherwise ask the company that runs the data room to invite you.', 'room.noaccess.rooms': 'My data rooms', 'room.noaccess.other': 'Sign in with another address' });
+  I.add('nl', { 'room.noaccess.title': 'Deze dataroom is niet toegankelijk voor dit account', 'room.noaccess.body': 'U bent aangemeld als {email}. Dit account heeft geen toegang tot deze dataroom. Werd u op een ander e-mailadres uitgenodigd, meld u dan aan met dat adres; vraag anders de onderneming die de dataroom beheert om u uit te nodigen.', 'room.noaccess.rooms': 'Mijn datarooms', 'room.noaccess.other': 'Aanmelden met een ander adres' });
+  I.add('fr', { 'room.noaccess.title': 'Cette data room n’est pas ouverte à ce compte', 'room.noaccess.body': 'Vous êtes connecté en tant que {email}. Ce compte n’a pas accès à cette data room. Si vous avez été invité à une autre adresse e-mail, connectez-vous avec celle-ci ; sinon, demandez à la société qui gère la data room de vous inviter.', 'room.noaccess.rooms': 'Mes data rooms', 'room.noaccess.other': 'Se connecter avec une autre adresse' });
+  function noAccess() {
+    q('title').textContent = I.t('room.eyebrow');
+    var box = document.createElement('section'); box.className = 'card'; box.id = 'noAccess';
+    box.style.cssText = 'padding:22px 26px;margin-top:24px;border-left:3px solid var(--seal-gold)';
+    box.innerHTML = '<h2 style="font-family:var(--font-display);font-size:22px;color:var(--clavis-navy)">' + esc(I.t('room.noaccess.title')) + '</h2>'
+      + '<p style="font-size:14px;color:var(--fg-2);line-height:1.6;margin-top:8px;max-width:680px">' + esc(I.t('room.noaccess.body', { email: (A.user() || {}).email || '' })) + '</p>'
+      + '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px"><a class="btn btn-primary" href="portal.html">' + esc(I.t('room.noaccess.rooms')) + '</a><button class="btn btn-ghost" type="button" id="naOther">' + esc(I.t('room.noaccess.other')) + '</button></div>';
+    q('err').parentNode.insertBefore(box, q('err').nextSibling);
+    q('naOther').addEventListener('click', function () {
+      var next = 'login.html?next=' + encodeURIComponent('room.html' + location.search);
+      Promise.resolve(A.signOut()).then(function () { location.replace(next); }, function () { location.replace(next); });
     });
   }
 
