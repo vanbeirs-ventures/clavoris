@@ -5,7 +5,8 @@
       password. Staff can be removed from the team (they keep their account as an ordinary user) and pending
       invitations re-sent. A company admin manages their own company's team; a Clavoris super admin any team.
    2. Data rooms: "Add me to this room" puts the signed-in staff member in the room's member list as part of the
-      company team (no invitation mail, no end date, no NDA of their own).
+      company team (no invitation mail, no end date, no NDA of their own); the button is not shown in rooms they are
+      already a member of.
    3. Invitations: "No identity verification (KYC off)" in the invitation window: the person signs the room's NDA without
       an identity check (also for several people invited at once from the "Existing users" tab).
    Server: clv-admin-rooms (team, team_invite, team_remove, team_resend, add_self, invite kyc_waived). Loaded after
@@ -144,18 +145,27 @@
   new MutationObserver(function () { companies = null; addTeamButtons(); }).observe(q('compRows'), { childList: true });
 
   /* ---------- "Add me to this room" on every data-room card ---------- */
+  // Shown only once the room's member list has loaded and the signed-in person is not an active member of it (a revoked
+  // member sees it again: joining reactivates them).
   function addMeButtons() {
-    [].forEach.call(document.querySelectorAll('#rooms [data-room]'), function (card) {
+    var me = A.user && A.user() ? A.user().id : '';
+    [].forEach.call(document.querySelectorAll('#rooms > [data-room]'), function (card) {
       var inv = card.querySelector('[data-invite]');
-      if (!inv || card.querySelector('[data-addme]')) return;
+      if (!inv) return;
+      var tb = q('mem-' + card.getAttribute('data-room')), first = tb && tb.querySelector('td');
+      var loaded = !!tb && !(first && /Loading/.test(first.textContent));
+      var member = loaded && !!me && !!tb.querySelector('[data-revoke="' + me + '"]');
+      var old = card.querySelector('[data-addme]');
+      if (!loaded || member) { if (old && !old.getAttribute('data-busy')) old.remove(); return; }
+      if (old) return;
       var b = document.createElement('button'); b.type = 'button'; b.className = 'btn btn-ghost'; b.textContent = 'Add me to this room'; b.setAttribute('data-addme', card.getAttribute('data-room'));
       b.title = 'Join this room\'s member list as part of the company team (no invitation mail, no end date, no NDA)';
       b.addEventListener('click', function () {
-        b.disabled = true;
+        b.disabled = true; b.setAttribute('data-busy', '1');
         A.callFn('clv-admin-rooms', { action: 'add_self', room_id: b.getAttribute('data-addme') }).then(function (x) {
-          b.disabled = false;
+          b.disabled = false; b.removeAttribute('data-busy');
           if (x.error) { var e = q('roomsErr'); if (e) e.textContent = x.error; return; }
-          b.textContent = 'Added'; setTimeout(function () { if (window.ClavorisAdminRefresh) window.ClavorisAdminRefresh(); }, 600);
+          b.textContent = 'Added'; b.disabled = true; setTimeout(function () { if (window.ClavorisAdminRefresh) window.ClavorisAdminRefresh(); }, 600);
         });
       });
       inv.parentNode.insertBefore(b, inv);
