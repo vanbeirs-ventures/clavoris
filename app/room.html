@@ -203,6 +203,11 @@
   I.add('en', { 'room.grp.team': 'Company team · {company}', 'room.grp.investors': 'Investors' });
   I.add('nl', { 'room.grp.team': 'Team van de onderneming · {company}', 'room.grp.investors': 'Beleggers' });
   I.add('fr', { 'room.grp.team': 'Équipe de la société · {company}', 'room.grp.investors': 'Investisseurs' });
+  // "KYC off": the company running the room switched identity verification off for this member; the NDA is signed
+  // without it and the texts say so.
+  I.add('en', { 'room.nda.cap_nokyc': 'no identity verification required for this room', 'room.nda.body_nokyc': 'Read the agreement below. No identity verification is required for you in this data room: your signature is recorded with your account, the time, your IP address and a hash of the text; a signed copy is stored in the room for you.' });
+  I.add('nl', { 'room.nda.cap_nokyc': 'geen identiteitsverificatie vereist voor deze dataroom', 'room.nda.body_nokyc': 'Lees de overeenkomst hieronder. Voor u is in deze dataroom geen identiteitsverificatie nodig: uw handtekening wordt geregistreerd met uw account, het tijdstip, uw IP-adres en een vingerafdruk van de tekst; een ondertekend exemplaar wordt voor u in de dataroom bewaard.' });
+  I.add('fr', { 'room.nda.cap_nokyc': 'aucune vérification d\'identité requise pour cette data room', 'room.nda.body_nokyc': 'Lisez l\'accord ci-dessous. Aucune vérification d\'identité n\'est requise pour vous dans cette data room : votre signature est enregistrée avec votre compte, l\'heure, votre adresse IP et une empreinte du texte ; un exemplaire signé est conservé pour vous dans la data room.' });
   function parentOf(path) { var i = path.lastIndexOf('/'); return i < 0 ? '' : path.slice(0, i); }
   function isOpen(path) { var o = (state && state.openDir) || ''; return !!o && (o === path || o.indexOf(path + '/') === 0); }
   function toggleDir(path) { state.openDir = isOpen(path) ? parentOf(path) : path; renderTree(); }
@@ -373,7 +378,8 @@
     A.callFn('clv-room-nda', { action: 'text', room_id: roomId }).then(function (r) {
       var p = A.profile() || {}, name = A.displayName(), org = String(p.company || '').trim();
       q('signerIni').textContent = A.initials(); q('signerName').textContent = name;
-      q('signerCap').textContent = (org ? (p.job_title ? p.job_title + ' · ' : '') + org + ' · ' + I.t(p.legal_rep ? 'room.nda.cap_rep' : 'room.nda.cap_personal') : I.t('room.nda.cap_private')) + ' · ' + I.t('room.nda.cap_verified');
+      q('signerCap').textContent = (org ? (p.job_title ? p.job_title + ' · ' : '') + org + ' · ' + I.t(p.legal_rep ? 'room.nda.cap_rep' : 'room.nda.cap_personal') : I.t('room.nda.cap_private')) + ' · ' + I.t(state && state.me.kyc_waived ? 'room.nda.cap_nokyc' : 'room.nda.cap_verified');
+      if (state && state.me.kyc_waived) { var nb = q('nda').querySelector('[data-i18n="room.nda.body"]'); if (nb) { nb.removeAttribute('data-i18n'); nb.textContent = I.t('room.nda.body_nokyc'); } }
       q('signerEdit').href = 'account.html?next=' + encodeURIComponent('room.html' + location.search);
       q('acceptText').textContent = org && p.legal_rep ? I.t('room.nda.accept_org', { org: org }) : org ? I.t('room.nda.accept_personal_org', { org: org }) : I.t('room.nda.accept_private');
       q('acceptText').removeAttribute('data-i18n');
