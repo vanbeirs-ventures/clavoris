@@ -178,6 +178,16 @@
     if (x.nda_signed_at) return chip;
     return chip + '<div style="margin-top:4px"><button class="btn-text" type="button" data-kyc="off" data-user="' + esc(x.user_id) + '" data-room="' + esc(rm.id) + '" title="No identity verification for this person in this room: they sign the NDA without it and receive an e-mail to sign in again">KYC off</button></div>';
   }
+  // NDA column: signed / not signed, and for a member who has not signed the "NDA off" switch (the documents open without
+  // the room's NDA, after the identity verification unless "KYC off"; switching it off mails the person).
+  function ndaCell(x, rm) {
+    if (x.team) return '<span class="chip neutral" title="The company that runs the room is the disclosing party and does not sign its own NDA">not required (company team)</span>';
+    if (x.nda_signed_at) return '<span class="chip verified">signed ' + esc(fmt(x.nda_signed_at)) + '</span>';
+    if (!rm.qes_nda_required) return '<span class="chip neutral">no NDA in this room</span>';
+    if (x.nda_waived) return '<span class="chip neutral" title="No NDA for this person in this room' + (x.nda_waived_at ? ' (since ' + esc(fmt(x.nda_waived_at)) + ')' : '') + '">NDA off</span>'
+      + (x.revoked_at ? '' : '<div style="margin-top:4px"><button class="btn-text" type="button" data-nda="on" data-user="' + esc(x.user_id) + '" data-room="' + esc(rm.id) + '" title="Ask for the room\'s NDA again before the documents open">NDA on</button></div>');
+    return '<span class="chip pending">not signed</span>' + (x.revoked_at ? '' : '<div style="margin-top:4px"><button class="btn-text" type="button" data-nda="off" data-user="' + esc(x.user_id) + '" data-room="' + esc(rm.id) + '" title="No NDA for this person in this room: the documents open without it (after the identity verification unless KYC is off); the person receives an e-mail">NDA off</button></div>');
+  }
   function loadMembers(rm) {
     A.callFn('clv-admin-rooms', { action: 'members', room_id: rm.id }).then(function (r) {
       var tb = q('mem-' + rm.id); if (!tb) return;
@@ -198,7 +208,7 @@
           + '<td>' + esc(x.company || '—') + '</td>'
           + '<td>' + (x.activated ? '<span class="chip verified">activated</span><div class="mono" style="font-size:10.5px;color:var(--fg-3);margin-top:2px">last login ' + esc(fmt(x.last_login_at)) + '</div>' : '<span class="chip pending">not activated</span><div class="mono" style="font-size:10.5px;color:var(--fg-3);margin-top:2px">invited ' + esc(fmt(x.granted_at)) + '</div>') + '</td>'
           + '<td>' + kycCell(x, rm) + '</td>'
-          + '<td>' + (x.team ? '<span class="chip neutral" title="The company that runs the room is the disclosing party and does not sign its own NDA">not required (company team)</span>' : x.nda_signed_at ? '<span class="chip verified">signed ' + esc(fmt(x.nda_signed_at)) + '</span>' : '<span class="chip pending">not signed</span>') + '</td>'
+          + '<td>' + ndaCell(x, rm) + '</td>'
           + '<td>' + access + '</td>'
           + '<td class="mono" style="color:var(--fg-2)">' + esc(fmt(x.last_access)) + '</td>'
           + '<td class="mono" style="font-size:11px;color:var(--fg-3)">' + (x.reminded ? esc(fmt(x.reminded.ts)) + ' (' + esc(STEP[x.reminded.step] || x.reminded.step) + ')' : '—') + '</td>'
@@ -236,6 +246,19 @@
             if (x.error) { q('roomsErr').textContent = x.error === 'already-verified' ? 'This person is already identity-verified.' : x.error; b.disabled = false; return; }
             q('roomsErr').textContent = '';
             b.textContent = off ? (x.mailed ? 'KYC off · e-mail sent' : 'KYC off') : 'KYC on';
+            setTimeout(function () { loadMembers(rm); }, 1200);
+          });
+        });
+      });
+      [].forEach.call(tb.querySelectorAll('[data-nda]'), function (b) {
+        b.addEventListener('click', function () {
+          var off = b.getAttribute('data-nda') === 'off';
+          if (off && b.getAttribute('data-sure') !== '1') { b.setAttribute('data-sure', '1'); b.textContent = 'Confirm: NDA off + e-mail'; return; }
+          b.disabled = true;
+          A.callFn('clv-admin-rooms', { action: 'set_nda', room_id: b.getAttribute('data-room'), user_id: b.getAttribute('data-user'), waived: off }).then(function (x) {
+            if (x.error) { q('roomsErr').textContent = x.error === 'already-signed' ? 'This person has already signed the NDA.' : x.error; b.disabled = false; return; }
+            q('roomsErr').textContent = '';
+            b.textContent = off ? (x.mailed ? 'NDA off · e-mail sent' : 'NDA off') : 'NDA on';
             setTimeout(function () { loadMembers(rm); }, 1200);
           });
         });

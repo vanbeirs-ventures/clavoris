@@ -8,7 +8,8 @@
       company team (no invitation mail, no end date, no NDA of their own); the button is not shown in rooms they are
       already a member of.
    3. Invitations: "No identity verification (KYC off)" in the invitation window: the person signs the room's NDA without
-      an identity check (also for several people invited at once from the "Existing users" tab).
+      an identity check (also for several people invited at once from the "Existing users" tab). "No NDA (NDA off)": the
+      documents open without the room's NDA (after the identity verification, unless KYC is off too).
    Server: clv-admin-rooms (team, team_invite, team_remove, team_resend, add_self, invite kyc_waived). Loaded after
    admin.js (and after admin-docs.js / admin-invite.js, which also extend the invitation window). */
 (function () {
@@ -182,9 +183,17 @@
     kyc.innerHTML = '<label class="check" style="display:flex;gap:8px;align-items:flex-start;text-transform:none;letter-spacing:0;font-size:13px;color:var(--fg-1)"><input type="checkbox" id="iNoKyc" style="margin:3px 0 0;flex:none;width:16px;height:16px;padding:0;min-height:0"><span>No identity verification for this invitation (KYC off)</span></label>'
       + '<span class="hint" style="display:block;margin-top:4px;font-size:11.5px;line-height:1.5;color:var(--fg-3)">The person signs the room\'s NDA without an identity check; the signed copy states that no identity verification was carried out. People already verified are not affected. It can be switched on again in the member list until the NDA is signed.</span>';
     untilField.parentNode.insertBefore(kyc, untilField.nextSibling);
+    var nda = document.createElement('div');
+    nda.className = 'field'; nda.style.marginTop = '10px';
+    nda.innerHTML = '<label class="check" style="display:flex;gap:8px;align-items:flex-start;text-transform:none;letter-spacing:0;font-size:13px;color:var(--fg-1)"><input type="checkbox" id="iNoNda" style="margin:3px 0 0;flex:none;width:16px;height:16px;padding:0;min-height:0"><span>No non-disclosure agreement for this invitation (NDA off)</span></label>'
+      + '<span class="hint" style="display:block;margin-top:4px;font-size:11.5px;line-height:1.5;color:var(--fg-3)">The documents open without the room\'s NDA: right after the identity verification, or straight after signing in when KYC is off too. It can be switched on again in the member list until the person signs.</span>';
+    kyc.parentNode.insertBefore(nda, kyc.nextSibling);
     var call = A.callFn;
     A.callFn = function (fn, body) {
-      if (fn === 'clv-admin-rooms' && body && body.action === 'invite' && q('iNoKyc') && q('iNoKyc').checked) body.kyc_waived = true;
+      if (fn === 'clv-admin-rooms' && body && body.action === 'invite') {
+        if (q('iNoKyc') && q('iNoKyc').checked) body.kyc_waived = true;
+        if (q('iNoNda') && q('iNoNda').checked) body.nda_waived = true;
+      }
       return call.apply(this, arguments);
     };
   }
