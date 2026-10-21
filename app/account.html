@@ -209,6 +209,21 @@
     if (!A.clears('full')) return;
     window.ClavorisShell.render('account');
     if (new URLSearchParams(location.search).get('welcome') === '1' && A.status() !== 'verified') { q('welcome').hidden = false; try { var ctx = JSON.parse(sessionStorage.getItem('clv_welcome_ctx') || 'null'); if (ctx && ctx.room) { var w = q('welcome').querySelector('[data-i18n="account.welcome.body"]'); w.textContent = I.t('welcome.room', { room: ctx.room, company: ctx.by || 'Clavoris' }) + ' ' + w.textContent; w.removeAttribute('data-i18n'); } sessionStorage.removeItem('clv_welcome'); } catch (e) {} }
+    // "KYC off" in every data room this person has been given (set by the company running it): the welcome step
+    // leads to the data room instead of the identity verification.
+    if (!q('welcome').hidden) {
+      I.add('en', { 'account.welcome.body_nokyc': 'One step remains before your data room opens: confirm your profile below (name and organisation appear on the NDA you will sign). No identity verification is required for you.', 'account.welcome.btn_nokyc': 'Continue to my data room' });
+      I.add('nl', { 'account.welcome.body_nokyc': 'Nog één stap voordat uw dataroom opengaat: bevestig hieronder uw profiel (naam en organisatie verschijnen op de NDA die u ondertekent). Voor u is geen identiteitsverificatie nodig.', 'account.welcome.btn_nokyc': 'Verder naar mijn dataroom' });
+      I.add('fr', { 'account.welcome.body_nokyc': 'Une étape reste avant l’ouverture de votre data room : confirmez votre profil ci-dessous (votre nom et votre organisation figurent sur le NDA que vous signerez). Aucune vérification d’identité n’est requise pour vous.', 'account.welcome.btn_nokyc': 'Continuer vers ma data room' });
+      A.client().from('clv_room_assignments').select('room_id, kyc_waived').eq('user_id', A.user().id).is('revoked_at', null).then(function (r) {
+        var rows = (r && r.data) || [];
+        if (!rows.length || rows.some(function (x) { return !x.kyc_waived; })) return;
+        var w = q('welcome').querySelector('p[style*="font-size:14px"]'), b = q('welcomeBtn');
+        if (w) { var pre = ''; try { var c = JSON.parse(sessionStorage.getItem('clv_welcome_ctx') || 'null'); if (c && c.room) pre = I.t('welcome.room', { room: c.room, company: c.by || 'Clavoris' }) + ' '; } catch (e) {} w.removeAttribute('data-i18n'); w.textContent = pre + I.t('account.welcome.body_nokyc'); }
+        b.removeAttribute('data-i18n'); b.textContent = I.t('account.welcome.btn_nokyc');
+        b.setAttribute('href', rows.length === 1 ? 'room.html?id=' + encodeURIComponent(rows[0].room_id) : 'portal.html');
+      }, function () {});
+    }
     var p = A.profile();
     q('name').textContent = A.displayName();
     q('meta').innerHTML = esc(A.user().email) + ' · <span class="chip ' + esc(p.role) + '">' + esc(I.t(p.role === 'super' ? 'account.role.super' : p.role === 'admin' ? 'account.role.admin' : 'account.role.user')) + '</span> '
