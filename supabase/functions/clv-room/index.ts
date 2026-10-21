@@ -26,12 +26,15 @@ Deno.serve(async (req) => {
   const staffHere = isStaff(me) && inScope(me, room.company_id);
 
   // Access: an active, unexpired assignment — or staff.
-  let assignment: { can_download: boolean; expires_at: string | null } | null = null;
+  let assignment: { can_download: boolean; expires_at: string | null; kyc_waived?: boolean } | null = null;
   if (!staffHere) {
-    const { data: a } = await admin.from("clv_room_assignments").select("can_download, expires_at").eq("room_id", roomId).eq("user_id", me.id).is("revoked_at", null).maybeSingle();
+    const { data: a } = await admin.from("clv_room_assignments").select("can_download, expires_at, kyc_waived").eq("room_id", roomId).eq("user_id", me.id).is("revoked_at", null).maybeSingle();
     if (!a) return json({ error: "forbidden" }, 403);
     assignment = a;
   }
+  // Identity verification switched off for this person in this room by the company running it ("KYC off"): the
+  // NDA can be signed without a prior identity check (the signed copy says so).
+  const kycWaived = !staffHere && !!assignment?.kyc_waived && me.status !== "verified";
   // After the end date the room stays visible (tree listed) but downloads are blocked by clv-room-file.
   const expired = !!assignment?.expires_at && new Date(assignment.expires_at!) < new Date();
 
@@ -141,7 +144,7 @@ Deno.serve(async (req) => {
   return json({
     ok: true,
     room: { id: room.id, slug: room.slug, name: room.name, description: room.description, project_type: room.project_type, seller: room.seller, status: room.status, nda_required: ndaRequired, nda_version: room.annex_version, downloads_allowed: !!room.downloads_allowed, company: companyName, nda_pdf: !!room.nda_pdf_path, nda_pdf_name: room.nda_pdf_name },
-    me: { verified: me.status === "verified" || staffHere, staff: staffHere, can_download: staffHere ? true : (!!assignment?.can_download && !expired), expires_at: assignment?.expires_at || null, expired, pending_request: pendingReq || null },
+    me: { verified: me.status === "verified" || staffHere || kycWaived, kyc_waived: kycWaived, staff: staffHere, can_download: staffHere ? true : (!!assignment?.can_download && !expired), expires_at: assignment?.expires_at || null, expired, pending_request: pendingReq || null },
     nda: { required: ndaRequired, signed: ndaSigned, signed_at: nda?.signed_at || null, version: nda?.doc_version || null, has_file: !!nda?.nextcloud_path },
     members, tree, storage_error: ncError,
   });

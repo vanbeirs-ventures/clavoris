@@ -55,21 +55,53 @@ const STEP: Record<Lang, Record<string, string>> = {
   fr: { kyc_done: "- Votre identité est déjà vérifiée ; aucun nouveau contrôle n'est nécessaire.", kyc_todo: "- Effectuez votre vérification d'identité : quelques minutes avec votre pièce d'identité et votre téléphone ou webcam. Vous y êtes guidé(e) après la connexion.", nda: "- Signez électroniquement l'accord de confidentialité de la data room. Chaque data room a son propre accord, même si vous en avez déjà signé un pour une autre data room.", nda_done: "- Vous avez déjà signé l'accord de confidentialité de cette data room.", docs: "- Les documents s'ouvrent ensuite. Chaque téléchargement est personnel, porte un filigrane à votre nom et est enregistré.", docs_open: "- Les documents sont disponibles dès votre connexion. Chaque téléchargement est personnel, porte un filigrane à votre nom et est enregistré." },
 };
 // The open steps for this person and this room. Identity verification is only asked where the room has an NDA.
-export function existingSteps(lang: Lang, s: { verified: boolean; ndaRequired: boolean; ndaSigned: boolean }): { steps: string; kyc: boolean } {
+// No identity verification for this person in this room ("KYC off", set by the company running the room).
+const STEP_WAIVED: Record<Lang, string> = {
+  en: "- No identity verification is required for this data room.",
+  nl: "- Voor deze dataroom is geen identiteitsverificatie nodig.",
+  fr: "- Aucune vérification d'identité n'est requise pour cette data room.",
+};
+export function existingSteps(lang: Lang, s: { verified: boolean; ndaRequired: boolean; ndaSigned: boolean; waived?: boolean }): { steps: string; kyc: boolean } {
   const t = STEP[lang] || STEP.en;
   if (!s.ndaRequired || s.ndaSigned) return { steps: (s.ndaSigned ? t.nda_done + "\n" : "") + t.docs_open, kyc: false };
+  if (s.waived && !s.verified) return { steps: [STEP_WAIVED[lang] || STEP_WAIVED.en, t.nda, t.docs].join("\n"), kyc: false };
   return { steps: [s.verified ? t.kyc_done : t.kyc_todo, t.nda, t.docs].join("\n"), kyc: !s.verified };
 }
 
+// "KYC off" for someone already invited: they sign in again and go straight to the room's NDA.
+const KYC_WAIVED: Record<Lang, { s: string; t: string }> = {
+  en: { s: "Clavoris data room: {room}, no identity verification needed", t: "Dear {name},\n\n{company} has decided that no identity verification is needed for you in the data room \"{room}\".\n\nWhat remains:\n1. Sign in to Clavoris:\n{link}\n2. Sign the data room's non-disclosure agreement electronically.\n3. The documents open. Every download is personal, watermarked with your name and recorded.\n\nForgotten your password? Choose \"Forgotten your password?\" on the sign-in page." },
+  nl: { s: "Clavoris dataroom: {room}, geen identiteitsverificatie nodig", t: "Beste {name},\n\n{company} heeft beslist dat voor u in de dataroom \"{room}\" geen identiteitsverificatie nodig is.\n\nWat er nog moet gebeuren:\n1. Meld u aan bij Clavoris:\n{link}\n2. Onderteken de geheimhoudingsovereenkomst van de dataroom elektronisch.\n3. De documenten gaan open. Elke download is persoonlijk, voorzien van een watermerk met uw naam en wordt geregistreerd.\n\nWachtwoord vergeten? Kies \"Wachtwoord vergeten?\" op de aanmeldpagina." },
+  fr: { s: "Data room Clavoris : {room}, aucune vérification d'identité nécessaire", t: "Cher/Chère {name},\n\n{company} a décidé qu'aucune vérification d'identité n'est nécessaire pour vous dans la data room « {room} ».\n\nCe qu'il reste à faire :\n1. Connectez-vous à Clavoris :\n{link}\n2. Signez électroniquement l'accord de confidentialité de la data room.\n3. Les documents s'ouvrent. Chaque téléchargement est personnel, porte un filigrane à votre nom et est enregistré.\n\nMot de passe oublié ? Choisissez « Mot de passe oublié ? » sur la page de connexion." },
+};
+// The same for someone who has not yet activated their account: activation link instead of the sign-in page.
+const KYC_WAIVED_NEW: Record<Lang, { s: string; t: string }> = {
+  en: { s: KYC_WAIVED.en.s, t: "Dear {name},\n\n{company} has decided that no identity verification is needed for you in the data room \"{room}\".\n\nWhat remains:\n1. Activate your account with the link below and choose your password (the link is valid once, for 24 hours).\n2. Complete your profile: your name and organisation appear on the non-disclosure agreement.\n3. Sign the data room's non-disclosure agreement electronically.\n4. The documents open. Every download is personal, watermarked with your name and recorded.\n\nStart here:\n{link}" },
+  nl: { s: KYC_WAIVED.nl.s, t: "Beste {name},\n\n{company} heeft beslist dat voor u in de dataroom \"{room}\" geen identiteitsverificatie nodig is.\n\nWat er nog moet gebeuren:\n1. Activeer uw account met de link hieronder en kies uw wachtwoord (de link is eenmalig en 24 uur geldig).\n2. Vul uw profiel aan: uw naam en organisatie verschijnen op de geheimhoudingsovereenkomst.\n3. Onderteken de geheimhoudingsovereenkomst van de dataroom elektronisch.\n4. De documenten gaan open. Elke download is persoonlijk, voorzien van een watermerk met uw naam en wordt geregistreerd.\n\nBegin hier:\n{link}" },
+  fr: { s: KYC_WAIVED.fr.s, t: "Cher/Chère {name},\n\n{company} a décidé qu'aucune vérification d'identité n'est nécessaire pour vous dans la data room « {room} ».\n\nCe qu'il reste à faire :\n1. Activez votre compte avec le lien ci-dessous et choisissez votre mot de passe (le lien est valable une seule fois, pendant 24 heures).\n2. Complétez votre profil : votre nom et votre organisation figurent sur l'accord de confidentialité.\n3. Signez électroniquement l'accord de confidentialité de la data room.\n4. Les documents s'ouvrent. Chaque téléchargement est personnel, porte un filigrane à votre nom et est enregistré.\n\nCommencez ici :\n{link}" },
+};
+// Invitation without identity verification: the identity step and the note on the KYC provider are left out.
+const ID_STEP = /\n\d\. (Verify your identity|Verifieer uw identiteit|Vérifiez votre identité)[^\n]*/;
+function withoutKycStep(text: string): string {
+  // Activation reminder: "After that, the identity verification (KYC) and the room's NDA complete the process."
+  text = text.replace("the identity verification (KYC) and the room's non-disclosure agreement complete the process", "the room's non-disclosure agreement completes the process")
+    .replace("voltooien de identiteitsverificatie (KYC) en de geheimhoudingsovereenkomst van de dataroom het proces", "voltooit de geheimhoudingsovereenkomst van de dataroom het proces")
+    .replace("la vérification d'identité (KYC) et l'accord de confidentialité de la data room achèvent le processus", "l'accord de confidentialité de la data room achève le processus");
+  if (!ID_STEP.test(text)) return text;
+  let n = 0;
+  return text.replace(ID_STEP, "").replace(/\n(\d)\. /g, () => `\n${++n}. `);
+}
+
 export function mail(lang: Lang, key: string, vars: V = {}): { subject: string; text: string } {
-  const own = key === "ext_requested" ? EXT_REQ : key === "room_invite_existing" ? EXISTING : null;
+  const own = key === "ext_requested" ? EXT_REQ : key === "room_invite_existing" ? EXISTING : key === "kyc_waived" ? KYC_WAIVED : key === "kyc_waived_new" ? KYC_WAIVED_NEW : null;
   const m = own ? { subject: fillV((own[lang] || own.en).s, vars), text: fillV((own[lang] || own.en).t, vars) } : base(lang, key, vars);
-  const text = m.text
+  const noKyc = !!vars.nokyc;
+  const text = (noKyc ? withoutKycStep(m.text) : m.text)
     .replace(/the Clavoris data room/g, "the data room")
     .replace(/de Clavoris-dataroom/g, "de dataroom")
     .replace(/la data room Clavoris/g, "la data room");
   let body = text;
-  if (key === "room_invite_new" || key === "room_invite_linked" || (key === "room_invite_existing" && vars.kyc)) {
+  if (!noKyc && (key === "room_invite_new" || key === "room_invite_linked" || (key === "room_invite_existing" && vars.kyc))) {
     const note = KYC_NOTE[lang] || KYC_NOTE.en;
     body = START.test(body) ? body.replace(START, (m0) => "\n\n" + note + m0) : body + "\n\n" + note;
   }
