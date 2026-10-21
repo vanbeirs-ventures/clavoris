@@ -59,7 +59,7 @@ Deno.serve(async (req) => {
   // Who may take part: staff, or a member with an active, unexpired assignment. Without the required signed
   // NDA the member is limited to comments and questions on the NDA itself (ndaOnly).
   const staff = isStaff(me) && (me.role === "super" || me.company_id === room.company_id);
-  const { data: asg } = await admin.from("clv_room_assignments").select("user_id, expires_at, answers_questions, revoked_at").eq("room_id", roomId).is("revoked_at", null);
+  const { data: asg } = await admin.from("clv_room_assignments").select("user_id, expires_at, answers_questions, revoked_at, kyc_waived, nda_waived").eq("room_id", roomId).is("revoked_at", null);
   const mine = (asg || []).find((a: any) => a.user_id === me.id);
   let ndaOnly = false;
   // Staff of another company are ordinary members here (no access without an assignment).
@@ -68,7 +68,8 @@ Deno.serve(async (req) => {
     if (mine.expires_at && new Date(mine.expires_at) < new Date()) return json({ error: "expired" }, 403);
     if (room.qes_nda_required) {
       const { data: nda } = await admin.from("clv_signed_documents").select("id").eq("room_id", roomId).eq("user_id", me.id).eq("doc_type", "nda").maybeSingle();
-      if (!nda) ndaOnly = true;
+      // "NDA off" for this person (after identity verification, or "KYC off"): the full Q&A is open.
+      if (!nda && !(mine.nda_waived && (me.status === "verified" || mine.kyc_waived))) ndaOnly = true;
     }
   }
   // Answerers: members tagged in the admin console; without any, the company's admins answer.

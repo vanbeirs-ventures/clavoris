@@ -86,15 +86,17 @@ Deno.serve(async (req) => {
   // Staff rights only in the rooms of the staff member's own company (a super admin: everywhere).
   const staffHere = isStaff(me) && inScope(me, room.company_id);
 
-  let canDownload = true;
+  let canDownload = true, ndaWaived = false;
   if (!staffHere) {
-    const { data: a } = await admin.from("clv_room_assignments").select("can_download, expires_at").eq("room_id", roomId).eq("user_id", me.id).is("revoked_at", null).maybeSingle();
+    const { data: a } = await admin.from("clv_room_assignments").select("can_download, expires_at, kyc_waived, nda_waived").eq("room_id", roomId).eq("user_id", me.id).is("revoked_at", null).maybeSingle();
     if (!a) return json({ error: "forbidden" }, 403);
     // After the access end date the member may still open the room and fetch their own signed NDA,
     // but no other document.
     const expired = !!a.expires_at && new Date(a.expires_at) < new Date();
     if (expired && body.nda !== true) return json({ error: "expired" }, 403);
     canDownload = !!a.can_download && !!room.downloads_allowed;
+    // "NDA off" for this person: documents open without the NDA once the identity is verified (or "KYC off").
+    ndaWaived = !!a.nda_waived && (me.status === "verified" || !!a.kyc_waived);
   }
   const { data: nda } = await admin.from("clv_signed_documents").select("nextcloud_path, countersigned_path").eq("room_id", roomId).eq("user_id", me.id).eq("doc_type", "nda").maybeSingle();
 
@@ -103,7 +105,7 @@ Deno.serve(async (req) => {
     if (!nda?.nextcloud_path) return json({ error: "no-nda" }, 404);
     target = nda.countersigned_path || nda.nextcloud_path; fileName = target.split("/").pop() || "NDA.pdf"; action = "download-nda";
   } else {
-    if (room.qes_nda_required && !nda && !staffHere) return json({ error: "nda-required" }, 403);
+    if (room.qes_nda_required && !nda && !staffHere && !ndaWaived) return json({ error: "nda-required" }, 403);
     if (!canDownload && body.view !== true) return json({ error: "download-not-allowed" }, 403);
     const rel = String(body.path || "").replace(/^\/+/, "");
     if (!rel || rel.includes("..") || /^_(users|nda)(\/|$)/.test(rel)) return json({ error: "bad-path" }, 400);
