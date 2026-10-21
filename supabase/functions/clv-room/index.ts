@@ -26,9 +26,9 @@ Deno.serve(async (req) => {
   const staffHere = isStaff(me) && inScope(me, room.company_id);
 
   // Access: an active, unexpired assignment — or staff.
-  let assignment: { can_download: boolean; expires_at: string | null; kyc_waived?: boolean } | null = null;
+  let assignment: { can_download: boolean; expires_at: string | null; kyc_waived?: boolean; nda_waived?: boolean } | null = null;
   if (!staffHere) {
-    const { data: a } = await admin.from("clv_room_assignments").select("can_download, expires_at, kyc_waived").eq("room_id", roomId).eq("user_id", me.id).is("revoked_at", null).maybeSingle();
+    const { data: a } = await admin.from("clv_room_assignments").select("can_download, expires_at, kyc_waived, nda_waived").eq("room_id", roomId).eq("user_id", me.id).is("revoked_at", null).maybeSingle();
     if (!a) return json({ error: "forbidden" }, 403);
     assignment = a;
   }
@@ -69,7 +69,11 @@ Deno.serve(async (req) => {
   const { data: nda } = await admin.from("clv_signed_documents").select("id, doc_version, signed_at, nextcloud_path").eq("room_id", roomId).eq("user_id", me.id).eq("doc_type", "nda").order("signed_at", { ascending: false }).limit(1).maybeSingle();
   const ndaRequired = !!room.qes_nda_required;
   const ndaSigned = !!nda;
-  const gateOpen = !ndaRequired || ndaSigned || staffHere;
+  // "NDA off" (set by the company running the room for this person): the documents open without the NDA, after the
+  // identity verification (unless "KYC off" is set too).
+  const ndaWaived = !staffHere && !!assignment?.nda_waived && !ndaSigned;
+  const identityOk = me.status === "verified" || staffHere || kycWaived;
+  const gateOpen = !ndaRequired || ndaSigned || staffHere || (ndaWaived && identityOk);
 
   // Members: everyone with an active assignment, plus staff who manage the room.
   const { data: rows } = await admin.from("clv_room_assignments").select("user_id, granted_at, profile:clv_profiles!clv_room_assignments_user_id_fkey(email, full_name, salutation, first_name, last_name, company, job_title, status, member_private, role, company_id, account:clv_companies!clv_profiles_company_id_fkey(name))").eq("room_id", roomId).is("revoked_at", null);
@@ -145,7 +149,7 @@ Deno.serve(async (req) => {
     ok: true,
     room: { id: room.id, slug: room.slug, name: room.name, description: room.description, project_type: room.project_type, seller: room.seller, status: room.status, nda_required: ndaRequired, nda_version: room.annex_version, downloads_allowed: !!room.downloads_allowed, company: companyName, nda_pdf: !!room.nda_pdf_path, nda_pdf_name: room.nda_pdf_name },
     me: { verified: me.status === "verified" || staffHere || kycWaived, kyc_waived: kycWaived, staff: staffHere, can_download: staffHere ? true : (!!assignment?.can_download && !expired), expires_at: assignment?.expires_at || null, expired, pending_request: pendingReq || null },
-    nda: { required: ndaRequired, signed: ndaSigned, signed_at: nda?.signed_at || null, version: nda?.doc_version || null, has_file: !!nda?.nextcloud_path },
+    nda: { required: ndaRequired, waived: ndaWaived, signed: ndaSigned, signed_at: nda?.signed_at || null, version: nda?.doc_version || null, has_file: !!nda?.nextcloud_path },
     members, tree, storage_error: ncError,
   });
 });
