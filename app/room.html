@@ -205,6 +205,10 @@
   I.add('fr', { 'room.grp.team': 'Équipe de la société · {company}', 'room.grp.investors': 'Investisseurs' });
   // "KYC off": the company running the room switched identity verification off for this member; the NDA is signed
   // without it and the texts say so.
+  // "NDA off": the company running the room does not require this member to sign the room's NDA.
+  I.add('en', { 'room.ndabox.waived': 'No non-disclosure agreement is required for you in this data room.', 'room.kyc.body_nonda': 'Access to this data room requires a verified identity (AMLD6 KYC via Didit); no non-disclosure agreement is required for you. Complete the verification, then return here: the documents open straight away.' });
+  I.add('nl', { 'room.ndabox.waived': 'Voor u is in deze dataroom geen geheimhoudingsovereenkomst nodig.', 'room.kyc.body_nonda': 'Voor de toegang tot deze dataroom is een geverifieerde identiteit nodig (AMLD6-KYC via Didit); een geheimhoudingsovereenkomst is voor u niet nodig. Voltooi de verificatie en keer dan hier terug: de documenten gaan meteen open.' });
+  I.add('fr', { 'room.ndabox.waived': 'Aucun accord de confidentialité n’est requis pour vous dans cette data room.', 'room.kyc.body_nonda': 'L’accès à cette data room requiert une identité vérifiée (KYC AMLD6 via Didit) ; aucun accord de confidentialité n’est requis pour vous. Effectuez la vérification, puis revenez ici : les documents s’ouvrent aussitôt.' });
   I.add('en', { 'room.nda.cap_nokyc': 'no identity verification required for this room', 'room.nda.body_nokyc': 'Read the agreement below. No identity verification is required for you in this data room: your signature is recorded with your account, the time, your IP address and a hash of the text; a signed copy is stored in the room for you.' });
   I.add('nl', { 'room.nda.cap_nokyc': 'geen identiteitsverificatie vereist voor deze dataroom', 'room.nda.body_nokyc': 'Lees de overeenkomst hieronder. Voor u is in deze dataroom geen identiteitsverificatie nodig: uw handtekening wordt geregistreerd met uw account, het tijdstip, uw IP-adres en een vingerafdruk van de tekst; een ondertekend exemplaar wordt voor u in de dataroom bewaard.' });
   I.add('fr', { 'room.nda.cap_nokyc': 'aucune vérification d\'identité requise pour cette data room', 'room.nda.body_nokyc': 'Lisez l\'accord ci-dessous. Aucune vérification d\'identité n\'est requise pour vous dans cette data room : votre signature est enregistrée avec votre compte, l\'heure, votre adresse IP et une empreinte du texte ; un exemplaire signé est conservé pour vous dans la data room.' });
@@ -255,7 +259,10 @@
       + (r.nda.required ? '<span class="chip ' + (r.nda.signed ? 'verified' : 'pending') + '">' + I.t(r.nda.signed ? 'room.chip.nda_signed' : 'room.chip.nda_required') + '</span>' : '');
     if (room.company) q('sub').textContent = I.t('room.by', { company: room.company }) + (q('sub').textContent ? ' · ' + q('sub').textContent : '');
     renderAccess();
-    var gate = r.nda.required && !r.nda.signed && !r.me.staff;
+    // "NDA off" for this member: no NDA step; the documents open once the identity is verified (or "KYC off").
+    var ndaOff = !!r.nda.waived;
+    var gate = r.nda.required && !r.nda.signed && !r.me.staff && !(ndaOff && r.me.verified);
+    if (ndaOff) { var kb = q('needKyc').querySelector('[data-i18n="room.kyc.body"]'); if (kb) { kb.removeAttribute('data-i18n'); kb.textContent = I.t('room.kyc.body_nonda'); } }
     var complete = A.profileComplete();
     q('needKyc').hidden = !(gate && !r.me.verified);
     q('needProfile').hidden = !(gate && r.me.verified && !complete);
@@ -264,7 +271,8 @@
     q('roomGrid').hidden = gate;
     if (gate && r.me.verified && complete) loadNda();
     placeQa(gate);
-    if (gate) qaLoad();
+    q('qa').hidden = gate && ndaOff; // nothing to comment on: there is no NDA for this member
+    if (gate && !ndaOff) qaLoad();
     if (!gate) { renderTree(); renderSide(); qaLoad(); renderIdentity(); }
     if (r.me.staff && !state._csLoaded) { state._csLoaded = true; csLoad(); }
   }
@@ -368,6 +376,7 @@
   function renderSide() {
     var r = state;
     q('ndaBox').innerHTML = !r.nda.required ? I.t('room.ndabox.none')
+      : r.nda.waived && !r.nda.signed ? esc(I.t('room.ndabox.waived'))
       : r.me.staff && !r.nda.signed ? I.t('room.ndabox.staff') + '<br><button class="btn-text" type="button" id="readNda">' + esc(csText('read') || 'NDA (PDF)') + '</button>'
       : esc(I.t('room.ndabox.signed', { date: S.fmtDate(r.nda.signed_at), v: r.nda.version || '' })) + '<br>'
         + (r.nda.has_file ? '<button class="btn-text" type="button" id="dlNda">' + I.t('room.ndabox.dl') + '</button>' : '<span style="color:var(--fg-3)">' + I.t('room.ndabox.pending') + '</span>');
