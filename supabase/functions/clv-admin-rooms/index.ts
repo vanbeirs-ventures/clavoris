@@ -28,6 +28,8 @@ import { ncConfigured, ncMkdirP, ncPut, sha256Hex } from "../_shared/nc.ts";
 import { limitOf, overLimit, planOf } from "../_shared/plans.ts";
 import { TEAM_CTA, teamMail } from "../_shared/team-mail.ts";
 const withLang = (u: string, l: string) => u + (u.includes("?") ? "&" : "?") + "lang=" + l;
+// A folder name made from the room name (same rule as clv-room-docs).
+const cleanName = (s: string) => String(s || "").replace(/[\\/:*?"<>|\u0000-\u001f]+/g, " ").replace(/\s+/g, " ").trim().replace(/^\.+/, "").slice(0, 120);
 const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "room";
 const isDate = (s: unknown) => /^\d{4}-\d{2}-\d{2}$/.test(String(s || ""));
 // An access end date is stored as the end of that day (UTC) so the countdown reads naturally.
@@ -190,6 +192,16 @@ Deno.serve(async (req) => {
     };
     if (r.annex_text !== undefined) row.annex_text = String(r.annex_text || "").slice(0, 60000) || null;
     let id = String(r.id || "");
+    // The document folder is not shown in the room form: a new room gets "Documents/Clavoris/Data Rooms/<room name>"
+    // (suffixed when that folder is taken, as clv-room-docs does); an existing room keeps its folder.
+    if (!row.nextcloud_folder) {
+      if (id) delete row.nextcloud_folder;
+      else {
+        const base = `Documents/Clavoris/Data Rooms/${cleanName(name) || slugify(name)}`;
+        const { data: taken } = await admin.from("clv_rooms").select("id").eq("nextcloud_folder", base).maybeSingle();
+        row.nextcloud_folder = taken ? `${base} (${crypto.randomUUID().slice(0, 4)})` : base;
+      }
+    }
     // A new data room: the company account's plan sets how many rooms it may have (super admins are not limited).
     if (!id && me.role !== "super") { const over = await overLimit(admin, companyId, "data_rooms"); if (over) return json(over, 403); }
     if (id) {
@@ -202,7 +214,8 @@ Deno.serve(async (req) => {
       let bytes: Uint8Array;
       try { bytes = Uint8Array.from(atob(String(body.nda_pdf_base64)), (ch) => ch.charCodeAt(0)); } catch { return json({ error: "bad-file" }, 400); }
       if (bytes.length < 100 || bytes.length > 12 * 1024 * 1024 || String.fromCharCode(...bytes.slice(0, 5)) !== "%PDF-") return json({ error: "pdf-only" }, 400);
-      const folder = (row.nextcloud_folder as string) || `Documents/Clavoris/Data Rooms/${slugify(name)}`;
+      let folder = row.nextcloud_folder as string | undefined;
+      if (!folder) { const { data: ex } = await admin.from("clv_rooms").select("nextcloud_folder").eq("id", id).maybeSingle(); folder = ex?.nextcloud_folder || `Documents/Clavoris/Data Rooms/${cleanName(name) || slugify(name)}`; }
       row.nextcloud_folder = folder;
       const version = "v" + new Date().toISOString().slice(0, 10).replace(/-/g, "") + "-" + (await sha256Hex(bytes)).slice(0, 6);
       const path = `${folder}/_nda/NDA_${version}.pdf`;
