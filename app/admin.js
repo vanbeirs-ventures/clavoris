@@ -168,6 +168,16 @@
       rooms.forEach(loadMembers);
     });
   }
+  // KYC column: the status, and for a member not yet verified the "KYC off" switch (no identity verification for this
+  // person in this room: they sign the NDA without it; switching it off mails them to sign in again).
+  function kycCell(x, rm) {
+    var chip = '<span class="chip ' + esc(x.status) + '">' + esc(String(x.status).replace('_', ' ')) + '</span>';
+    if (x.team || x.revoked_at || x.status === 'verified') return chip;
+    if (x.kyc_waived) return '<span class="chip neutral" title="No identity verification for this person in this room' + (x.kyc_waived_at ? ' (since ' + esc(fmt(x.kyc_waived_at)) + ')' : '') + '">KYC off</span>'
+      + (x.nda_signed_at ? '' : '<div style="margin-top:4px"><button class="btn-text" type="button" data-kyc="on" data-user="' + esc(x.user_id) + '" data-room="' + esc(rm.id) + '" title="Ask for identity verification again before the NDA">KYC on</button></div>');
+    if (x.nda_signed_at) return chip;
+    return chip + '<div style="margin-top:4px"><button class="btn-text" type="button" data-kyc="off" data-user="' + esc(x.user_id) + '" data-room="' + esc(rm.id) + '" title="No identity verification for this person in this room: they sign the NDA without it and receive an e-mail to sign in again">KYC off</button></div>';
+  }
   function loadMembers(rm) {
     A.callFn('clv-admin-rooms', { action: 'members', room_id: rm.id }).then(function (r) {
       var tb = q('mem-' + rm.id); if (!tb) return;
@@ -187,7 +197,7 @@
           + (x.revoked_at ? '' : '<label style="display:flex;gap:6px;align-items:center;margin-top:5px;font-size:11.5px;color:var(--fg-2);cursor:pointer" title="This member answers the questions asked in this room\'s Q&amp;A and is notified of new questions"><input type="checkbox" data-answerer="' + esc(x.user_id) + '" data-room="' + esc(rm.id) + '"' + (x.answers_questions ? ' checked' : '') + '> Answers Q&amp;A questions</label>') + '</td>'
           + '<td>' + esc(x.company || '—') + '</td>'
           + '<td>' + (x.activated ? '<span class="chip verified">activated</span><div class="mono" style="font-size:10.5px;color:var(--fg-3);margin-top:2px">last login ' + esc(fmt(x.last_login_at)) + '</div>' : '<span class="chip pending">not activated</span><div class="mono" style="font-size:10.5px;color:var(--fg-3);margin-top:2px">invited ' + esc(fmt(x.granted_at)) + '</div>') + '</td>'
-          + '<td><span class="chip ' + esc(x.status) + '">' + esc(String(x.status).replace('_', ' ')) + '</span></td>'
+          + '<td>' + kycCell(x, rm) + '</td>'
           + '<td>' + (x.team ? '<span class="chip neutral" title="The company that runs the room is the disclosing party and does not sign its own NDA">not required (company team)</span>' : x.nda_signed_at ? '<span class="chip verified">signed ' + esc(fmt(x.nda_signed_at)) + '</span>' : '<span class="chip pending">not signed</span>') + '</td>'
           + '<td>' + access + '</td>'
           + '<td class="mono" style="color:var(--fg-2)">' + esc(fmt(x.last_access)) + '</td>'
@@ -215,6 +225,19 @@
         c.addEventListener('change', function () {
           c.disabled = true;
           A.callFn('clv-admin-rooms', { action: 'set_answerer', room_id: c.getAttribute('data-room'), user_id: c.getAttribute('data-answerer'), on: c.checked }).then(function (x) { c.disabled = false; if (x.error) { q('roomsErr').textContent = x.error; c.checked = !c.checked; } });
+        });
+      });
+      [].forEach.call(tb.querySelectorAll('[data-kyc]'), function (b) {
+        b.addEventListener('click', function () {
+          var off = b.getAttribute('data-kyc') === 'off';
+          if (off && b.getAttribute('data-sure') !== '1') { b.setAttribute('data-sure', '1'); b.textContent = 'Confirm: KYC off + e-mail'; return; }
+          b.disabled = true;
+          A.callFn('clv-admin-rooms', { action: 'set_kyc', room_id: b.getAttribute('data-room'), user_id: b.getAttribute('data-user'), waived: off }).then(function (x) {
+            if (x.error) { q('roomsErr').textContent = x.error === 'already-verified' ? 'This person is already identity-verified.' : x.error; b.disabled = false; return; }
+            q('roomsErr').textContent = '';
+            b.textContent = off ? (x.mailed ? 'KYC off · e-mail sent' : 'KYC off') : 'KYC on';
+            setTimeout(function () { loadMembers(rm); }, 1200);
+          });
         });
       });
       [].forEach.call(tb.querySelectorAll('[data-revoke]'), function (b) {
