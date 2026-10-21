@@ -6,7 +6,10 @@
       invitations re-sent. A company admin manages their own company's team; a Clavoris super admin any team.
    2. Data rooms: "Add me to this room" puts the signed-in staff member in the room's member list as part of the
       company team (no invitation mail, no end date, no NDA of their own).
-   Server: clv-admin-rooms (team, team_invite, team_remove, team_resend, add_self). Loaded after admin.js. */
+   3. Invitations: "No identity verification (KYC off)" in the invitation window: the person signs the room's NDA without
+      an identity check (also for several people invited at once from the "Existing users" tab).
+   Server: clv-admin-rooms (team, team_invite, team_remove, team_resend, add_self, invite kyc_waived). Loaded after
+   admin.js (and after admin-docs.js / admin-invite.js, which also extend the invitation window). */
 (function () {
   'use strict';
   var A = window.ClavorisAccess, S = window.ClavorisShell;
@@ -160,4 +163,19 @@
   }
   var rooms = q('rooms');
   if (rooms) new MutationObserver(addMeButtons).observe(rooms, { childList: true, subtree: true });
+
+  /* ---------- invitation without identity verification ("KYC off") ---------- */
+  var until = q('iUntil'), untilField = until && until.closest('.field');
+  if (untilField) {
+    var kyc = document.createElement('div');
+    kyc.className = 'field'; kyc.style.marginTop = '14px';
+    kyc.innerHTML = '<label class="check" style="display:flex;gap:8px;align-items:flex-start;text-transform:none;letter-spacing:0;font-size:13px;color:var(--fg-1)"><input type="checkbox" id="iNoKyc" style="margin:3px 0 0;flex:none;width:16px;height:16px;padding:0;min-height:0"><span>No identity verification for this invitation (KYC off)</span></label>'
+      + '<span class="hint" style="display:block;margin-top:4px;font-size:11.5px;line-height:1.5;color:var(--fg-3)">The person signs the room\'s NDA without an identity check; the signed copy states that no identity verification was carried out. People already verified are not affected. It can be switched on again in the member list until the NDA is signed.</span>';
+    untilField.parentNode.insertBefore(kyc, untilField.nextSibling);
+    var call = A.callFn;
+    A.callFn = function (fn, body) {
+      if (fn === 'clv-admin-rooms' && body && body.action === 'invite' && q('iNoKyc') && q('iNoKyc').checked) body.kyc_waived = true;
+      return call.apply(this, arguments);
+    };
+  }
 })();

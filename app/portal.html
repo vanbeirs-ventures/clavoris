@@ -52,7 +52,13 @@
     var h = new Date().getHours(); var g = I.t(h < 12 ? 'portal.greet.morning' : h < 18 ? 'portal.greet.afternoon' : 'portal.greet.evening');
     q('greet').textContent = g + ', ' + (p.full_name || '').split(' ')[0] + '.';
     q('sub').textContent = [I.t(p.role === 'user' ? 'portal.role.investor' : p.role === 'super' ? 'portal.role.super' : 'portal.role.admin'), p.company].filter(Boolean).join(' · ');
-    if (KYC[p.status] && !A.isAdmin()) { q('kycBanner').style.display = 'block'; q('kycText').textContent = I.t('portal.kyc.' + p.status); if (p.status === 'rejected' || p.status === 'kyc_pending') q('kycBtn').style.display = 'none'; }
+    // The identity-verification banner is not shown when every data room of this person has "KYC off" (set by the
+    // company running it): they only sign the room's NDA.
+    if (KYC[p.status] && !A.isAdmin()) A.client().from('clv_room_assignments').select('kyc_waived').eq('user_id', p.id).is('revoked_at', null).then(function (r) {
+      var rows = (r && r.data) || [];
+      if (rows.length && rows.every(function (x) { return x.kyc_waived; })) return;
+      q('kycBanner').style.display = 'block'; q('kycText').textContent = I.t('portal.kyc.' + p.status); if (p.status === 'rejected' || p.status === 'kyc_pending') q('kycBtn').style.display = 'none';
+    });
 
     var sb = A.client();
     var query = A.isAdmin()
