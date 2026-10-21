@@ -1,7 +1,7 @@
 // supabase/functions/clv-room-nda/index.ts
 // NDA gate for a data room.
 //   { action: "text", room_id }                       -> the NDA text and version
-//   { action: "sign", room_id, typed_name, accept }   -> signs it (identity-verified users only)
+//   { action: "sign", room_id, typed_name, accept }   -> signs it (identity-verified users, or "KYC off" for this person)
 //   { action: "store", room_id }                      -> stores the PDF of an existing signature whose
 //                                                        copy could not be stored at signing time
 //   { action: "countersign_status", room_id }         -> the Disclosing Party's countersignature of the room's NDA
@@ -10,7 +10,9 @@
 //                                                        runs the room signs the NDA once (per NDA version) for
 //                                                        that company; the signature is added to every member's
 //                                                        signed copy of that version, also to copies signed earlier
-// Signing: the user must be KYC-verified (Didit; historical users via Sumsub). The NDA is rendered to a PDF with a
+// Signing: the user must be KYC-verified (Didit; historical users via Sumsub), unless the company running the room
+// switched identity verification off for this person ("KYC off", clv_room_assignments.kyc_waived): the signature record
+// then states that no identity verification was carried out (validation.method "click-kyc-waived"). The NDA is rendered to a PDF with a
 // signature block (name, email, organisation, time, IP, KYC reference, hashes), stored in
 // Nextcloud under <room>/_users/<email>/ and recorded in clv_signed_documents. The record
 // carries validation.method so an eIDAS QES signature (e-Signature.eu) can replace it later.
@@ -32,7 +34,26 @@ function wrap(text: string, max: number): string[] {
   return out;
 }
 
-async function renderNdaPdf(opts: { title: string; room: string; text: string; sig: Record<string, string> }): Promise<Uint8Array> {
+// Closing statement under the signature record: identity-verified acceptance, or acceptance without identity
+// verification where the company running the room switched it off for this person ("KYC off").
+const CLOSE_TEXT = {
+  nl: "Dit document werd elektronisch aanvaard door een gebruiker met geverifieerde identiteit van de Clavoris-dataroom. De identiteit van de ondertekenaar werd vóór de ondertekening geverifieerd via de KYC-procedure van Clavoris (AMLD6). De vingerafdrukken hierboven verbinden dit bijvoegsel met de precies aanvaarde tekst. Clavoris bewaart het toegangslogboek van die aanvaarding.",
+  en: "This document was accepted electronically by an identity-verified user of the Clavoris data room. The signatory's identity was verified through the Clavoris KYC procedure (AMLD6 identity verification) before signature. The hashes above bind this record to the exact text accepted. Clavoris retains the access log of this acceptance.",
+};
+const CLOSE_WAIVED = {
+  nl: "Dit document werd elektronisch aanvaard door een aangemelde gebruiker van de Clavoris-dataroom. Op verzoek van de Verstrekkende Partij werd voor deze ondertekenaar geen identiteitsverificatie uitgevoerd; de ondertekenaar wordt geïdentificeerd aan de hand van zijn Clavoris-account (e-mailadres en aanmelding). De vingerafdrukken hierboven verbinden dit bijvoegsel met de precies aanvaarde tekst. Clavoris bewaart het toegangslogboek van die aanvaarding.",
+  en: "This document was accepted electronically by a signed-in user of the Clavoris data room. At the request of the Disclosing Party no identity verification was carried out for this signatory; the signatory is identified by his Clavoris account (e-mail address and sign-in). The hashes above bind this record to the exact text accepted. Clavoris retains the access log of this acceptance.",
+};
+const CLOSE_PDF = {
+  nl: "De voorgaande pagina's vormen de geheimhoudingsovereenkomst zoals zij op Clavoris aan de ondertekenaar werd voorgelegd; de SHA-256 hierboven verbindt dit bijvoegsel met dat document. Zij werd elektronisch aanvaard door een gebruiker met geverifieerde identiteit (AMLD6-KYC); Clavoris bewaart het toegangslogboek van die aanvaarding.",
+  en: "The preceding pages are the non-disclosure agreement exactly as presented to the signatory on Clavoris; the SHA-256 above binds this record to that document. It was accepted electronically by an identity-verified user (AMLD6 KYC) and Clavoris retains the access log of this acceptance.",
+};
+const CLOSE_PDF_WAIVED = {
+  nl: "De voorgaande pagina's vormen de geheimhoudingsovereenkomst zoals zij op Clavoris aan de ondertekenaar werd voorgelegd; de SHA-256 hierboven verbindt dit bijvoegsel met dat document. Zij werd elektronisch aanvaard door een aangemelde gebruiker; op verzoek van de Verstrekkende Partij werd voor deze ondertekenaar geen identiteitsverificatie uitgevoerd. Clavoris bewaart het toegangslogboek van die aanvaarding.",
+  en: "The preceding pages are the non-disclosure agreement exactly as presented to the signatory on Clavoris; the SHA-256 above binds this record to that document. It was accepted electronically by a signed-in user; at the request of the Disclosing Party no identity verification was carried out for this signatory. Clavoris retains the access log of this acceptance.",
+};
+
+async function renderNdaPdf(opts: { title: string; room: string; text: string; sig: Record<string, string>; waived?: boolean }): Promise<Uint8Array> {
   const pdf = await PDFDocument.create();
   const font = await pdf.embedFont(StandardFonts.TimesRoman);
   const bold = await pdf.embedFont(StandardFonts.TimesRomanBold);
@@ -62,9 +83,10 @@ async function renderNdaPdf(opts: { title: string; room: string; text: string; s
     if (y < M) newPage();
   }
   y -= 8;
-  for (const l of wrap("Dit document werd elektronisch aanvaard door een gebruiker met geverifieerde identiteit van de Clavoris-dataroom. De identiteit van de ondertekenaar werd vóór de ondertekening geverifieerd via de KYC-procedure van Clavoris (AMLD6). De vingerafdrukken hierboven verbinden dit bijvoegsel met de precies aanvaarde tekst. Clavoris bewaart het toegangslogboek van die aanvaarding.", 100)) line(l, font, 8.5, rgb(0.1, 0.1, 0.1));
+  const close = opts.waived ? CLOSE_WAIVED : CLOSE_TEXT;
+  for (const l of wrap(close.nl, 100)) line(l, font, 8.5, rgb(0.1, 0.1, 0.1));
   y -= 4;
-  for (const l of wrap("This document was accepted electronically by an identity-verified user of the Clavoris data room. The signatory's identity was verified through the Clavoris KYC procedure (AMLD6 identity verification) before signature. The hashes above bind this record to the exact text accepted. Clavoris retains the access log of this acceptance.", 100)) line(l, font, 8.5, grey);
+  for (const l of wrap(close.en, 100)) line(l, font, 8.5, grey);
   const pages = pdf.getPages();
   pages.forEach((p, i) => p.drawText(`Clavoris · ${opts.room} · NDA · page ${i + 1} / ${pages.length}`, { x: M, y: 30, size: 8, font, color: grey }));
   return await pdf.save();
@@ -72,7 +94,7 @@ async function renderNdaPdf(opts: { title: string; room: string; text: string; s
 
 // Uploaded NDA (PDF chosen by the company admin): the signed copy is the original PDF with a
 // Clavoris signature page appended (the original pages are left untouched).
-async function appendSignaturePage(original: Uint8Array, opts: { room: string; company: string; sig: Record<string, string> }): Promise<Uint8Array> {
+async function appendSignaturePage(original: Uint8Array, opts: { room: string; company: string; sig: Record<string, string>; waived?: boolean }): Promise<Uint8Array> {
   const pdf = await PDFDocument.load(original, { ignoreEncryption: true });
   const font = await pdf.embedFont(StandardFonts.TimesRoman), bold = await pdf.embedFont(StandardFonts.TimesRomanBold), mono = await pdf.embedFont(StandardFonts.Courier);
   const navy = rgb(0.10, 0.23, 0.36), gold = rgb(0.72, 0.53, 0.04), grey = rgb(0.35, 0.35, 0.35), ink = rgb(0.1, 0.1, 0.1);
@@ -91,9 +113,10 @@ async function appendSignaturePage(original: Uint8Array, opts: { room: string; c
     y -= 1.5;
   }
   y -= 10;
-  for (const l of wrap("De voorgaande pagina's vormen de geheimhoudingsovereenkomst zoals zij op Clavoris aan de ondertekenaar werd voorgelegd; de SHA-256 hierboven verbindt dit bijvoegsel met dat document. Zij werd elektronisch aanvaard door een gebruiker met geverifieerde identiteit (AMLD6-KYC); Clavoris bewaart het toegangslogboek van die aanvaarding.", 100)) { page.drawText(l, { x: M, y, size: 8.5, font, color: ink }); y -= 12; }
+  const close = opts.waived ? CLOSE_PDF_WAIVED : CLOSE_PDF;
+  for (const l of wrap(close.nl, 100)) { page.drawText(l, { x: M, y, size: 8.5, font, color: ink }); y -= 12; }
   y -= 6;
-  for (const l of wrap("The preceding pages are the non-disclosure agreement exactly as presented to the signatory on Clavoris; the SHA-256 above binds this record to that document. It was accepted electronically by an identity-verified user (AMLD6 KYC) and Clavoris retains the access log of this acceptance.", 100)) { page.drawText(l, { x: M, y, size: 8.5, font, color: grey }); y -= 12; }
+  for (const l of wrap(close.en, 100)) { page.drawText(l, { x: M, y, size: 8.5, font, color: grey }); y -= 12; }
   const pages = pdf.getPages();
   pages[pages.length - 1].drawText(`Clavoris · ${opts.room} · NDA · handtekeningbijvoegsel / signature record`, { x: M, y: 30, size: 8, font, color: grey });
   return await pdf.save();
@@ -151,7 +174,7 @@ async function storeNda(room: { nextcloud_folder: string | null; slug: string },
   catch (e) { console.error("clv-room-nda: nextcloud store failed:", (e as Error).message); return null; }
 }
 
-function sigBlock(me: { email: string; company: string | null; job_title?: string | null; legal_rep?: boolean | null; sumsub_applicant_id: string | null; kyc_provider?: string | null; kyc_session_id?: string | null; kyc_reviewed_at: string | null }, typed: string, at: Date, ip: string, version: string, shaUnsigned: string): Record<string, string> {
+function sigBlock(me: { email: string; company: string | null; job_title?: string | null; legal_rep?: boolean | null; sumsub_applicant_id: string | null; kyc_provider?: string | null; kyc_session_id?: string | null; kyc_reviewed_at: string | null }, typed: string, at: Date, ip: string, version: string, shaUnsigned: string, waived?: { company: string }): Record<string, string> {
   return {
     // Bilingual labels and texts, Dutch first (the data-room NDAs are Dutch-binding), then English.
     "Ondertekenaar / Signatory": typed, "E-mail": me.email, "Organisatie / Organisation": me.company || "— (privépersoon / private person)",
@@ -160,8 +183,8 @@ function sigBlock(me: { email: string; company: string | null; job_title?: strin
       ? (me.legal_rep ? `Wettelijk vertegenwoordiger, bevoegd om te ondertekenen namens ${me.company} / Legal representative, authorised to sign on behalf of ${me.company}` : `Ondertekent in eigen naam, niet als bevoegd vertegenwoordiger van ${me.company} / Signs in a personal capacity, not as authorised representative of ${me.company}`)
       : "Privépersoon, ondertekent in eigen naam / Private person, signs in a personal capacity",
     "Ondertekend / Signed (UTC)": at.toISOString().replace("T", " ").slice(0, 19),
-    "Identiteit / Identity": `${me.kyc_provider === "didit" || (!me.sumsub_applicant_id && me.kyc_session_id) ? `Didit KYC · sessie / session ${me.kyc_session_id || "n/a"}` : `Sumsub KYC · applicant ${me.sumsub_applicant_id || "n/a"}`} · beoordeeld / reviewed ${me.kyc_reviewed_at ? String(me.kyc_reviewed_at).slice(0, 10) : "n/a"}`,
-    "Methode / Method": "Elektronische aanvaarding na identiteitsverificatie (eIDAS eenvoudige e-handtekening) / KYC-attested electronic acceptance (eIDAS simple e-signature)",
+    "Identiteit / Identity": waived ? `Niet geverifieerd: identiteitsverificatie niet vereist door ${waived.company} voor deze dataroom / Not verified: identity verification not required by ${waived.company} for this data room` : `${me.kyc_provider === "didit" || (!me.sumsub_applicant_id && me.kyc_session_id) ? `Didit KYC · sessie / session ${me.kyc_session_id || "n/a"}` : `Sumsub KYC · applicant ${me.sumsub_applicant_id || "n/a"}`} · beoordeeld / reviewed ${me.kyc_reviewed_at ? String(me.kyc_reviewed_at).slice(0, 10) : "n/a"}`,
+    "Methode / Method": waived ? "Elektronische aanvaarding zonder identiteitsverificatie (eIDAS eenvoudige e-handtekening) / Electronic acceptance without identity verification (eIDAS simple e-signature)" : "Elektronische aanvaarding na identiteitsverificatie (eIDAS eenvoudige e-handtekening) / KYC-attested electronic acceptance (eIDAS simple e-signature)",
     "IP-adres / IP address": ip || "n/a", "NDA-versie / NDA version": version, "SHA-256 NDA": shaUnsigned,
   };
 }
@@ -182,9 +205,12 @@ Deno.serve(async (req) => {
   const companyName = (room as any).company?.name || "Clavoris";
   // Staff rights only in the rooms of the staff member's own company (a super admin: everywhere).
   const staffHere = isStaff(me) && inScope(me, room.company_id);
+  // "KYC off": the company running the room switched identity verification off for this person in this room.
+  let waived = false;
   if (!staffHere) {
-    const { data: a } = await admin.from("clv_room_assignments").select("id, expires_at").eq("room_id", roomId).eq("user_id", me.id).is("revoked_at", null).maybeSingle();
+    const { data: a } = await admin.from("clv_room_assignments").select("id, expires_at, kyc_waived").eq("room_id", roomId).eq("user_id", me.id).is("revoked_at", null).maybeSingle();
     if (!a) return json({ error: "forbidden" }, 403);
+    waived = !!a.kyc_waived && me.status !== "verified";
     // After the access end date the member may still read / store their NDA, but not sign a new one.
     if (a.expires_at && new Date(a.expires_at) < new Date() && action === "sign") return json({ error: "expired" }, 403);
   }
@@ -252,12 +278,12 @@ Deno.serve(async (req) => {
   }
 
   // Build the signed PDF: the uploaded NDA with a signature page, or the rendered text NDA.
-  async function signedPdf(sig: Record<string, string>): Promise<Uint8Array> {
+  async function signedPdf(sig: Record<string, string>, noKyc = false): Promise<Uint8Array> {
     if (room!.nda_pdf_path) {
-      try { const r = await ncGet(room!.nda_pdf_path); return await appendSignaturePage(new Uint8Array(await r.arrayBuffer()), { room: room!.name, company: companyName, sig }); }
+      try { const r = await ncGet(room!.nda_pdf_path); return await appendSignaturePage(new Uint8Array(await r.arrayBuffer()), { room: room!.name, company: companyName, sig, waived: noKyc }); }
       catch (e) { console.error("clv-room-nda: nda pdf unavailable, falling back to text:", (e as Error).message); }
     }
-    return await renderNdaPdf({ title: "Non-Disclosure Agreement", room: room!.name, text, sig });
+    return await renderNdaPdf({ title: "Non-Disclosure Agreement", room: room!.name, text, sig, waived: noKyc });
   }
 
   if (action === "store") {
@@ -268,7 +294,8 @@ Deno.serve(async (req) => {
     const v = (rec.validation || {}) as Record<string, string>;
     const at = new Date(rec.signed_at);
     const shaUnsigned = room.nda_pdf_sha256 || await sha256Hex(text);
-    let pdfBytes = await signedPdf(sigBlock(me, v.typed_name || me.full_name || "", at, v.ip || "", rec.doc_version, shaUnsigned));
+    const recWaived = (v as any).method === "click-kyc-waived";
+    let pdfBytes = await signedPdf(sigBlock(me, v.typed_name || me.full_name || "", at, v.ip || "", rec.doc_version, shaUnsigned, recWaived ? { company: companyName } : undefined), recWaived);
     const csl = await countersignFor(rec.doc_version);
     if (csl) pdfBytes = await appendCountersignPage(pdfBytes, csl, { room: room.name, company: companyName, version: rec.doc_version });
     const ncPath = await storeNda(room, me.email, rec.doc_version, at, pdfBytes);
@@ -280,7 +307,7 @@ Deno.serve(async (req) => {
 
   if (action !== "sign") return json({ error: "bad-action" }, 400);
   if (!room.qes_nda_required) return json({ ok: true, already: true });
-  if (me.status !== "verified" && !staffHere) return json({ error: "kyc-required" }, 403);
+  if (me.status !== "verified" && !staffHere && !waived) return json({ error: "kyc-required" }, 403);
   if (body.accept !== true) return json({ error: "accept-required" }, 400);
   if (!profileComplete(me)) return json({ error: "profile-incomplete" }, 400);
   const typed = String(body.typed_name || "").trim();
@@ -292,7 +319,7 @@ Deno.serve(async (req) => {
   const now = new Date();
   const ip = clientIp(req), ua = req.headers.get("user-agent") || "";
   const shaUnsigned = room.nda_pdf_sha256 || await sha256Hex(text);
-  let pdfBytes = await signedPdf(sigBlock(me, typed, now, ip, version, shaUnsigned));
+  let pdfBytes = await signedPdf(sigBlock(me, typed, now, ip, version, shaUnsigned, waived ? { company: companyName } : undefined), waived);
   // The Disclosing Party's standing countersignature of this version, if given, is added at once.
   const cs = await countersignFor(version);
   if (cs) pdfBytes = await appendCountersignPage(pdfBytes, cs, { room: room.name, company: companyName, version });
@@ -303,7 +330,7 @@ Deno.serve(async (req) => {
     user_id: me.id, room_id: roomId, doc_type: "nda", doc_version: version,
     sha256_unsigned: shaUnsigned, sha256_signed: shaSigned, nextcloud_path: ncPath, signed_at: now.toISOString(),
     ...(cs && ncPath ? { countersigned_path: ncPath, countersigned_at: now.toISOString(), countersignature_id: cs.id } : {}),
-    validation: { method: "kyc-attested-click", typed_name: typed, organisation: me.company || null, role: me.job_title || null, legal_rep: me.company ? !!me.legal_rep : null, ip, user_agent: ua, sumsub_applicant_id: me.sumsub_applicant_id, kyc_provider: me.kyc_provider || (me.sumsub_applicant_id ? "sumsub" : null), kyc_session_id: me.kyc_session_id, kyc_reviewed_at: me.kyc_reviewed_at, stored: !!ncPath },
+    validation: { method: waived ? "click-kyc-waived" : "kyc-attested-click", kyc_waived: waived, typed_name: typed, organisation: me.company || null, role: me.job_title || null, legal_rep: me.company ? !!me.legal_rep : null, ip, user_agent: ua, sumsub_applicant_id: me.sumsub_applicant_id, kyc_provider: me.kyc_provider || (me.sumsub_applicant_id ? "sumsub" : null), kyc_session_id: me.kyc_session_id, kyc_reviewed_at: me.kyc_reviewed_at, stored: !!ncPath },
   });
   if (error) return json({ error: error.message }, 400);
   await admin.from("clv_access_log").insert({ user_id: me.id, room_id: roomId, file_path: ncPath, action: "nda-signed", ip, user_agent: ua }).then(() => {}, () => {});
