@@ -15,6 +15,9 @@
 //   { action: "set_answerer", room_id, user_id, on }      -> tag a member as answering the room's Q&A questions
 //   { action: "set_kyc", room_id, user_id, waived } -> "KYC off" / "KYC on" for this person in this room; switching it
 //                                                         off mails the person (sign in again, sign the NDA, no identity check)
+//   { action: "set_nda", room_id, user_id, waived } -> "NDA off" / "NDA on" for this person in this room: the documents open
+//                                                         without the room's NDA (identity verification still applies
+//                                                         unless "KYC off"); switching it off mails the person
 //   { action: "add_self", room_id }                      -> add the calling staff member to the room's member list (company team)
 //   { action: "team", company_id }                       -> staff of a company account, with the plan's staff seats
 //   { action: "team_invite", company_id, email, lang?, salutation?, first_name?, last_name? } -> add a staff member (mail)
@@ -320,7 +323,7 @@ Deno.serve(async (req) => {
     // Every assignment, including revoked ones (tagged, with the option to reactivate), with the
     // full onboarding status: activated (first sign-in), KYC, NDA, access end date, last access,
     // last reminder and any pending extension request.
-    const { data: rows } = await admin.from("clv_room_assignments").select("id, user_id, can_download, expires_at, granted_at, revoked_at, answers_questions, kyc_waived, kyc_waived_at, profile:clv_profiles!clv_room_assignments_user_id_fkey(email, full_name, company, status, last_login_at, lang, role, company_id)").eq("room_id", roomId).order("granted_at", { ascending: false });
+    const { data: rows } = await admin.from("clv_room_assignments").select("id, user_id, can_download, expires_at, granted_at, revoked_at, answers_questions, kyc_waived, kyc_waived_at, nda_waived, nda_waived_at, profile:clv_profiles!clv_room_assignments_user_id_fkey(email, full_name, company, status, last_login_at, lang, role, company_id)").eq("room_id", roomId).order("granted_at", { ascending: false });
     const ids = (rows || []).map((r: any) => r.user_id);
     const { data: signed } = ids.length ? await admin.from("clv_signed_documents").select("user_id, signed_at").eq("room_id", roomId).eq("doc_type", "nda").in("user_id", ids) : { data: [] as any[] };
     const { data: last } = ids.length ? await admin.from("clv_access_log").select("user_id, ts, action").eq("room_id", roomId).in("user_id", ids).order("ts", { ascending: false }).limit(500) : { data: [] as any[] };
@@ -344,8 +347,8 @@ Deno.serve(async (req) => {
       const activated = inUse[r.user_id];
       // Company team: staff of the company that runs the room (or a Clavoris super admin); no NDA, no reminders.
       const team = r.profile?.role === "super" || (r.profile?.role === "admin" && !!room.company_id && r.profile?.company_id === room.company_id);
-      const next = r.revoked_at || team ? null : !activated ? "signup" : !verified && !r.kyc_waived ? "kyc" : !nda ? "nda" : null;
-      return { team, kyc_waived: !!r.kyc_waived, kyc_waived_at: r.kyc_waived_at || null, user_id: r.user_id, email: r.profile?.email, name: r.profile?.full_name, company: r.profile?.company, status: st, lang: r.profile?.lang, activated, last_login_at: r.profile?.last_login_at || null, can_download: r.can_download, answers_questions: !!r.answers_questions, expires_at: r.expires_at, granted_at: r.granted_at, revoked_at: r.revoked_at, nda_signed_at: signedAt[r.user_id] || null, last_access: lastAt[r.user_id] || null, next_step: next, reminded: remAt[r.user_id] || null, pending_request: pending[r.user_id] || null, last_request: lastReq[r.user_id] || null };
+      const next = r.revoked_at || team ? null : !activated ? "signup" : !verified && !r.kyc_waived ? "kyc" : !nda && !r.nda_waived && room.qes_nda_required ? "nda" : null;
+      return { team, kyc_waived: !!r.kyc_waived, kyc_waived_at: r.kyc_waived_at || null, nda_waived: !!r.nda_waived, nda_waived_at: r.nda_waived_at || null, user_id: r.user_id, email: r.profile?.email, name: r.profile?.full_name, company: r.profile?.company, status: st, lang: r.profile?.lang, activated, last_login_at: r.profile?.last_login_at || null, can_download: r.can_download, answers_questions: !!r.answers_questions, expires_at: r.expires_at, granted_at: r.granted_at, revoked_at: r.revoked_at, nda_signed_at: signedAt[r.user_id] || null, last_access: lastAt[r.user_id] || null, next_step: next, reminded: remAt[r.user_id] || null, pending_request: pending[r.user_id] || null, last_request: lastReq[r.user_id] || null };
     }) });
   }
 
@@ -361,14 +364,14 @@ Deno.serve(async (req) => {
 
   if (action === "remind") {
     const userId = String(body.user_id || "");
-    const { data: a } = await admin.from("clv_room_assignments").select("id, revoked_at, expires_at, kyc_waived, profile:clv_profiles!clv_room_assignments_user_id_fkey(email, full_name, status, last_login_at, lang)").eq("room_id", roomId).eq("user_id", userId).maybeSingle();
+    const { data: a } = await admin.from("clv_room_assignments").select("id, revoked_at, expires_at, kyc_waived, nda_waived, profile:clv_profiles!clv_room_assignments_user_id_fkey(email, full_name, status, last_login_at, lang)").eq("room_id", roomId).eq("user_id", userId).maybeSingle();
     const prof = (a as any)?.profile;
     if (!a || !prof) return json({ error: "not-member" }, 404);
     if (a.revoked_at) return json({ error: "revoked" }, 400);
     const { data: nda } = await admin.from("clv_signed_documents").select("id").eq("room_id", roomId).eq("user_id", userId).eq("doc_type", "nda").maybeSingle();
     // An account already in use never gets an activation mail, only the sign-in page and the open step.
     const activated = !!nda || await isActivated(admin, userId, prof.last_login_at, prof.status);
-    const step = !activated ? "signup" : prof.status !== "verified" && !a.kyc_waived ? "kyc" : !nda ? "nda" : null;
+    const step = !activated ? "signup" : prof.status !== "verified" && !a.kyc_waived ? "kyc" : !nda && !a.nda_waived && room.qes_nda_required ? "nda" : null;
     if (!step) return json({ ok: true, step: null });
     const L = pickLang(prof.lang);
     let link = `${APP_URL}/room.html?id=${roomId}`;
@@ -377,7 +380,7 @@ Deno.serve(async (req) => {
       link = l?.properties?.hashed_token ? `${APP_URL}/reset.html?token_hash=${encodeURIComponent(l.properties.hashed_token)}&type=recovery&welcome=1&lang=${L}&room=${encodeURIComponent(room.name)}&by=${encodeURIComponent(cname)}` : `${APP_URL}/login.html?lang=${L}`;
     } else if (step === "kyc") link = `${APP_URL}/login.html?lang=${L}&next=${encodeURIComponent("kyc.html?next=room.html%3Fid%3D" + roomId)}`;
     else link = signInTo(roomId, L);
-    const m = mail(L, "remind_" + step, { name: prof.full_name, room: room.name, owner: cname, link, nokyc: a.kyc_waived ? "1" : "" });
+    const m = mail(L, "remind_" + step, { name: prof.full_name, room: room.name, owner: cname, link, nokyc: a.kyc_waived ? "1" : "", nonda: a.nda_waived ? "1" : "" });
     let mailed = false;
     try { mailed = await sendMail(prof.email, m.subject, m.text, L, step === "signup" ? { url: link, label: ctaLabel(L, "activate") } : undefined); } catch (e) { console.error("clv-admin-rooms remind mail:", (e as Error).message); }
     await audit(admin, me, "room-reminder-sent", userId, { room: room.slug, step, mailed });
@@ -396,16 +399,16 @@ Deno.serve(async (req) => {
       const L = pickLang(prof.lang), until = expires ? word(L, "until_line", { date: fmtDay(expires, L) }) : "";
       // Never signed in: a fresh activation link (an earlier one may have expired). Otherwise: the sign-in page.
       const act = (await isActivated(admin, userId, prof.last_login_at, prof.status)) ? null : await activationLink(admin, prof.email);
-      const { data: wv } = await admin.from("clv_room_assignments").select("kyc_waived").eq("room_id", roomId).eq("user_id", userId).maybeSingle();
-      const noKyc = !!wv?.kyc_waived && prof.status !== "verified";
+      const { data: wv } = await admin.from("clv_room_assignments").select("kyc_waived, nda_waived").eq("room_id", roomId).eq("user_id", userId).maybeSingle();
+      const noKyc = !!wv?.kyc_waived && prof.status !== "verified", noNda = !!wv?.nda_waived;
       if (act) {
         const url = withLang(act, L) + `&room=${encodeURIComponent(room.name)}&by=${encodeURIComponent(cname)}`;
-        const m = mail(L, "room_invite_new", { name: prof.full_name, room: room.name, company: cname, owner: cname, until, link: url, nokyc: noKyc ? "1" : "" });
+        const m = mail(L, "room_invite_new", { name: prof.full_name, room: room.name, company: cname, owner: cname, until, link: url, nokyc: noKyc ? "1" : "", nonda: noNda ? "1" : "" });
         await sendMail(prof.email, m.subject, m.text, L, { url, label: ctaLabel(L, "activate") }).catch(() => false);
       } else {
         const url = signInTo(room.id, L);
         const { data: nda } = await admin.from("clv_signed_documents").select("id").eq("room_id", roomId).eq("user_id", userId).eq("doc_type", "nda").limit(1);
-        const st = existingSteps(L, { verified: prof.status === "verified", ndaRequired: !!room.qes_nda_required, ndaSigned: !!(nda && nda.length), waived: noKyc });
+        const st = existingSteps(L, { verified: prof.status === "verified", ndaRequired: !!room.qes_nda_required, ndaSigned: !!(nda && nda.length), waived: noKyc, ndaWaived: noNda });
         const m = mail(L, "room_invite_existing", { name: prof.full_name, room: room.name, company: cname, owner: cname, until, link: url, steps: st.steps, kyc: st.kyc ? "1" : "" });
         await sendMail(prof.email, m.subject, m.text, L, { url, label: OPEN_CTA[L] }).catch(() => false);
       }
@@ -419,7 +422,7 @@ Deno.serve(async (req) => {
     // while the NDA is not yet signed). The company team and identity-verified people are not concerned.
     const userId = String(body.user_id || "");
     const waive = body.waived === true;
-    const { data: a } = await admin.from("clv_room_assignments").select("id, revoked_at, kyc_waived, profile:clv_profiles!clv_room_assignments_user_id_fkey(email, full_name, status, last_login_at, lang, role, company_id)").eq("room_id", roomId).eq("user_id", userId).maybeSingle();
+    const { data: a } = await admin.from("clv_room_assignments").select("id, revoked_at, kyc_waived, nda_waived, profile:clv_profiles!clv_room_assignments_user_id_fkey(email, full_name, status, last_login_at, lang, role, company_id)").eq("room_id", roomId).eq("user_id", userId).maybeSingle();
     const prof = (a as any)?.profile;
     if (!a || !prof) return json({ error: "not-member" }, 404);
     if (a.revoked_at) return json({ error: "revoked" }, 400);
@@ -437,9 +440,40 @@ Deno.serve(async (req) => {
         const L = pickLang(prof.lang);
         const act = (await isActivated(admin, userId, prof.last_login_at, prof.status)) ? null : await activationLink(admin, prof.email);
         const link = act ? withLang(act, L) + `&room=${encodeURIComponent(room.name)}&by=${encodeURIComponent(cname)}` : signInTo(room.id, L);
-        const m = mail(L, act ? "kyc_waived_new" : "kyc_waived", { name: prof.full_name, room: room.name, company: cname, owner: cname, link });
+        const m = mail(L, act ? "kyc_waived_new" : "kyc_waived", { name: prof.full_name, room: room.name, company: cname, owner: cname, link, nonda: a.nda_waived ? "1" : "" });
         try { mailed = await sendMail(prof.email, m.subject, m.text, L, { url: link, label: act ? ctaLabel(L, "activate") : OPEN_CTA[L] }); } catch (e) { console.error("clv-admin-rooms kyc mail:", (e as Error).message); }
       }
+    }
+    return json({ ok: true, waived: waive, mailed });
+  }
+
+  if (action === "set_nda") {
+    // "NDA off": this person does not sign the room's NDA; the documents open after the identity verification (or
+    // straight away with "KYC off" too). "NDA on" asks for the NDA again (only matters while it is not signed). The
+    // company team does not sign the NDA anyway; someone who has signed it already is not concerned.
+    const userId = String(body.user_id || "");
+    const waive = body.waived === true;
+    const { data: a } = await admin.from("clv_room_assignments").select("id, revoked_at, kyc_waived, nda_waived, profile:clv_profiles!clv_room_assignments_user_id_fkey(email, full_name, status, last_login_at, lang, role, company_id)").eq("room_id", roomId).eq("user_id", userId).maybeSingle();
+    const prof = (a as any)?.profile;
+    if (!a || !prof) return json({ error: "not-member" }, 404);
+    if (a.revoked_at) return json({ error: "revoked" }, 400);
+    if (prof.role === "super" || (prof.role === "admin" && prof.company_id === room.company_id)) return json({ error: "company-team" }, 400);
+    if (!room.qes_nda_required) return json({ error: "no-nda" }, 400);
+    const { data: nda } = await admin.from("clv_signed_documents").select("id").eq("room_id", roomId).eq("user_id", userId).eq("doc_type", "nda").limit(1);
+    if (waive && nda && nda.length) return json({ error: "already-signed" }, 400);
+    if (!!a.nda_waived === waive) return json({ ok: true, waived: waive, mailed: false, unchanged: true });
+    const { error } = await admin.from("clv_room_assignments").update({ nda_waived: waive, nda_waived_at: waive ? new Date().toISOString() : null, nda_waived_by: waive ? me.id : null }).eq("id", a.id);
+    if (error) return json({ error: error.message }, 400);
+    await audit(admin, me, waive ? "room-nda-waived" : "room-nda-required", userId, { room: room.slug });
+    let mailed = false;
+    if (waive) {
+      // Mail: sign in again (or activate the account if never used), verify the identity when still needed, documents open.
+      const L = pickLang(prof.lang);
+      const act = (await isActivated(admin, userId, prof.last_login_at, prof.status)) ? null : await activationLink(admin, prof.email);
+      const link = act ? withLang(act, L) + `&room=${encodeURIComponent(room.name)}&by=${encodeURIComponent(cname)}` : signInTo(room.id, L);
+      const noKyc = prof.status === "verified" || !!a.kyc_waived;
+      const m = mail(L, act ? "nda_waived_new" : "nda_waived", { name: prof.full_name, room: room.name, company: cname, owner: cname, link, nokyc: noKyc ? "1" : "" });
+      try { mailed = await sendMail(prof.email, m.subject, m.text, L, { url: link, label: act ? ctaLabel(L, "activate") : OPEN_CTA[L] }); } catch (e) { console.error("clv-admin-rooms nda mail:", (e as Error).message); }
     }
     return json({ ok: true, waived: waive, mailed });
   }
@@ -508,15 +542,18 @@ Deno.serve(async (req) => {
     // "KYC off" chosen in the invitation: no identity verification for this person in this room (not for the team, and
     // pointless for someone already verified).
     const noKyc = body.kyc_waived === true && !team && prof.status !== "verified";
-    const waiver = noKyc ? { kyc_waived: true, kyc_waived_at: new Date().toISOString(), kyc_waived_by: me.id } : {};
+    // "NDA off" chosen in the invitation: this person does not sign the room's NDA (not for the team, which never signs it).
+    const noNdaReq = body.nda_waived === true && !team && !!room.qes_nda_required;
+    const waiver = { ...(noKyc ? { kyc_waived: true, kyc_waived_at: new Date().toISOString(), kyc_waived_by: me.id } : {}), ...(noNdaReq ? { nda_waived: true, nda_waived_at: new Date().toISOString(), nda_waived_by: me.id } : {}) };
     // 2. Assign (re-activate if previously revoked). End date: as chosen, else the room default; none for the team.
     const expires = team ? null : isDate(body.expires_at) ? endOfDay(String(body.expires_at)) : room.default_expiry_days ? new Date(Date.now() + room.default_expiry_days * 86400000).toISOString() : null;
     const { data: existing } = await admin.from("clv_room_assignments").select("id, revoked_at").eq("room_id", roomId).eq("user_id", prof.id).maybeSingle();
     if (existing) await admin.from("clv_room_assignments").update({ revoked_at: null, revoked_by: null, expires_at: expires, reminded_7d_at: null, reminded_24h_at: null, granted_by: me.id, granted_at: new Date().toISOString(), ...waiver }).eq("id", existing.id);
     else await admin.from("clv_room_assignments").insert({ room_id: roomId, user_id: prof.id, can_download: true, expires_at: expires, granted_by: me.id, ...waiver });
-    const { data: asgNow } = await admin.from("clv_room_assignments").select("kyc_waived").eq("room_id", roomId).eq("user_id", prof.id).maybeSingle();
+    const { data: asgNow } = await admin.from("clv_room_assignments").select("kyc_waived, nda_waived").eq("room_id", roomId).eq("user_id", prof.id).maybeSingle();
     const waived = !!asgNow?.kyc_waived && prof.status !== "verified" && !team;
-    await audit(admin, me, "room-access-granted", email, { room: room.slug, created, expires, kyc_waived: waived });
+    const ndaOff = !!asgNow?.nda_waived && !team;
+    await audit(admin, me, "room-access-granted", email, { room: room.slug, created, expires, kyc_waived: waived, nda_waived: ndaOff });
 
     // 3. Invitation mail from the Clavoris sender, in the recipient's language, naming the inviting
     //    company and the access end date; the activation link carries both for the sign-up page.
@@ -529,17 +566,17 @@ Deno.serve(async (req) => {
     let steps = { steps: "", kyc: false };
     if (!(created || linked || activate)) {
       const { data: nda } = await admin.from("clv_signed_documents").select("id").eq("room_id", roomId).eq("user_id", prof.id).eq("doc_type", "nda").limit(1);
-      steps = existingSteps(L, { verified: prof.status === "verified", ndaRequired: !!room.qes_nda_required && !team, ndaSigned: !!(nda && nda.length), waived });
+      steps = existingSteps(L, { verified: prof.status === "verified", ndaRequired: !!room.qes_nda_required && !team, ndaSigned: !!(nda && nda.length), waived, ndaWaived: ndaOff });
     }
-    const nk = waived ? "1" : "";
-    const m = created || activate ? mail(L, "room_invite_new", { name: prof.full_name || name, room: room.name, company: cname, owner: cname, until, link: withLang(link, L) + ctx, nokyc: nk })
-      : linked ? mail(L, "room_invite_linked", { name, room: room.name, company: cname, owner: cname, until, login, link: withLang(link, L) + ctx, nokyc: nk })
+    const nk = waived ? "1" : "", nn = ndaOff ? "1" : "";
+    const m = created || activate ? mail(L, "room_invite_new", { name: prof.full_name || name, room: room.name, company: cname, owner: cname, until, link: withLang(link, L) + ctx, nokyc: nk, nonda: nn })
+      : linked ? mail(L, "room_invite_linked", { name, room: room.name, company: cname, owner: cname, until, login, link: withLang(link, L) + ctx, nokyc: nk, nonda: nn })
       : mail(L, "room_invite_existing", { name: prof.full_name || name, room: room.name, company: cname, owner: cname, until, link: openRoom, steps: steps.steps, kyc: steps.kyc ? "1" : "" });
     let mailed = false;
     // Account never used: activation button (set the password). Account in use: the sign-in page, which opens the room.
     const cta = (created || linked || activate) ? { url: withLang(link, L) + ctx, label: ctaLabel(L, "activate") } : { url: openRoom, label: OPEN_CTA[L] };
     try { mailed = await sendMail(email, m.subject, m.text, L, cta); } catch (e) { console.error("clv-admin-rooms invite mail:", (e as Error).message); }
-    return json({ ok: true, user_id: prof.id, team, kyc_waived: waived, created, linked, existing: !(created || linked || activate), activation: created || linked || activate, mailed, expires_at: expires });
+    return json({ ok: true, user_id: prof.id, team, kyc_waived: waived, nda_waived: ndaOff, created, linked, existing: !(created || linked || activate), activation: created || linked || activate, mailed, expires_at: expires });
   }
 
   return json({ error: "bad-action" }, 400);
