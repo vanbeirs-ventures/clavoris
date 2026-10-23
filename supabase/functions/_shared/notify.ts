@@ -5,6 +5,7 @@ import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { APP_URL, fmtDay, sendMail } from "./clv.ts";
 import { mail, pickLang, word } from "./room-mail.ts";
 import { ncConfigured, ncTree } from "./nc.ts";
+import { roomAutoMails } from "./room-auto-mail.ts";
 
 export type NotifyKey = "room_new" | "room_updated" | "contract_new" | "market_new" | "portfolio_events";
 export const NOTIFY_KEYS: NotifyKey[] = ["room_new", "room_updated", "contract_new", "market_new", "portfolio_events"];
@@ -26,6 +27,8 @@ type Snap = { path: string; etag: string | null; size: number | null; modified: 
 export async function scanRooms(admin: SupabaseClient): Promise<{ rooms: number; mails: number; new_files: number; updated_files: number }> {
   const out = { rooms: 0, mails: 0, new_files: 0, updated_files: 0 };
   if (!(await ncConfigured())) return out;
+  // Automatic member mails switched off (see room-auto-mail.ts): the file snapshot is still kept up to date.
+  const mailOn = await roomAutoMails(admin);
   const { data: rooms } = await admin.from("clv_rooms").select("id, name, nextcloud_folder, status, company:clv_companies(name)").not("nextcloud_folder", "is", null).neq("status", "closed");
   for (const room of rooms || []) {
     out.rooms++;
@@ -49,6 +52,7 @@ export async function scanRooms(admin: SupabaseClient): Promise<{ rooms: number;
     // First scan of a room only seeds the snapshot: nobody is mailed about files that were already there.
     if (!(known || []).length || (!added.length && !changed.length)) continue;
     out.new_files += added.length; out.updated_files += changed.length;
+    if (!mailOn) continue;
     const { data: asg } = await admin.from("clv_room_assignments").select("user_id, expires_at, profile:clv_profiles!clv_room_assignments_user_id_fkey(" + RECIP + ")").eq("room_id", room.id).is("revoked_at", null);
     for (const a of asg || []) {
       const p = (a as unknown as { profile: Recipient }).profile; if (!p || !active(p)) continue;
@@ -112,6 +116,7 @@ export async function notifyHolders(admin: SupabaseClient, product: { id: string
 // ---- data-room access end: reminders 7 days and 24 hours before the end date ------------------
 export async function expiryReminders(admin: SupabaseClient): Promise<{ d7: number; h24: number }> {
   const out = { d7: 0, h24: 0 };
+  if (!(await roomAutoMails(admin))) return out; // automatic member mails switched off (room-auto-mail.ts)
   const now = Date.now();
   const { data: rows } = await admin.from("clv_room_assignments").select("id, user_id, expires_at, reminded_7d_at, reminded_24h_at, room:clv_rooms(id, name, company:clv_companies(name)), profile:clv_profiles!clv_room_assignments_user_id_fkey(email, full_name, lang, status)").is("revoked_at", null).not("expires_at", "is", null).gt("expires_at", new Date(now).toISOString()).lte("expires_at", new Date(now + 7 * 86400000).toISOString());
   for (const a of (rows || []) as any[]) {

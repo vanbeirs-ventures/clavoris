@@ -6,6 +6,7 @@
 import { adminClient, APP_URL, audit, clientIp, cors, fmtDay, inScope, isStaff, json, requireUser, sendMail } from "../_shared/clv.ts";
 import { EXT_CTA, mail, pickLang } from "../_shared/room-mail.ts";
 import { ncConfigured, ncTree } from "../_shared/nc.ts";
+import { roomAutoMails } from "../_shared/room-auto-mail.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
@@ -52,7 +53,8 @@ Deno.serve(async (req) => {
     const L = pickLang(me.lang);
     const rc = mail(L, "ext_received", { name: me.full_name, room: room.name, company: companyName, owner: companyName, date: fmtDay(until + "T12:00:00Z", L) });
     // Mails are awaited: the function instance may stop as soon as the response is returned.
-    const sends: Promise<unknown>[] = [sendMail(me.email, rc.subject, rc.text, L).catch((e) => console.error("ext receipt mail:", (e as Error).message))];
+    // The member's receipt is an automatic member mail (room-auto-mail.ts); the company team is always mailed.
+    const sends: Promise<unknown>[] = (await roomAutoMails(admin)) ? [sendMail(me.email, rc.subject, rc.text, L).catch((e) => console.error("ext receipt mail:", (e as Error).message))] : [];
     const { data: staff } = await admin.from("clv_profiles").select("email, lang, role, company_id").in("role", ["admin", "super"]).neq("status", "suspended");
     for (const s of (staff || []).filter((s: any) => s.role === "super" || s.company_id === room.company_id)) {
       const sl = pickLang(s.lang);
