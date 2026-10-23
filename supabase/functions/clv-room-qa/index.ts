@@ -13,6 +13,7 @@
 // Deploy: supabase functions deploy clv-room-qa --no-verify-jwt
 import { adminClient, APP_URL, cors, isStaff, json, requireUser, sendMail } from "../_shared/clv.ts";
 import { FROM_LINE, pickLang } from "../_shared/room-mail.ts";
+import { roomAutoMails } from "../_shared/room-auto-mail.ts";
 import type { Lang } from "../_shared/mail-i18n.ts";
 
 const MAIL: Record<string, Record<Lang, { s: string; t: string }>> = {
@@ -150,7 +151,7 @@ Deno.serve(async (req) => {
     await admin.from("clv_room_questions").update(patch).eq("id", question.id);
     const P = await profiles([question.asker_id]);
     const p = P[question.asker_id];
-    if (p?.email && question.asker_id !== me.id && p.notify?.qa !== false && p.notify?.qa_answer !== false) { // "answer to my question" switched on
+    if (p?.email && question.asker_id !== me.id && p.notify?.qa !== false && p.notify?.qa_answer !== false && await roomAutoMails(admin)) { // "answer to my question" switched on
       const L = pickLang(p.lang), m = MAIL.answer[L];
       const v = { name: p.full_name || FALLBACK[L], author: `${me.full_name || me.email} (${owner})`, room: room.name, question: clip(question.body, 600), body: clip(text, 2500), link };
       await sendMail(p.email, fill(m.s, v), `${FROM_LINE[L]} ${owner}\n\n` + fill(m.t, v), L).catch((e) => console.error("qa answer mail:", (e as Error).message));

@@ -23,6 +23,7 @@ import { adminClient, APP_URL, clientIp, cors, inScope, isStaff, json, requireUs
 import { mail, pickLang } from "../_shared/room-mail.ts";
 import { ncConfigured, ncGet, sha256Hex } from "../_shared/nc.ts";
 import { DOWNLOAD_ALERT_PER_HOUR, raiseRedFlag } from "../_shared/alerts.ts";
+import { roomAutoMails } from "../_shared/room-auto-mail.ts";
 
 function genCode(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; const r = crypto.getRandomValues(new Uint8Array(10));
@@ -167,7 +168,7 @@ Deno.serve(async (req) => {
       const { count: lastHour } = await admin.from("clv_downloads").select("id", { count: "exact", head: true }).eq("user_id", me.id).eq("room_id", roomId).gte("created_at", new Date(Date.now() - 3600000).toISOString());
       if ((lastHour || 0) >= DOWNLOAD_ALERT_PER_HOUR) await raiseRedFlag(admin, "downloads", { userId: me.id, roomId, key: `dl:${me.id}:${roomId}`, vars: { n: String(lastHour), room: room.name } }).catch((e: Error) => console.error("red flag:", e.message));
     }
-    if ((count || 0) === 0) {
+    if ((count || 0) === 0 && await roomAutoMails(admin)) {
       const L = pickLang(me.lang);
       const m = mail(L, "first_download", { name: me.full_name, room: room.name, owner: (room as any).company?.name || "", file: fileName, code, audit: `${APP_URL}/account.html#audit` });
       sendMail(me.email, m.subject, m.text, L).catch((e) => console.error("clv-room-file: first-download mail failed", e));
