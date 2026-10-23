@@ -47,12 +47,17 @@ export async function scanRooms(admin: SupabaseClient): Promise<{ rooms: number;
     }
     const gone = (known || []).filter((k) => !files.some((f) => f.path === k.path)).map((k) => k.path);
     const now = new Date().toISOString();
-    if (added.length || changed.length) await admin.from("clv_room_files").upsert(files.filter((f) => added.includes(f.path) || changed.includes(f.path)).map((f) => ({ room_id: room.id, ...f, last_changed: now, ...(added.includes(f.path) ? { first_seen: now } : {}) })), { onConflict: "room_id,path" });
+    // New and changed files are saved separately: in one batch the changed rows (without first_seen) were sent with
+    // first_seen = null, which the table refuses, so nothing was saved and the same changes were mailed every 15 minutes.
+    // Members are only mailed once the snapshot is saved.
+    let saved = true;
+    if (added.length) { const { error } = await admin.from("clv_room_files").upsert(files.filter((f) => added.includes(f.path)).map((f) => ({ room_id: room.id, ...f, first_seen: now, last_changed: now })), { onConflict: "room_id,path" }); if (error) { saved = false; console.error("clv-notify snapshot (new)", room.name, error.message); } }
+    if (changed.length) { const { error } = await admin.from("clv_room_files").upsert(files.filter((f) => changed.includes(f.path)).map((f) => ({ room_id: room.id, ...f, last_changed: now })), { onConflict: "room_id,path" }); if (error) { saved = false; console.error("clv-notify snapshot (changed)", room.name, error.message); } }
     if (gone.length) await admin.from("clv_room_files").delete().eq("room_id", room.id).in("path", gone);
     // First scan of a room only seeds the snapshot: nobody is mailed about files that were already there.
     if (!(known || []).length || (!added.length && !changed.length)) continue;
     out.new_files += added.length; out.updated_files += changed.length;
-    if (!mailOn) continue;
+    if (!mailOn || !saved) continue;
     const { data: asg } = await admin.from("clv_room_assignments").select("user_id, expires_at, profile:clv_profiles!clv_room_assignments_user_id_fkey(" + RECIP + ")").eq("room_id", room.id).is("revoked_at", null);
     for (const a of asg || []) {
       const p = (a as unknown as { profile: Recipient }).profile; if (!p || !active(p)) continue;
